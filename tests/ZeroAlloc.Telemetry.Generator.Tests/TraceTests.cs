@@ -25,6 +25,65 @@ public class TraceTests
         return Verifier.Verify(RunGenerator(source));
     }
 
+    [Fact]
+    public Task GeneratesCounterIncrement_ForCountMethod()
+    {
+        var source = """
+            using ZeroAlloc.Telemetry;
+            using System.Threading;
+            using System.Threading.Tasks;
+
+            [Instrument("MyApp")]
+            public interface IOrderService
+            {
+                [Count("orders.created")]
+                ValueTask CreateOrderAsync(string orderId, CancellationToken ct);
+            }
+            """;
+
+        return Verifier.Verify(RunGenerator(source));
+    }
+
+    [Fact]
+    public Task GeneratesHistogramRecord_ForHistogramMethod()
+    {
+        var source = """
+            using ZeroAlloc.Telemetry;
+            using System.Threading;
+            using System.Threading.Tasks;
+
+            [Instrument("MyApp")]
+            public interface IOrderService
+            {
+                [Histogram("order.duration_ms")]
+                ValueTask<string> GetOrderAsync(string orderId, CancellationToken ct);
+            }
+            """;
+
+        return Verifier.Verify(RunGenerator(source));
+    }
+
+    [Fact]
+    public Task GeneratesAllInstruments_WhenAllAttributesCombined()
+    {
+        var source = """
+            using ZeroAlloc.Telemetry;
+            using System.Threading;
+            using System.Threading.Tasks;
+
+            [Instrument("MyApp.Orders")]
+            public interface IOrderService
+            {
+                [Trace("order.create")]
+                [Count("orders.created")]
+                [Histogram("order.create_ms")]
+                ValueTask<string> CreateOrderAsync(string orderId, CancellationToken ct);
+            }
+            """;
+
+        return Verifier.Verify(RunGenerator(source));
+    }
+
     private static GeneratorDriver RunGenerator(string source)
     {
         // Collect all runtime refs that the test process has loaded so the compilation
