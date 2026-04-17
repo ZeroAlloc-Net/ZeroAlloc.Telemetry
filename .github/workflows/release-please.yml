@@ -1,4 +1,4 @@
-name: Release Please
+name: Release
 
 on:
   push:
@@ -12,41 +12,61 @@ permissions:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+
     outputs:
-      releases_created: ${{ steps.release.outputs.releases_created }}
+      release_created: ${{ steps.release.outputs.release_created }}
+      version: ${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }}.${{ steps.release.outputs.patch }}
       tag_name: ${{ steps.release.outputs.tag_name }}
-      version: ${{ steps.release.outputs.version }}
+
     steps:
-      - uses: googleapis/release-please-action@v4
+      - name: Run release-please
         id: release
+        uses: googleapis/release-please-action@v4
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   publish:
-    needs: release-please
-    if: needs.release-please.outputs.releases_created == 'true'
     runs-on: ubuntu-latest
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
           fetch-depth: 0
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+
       - name: Restore tools
         run: dotnet tool restore
+
+      - name: Restore
+        run: dotnet restore ZeroAlloc.Telemetry.slnx
+
       - name: Build
-        run: dotnet build ZeroAlloc.Telemetry.slnx --configuration Release -p:Version=${{ needs.release-please.outputs.version }}
+        run: dotnet build ZeroAlloc.Telemetry.slnx --configuration Release --no-restore -p:Version=${{ needs.release-please.outputs.version }}
+
       - name: Test
-        run: dotnet test ZeroAlloc.Telemetry.slnx --configuration Release --no-build --verbosity normal
+        run: dotnet test ZeroAlloc.Telemetry.slnx --configuration Release --no-build
+
       - name: Pack ZeroAlloc.Telemetry
-        run: dotnet pack src/ZeroAlloc.Telemetry/ZeroAlloc.Telemetry.csproj --configuration Release --no-build --output ./artifacts -p:Version=${{ needs.release-please.outputs.version }}
+        run: dotnet pack src/ZeroAlloc.Telemetry/ZeroAlloc.Telemetry.csproj --configuration Release --no-build -p:Version=${{ needs.release-please.outputs.version }} -o ./artifacts
+
       - name: Pack ZeroAlloc.Telemetry.Generator
-        run: dotnet pack src/ZeroAlloc.Telemetry.Generator/ZeroAlloc.Telemetry.Generator.csproj --configuration Release --no-build --output ./artifacts -p:Version=${{ needs.release-please.outputs.version }}
-      - name: Push to NuGet
-        run: dotnet nuget push ./artifacts/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
+        run: dotnet pack src/ZeroAlloc.Telemetry.Generator/ZeroAlloc.Telemetry.Generator.csproj --configuration Release --no-build -p:Version=${{ needs.release-please.outputs.version }} -o ./artifacts
+
+      - name: Push to NuGet.org
+        run: dotnet nuget push "./artifacts/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+
       - name: Push to GitHub Packages
-        run: dotnet nuget push ./artifacts/*.nupkg --source https://nuget.pkg.github.com/ZeroAlloc-Net/index.json --api-key ${{ secrets.GITHUB_TOKEN }} --skip-duplicate
+        run: dotnet nuget push "./artifacts/*.nupkg" --api-key ${{ secrets.GITHUB_TOKEN }} --source https://nuget.pkg.github.com/ZeroAlloc-Net/index.json --skip-duplicate
+
+      - name: Upload packages to GitHub Release
+        run: gh release upload ${{ needs.release-please.outputs.tag_name }} ./artifacts/*.nupkg
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

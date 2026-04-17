@@ -12,8 +12,13 @@
     },
     {
       "description": "Group Roslyn analyzer packages",
-      "matchPackageNames": ["Meziantou.Analyzer", "Roslynator.Analyzers", "ErrorProne.NET.CoreAnalyzers", "ErrorProne.NET.Structs"],
+      "matchPackageNames": ["Meziantou.Analyzer", "Roslynator.Analyzers", "ErrorProne.NET.CoreAnalyzers", "ErrorProne.NET.Structs", "NetFabric.Hyperlinq.Analyzer"],
       "groupName": "Roslyn analyzers"
+    },
+    {
+      "description": "Group Microsoft.Extensions packages",
+      "matchPackagePrefixes": ["Microsoft.Extensions."],
+      "groupName": "Microsoft.Extensions"
     },
     {
       "description": "Group xunit packages",
