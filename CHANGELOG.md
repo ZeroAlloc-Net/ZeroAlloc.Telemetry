@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.1.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.0.0...v1.1.0) (2026-04-23)
+
+
+### Features
+
+* **generator:** add ZTEL001-003 diagnostics ([#8](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/8)) ([d20a675](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/d20a675d8553a0788b54a85d5b10563a6d071239))
+
+
+### Performance
+
+* add BenchmarkDotNet project measuring instrumented-proxy overhead ([#6](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/6)) ([6dabf88](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/6dabf8882a19fe633155ae381c200021ca4fedaa))
+
+
+### Documentation
+
+* add performance page covering instrumentation-proxy design and benchmark ([#9](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/9)) ([10d2fca](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/10d2fca8c70703ac74a1a6038666fbf2ff6b376b))
+
 ## 1.0.0 (2026-04-17)
 
 
