@@ -18,7 +18,7 @@ public class DiagnosticTests
             public class OrderService { }
             """);
 
-        Assert.Contains(diagnostics, d => d.Id == "ZTEL001" && d.Severity == DiagnosticSeverity.Error);
+        Assert.Contains(diagnostics, d => string.Equals(d.Id, "ZTEL001", StringComparison.Ordinal) && d.Severity == DiagnosticSeverity.Error);
     }
 
     [Fact]
@@ -30,7 +30,7 @@ public class DiagnosticTests
             public struct OrderServiceStruct { }
             """);
 
-        Assert.Contains(diagnostics, d => d.Id == "ZTEL001" && d.Severity == DiagnosticSeverity.Error);
+        Assert.Contains(diagnostics, d => string.Equals(d.Id, "ZTEL001", StringComparison.Ordinal) && d.Severity == DiagnosticSeverity.Error);
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public class DiagnosticTests
             public interface IOrderService { }
             """);
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "ZTEL001");
+        Assert.DoesNotContain(diagnostics, d => string.Equals(d.Id, "ZTEL001", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public class DiagnosticTests
             public interface IOrderService { }
             """);
 
-        Assert.Contains(diagnostics, d => d.Id == "ZTEL002" && d.Severity == DiagnosticSeverity.Error);
+        Assert.Contains(diagnostics, d => string.Equals(d.Id, "ZTEL002", StringComparison.Ordinal) && d.Severity == DiagnosticSeverity.Error);
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public class DiagnosticTests
             public interface IOrderService { }
             """);
 
-        Assert.Contains(diagnostics, d => d.Id == "ZTEL002" && d.Severity == DiagnosticSeverity.Error);
+        Assert.Contains(diagnostics, d => string.Equals(d.Id, "ZTEL002", StringComparison.Ordinal) && d.Severity == DiagnosticSeverity.Error);
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public class DiagnosticTests
             public interface IOrderService { }
             """);
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "ZTEL002");
+        Assert.DoesNotContain(diagnostics, d => string.Equals(d.Id, "ZTEL002", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public class DiagnosticTests
             }
             """);
 
-        Assert.Contains(diagnostics, d => d.Id == "ZTEL003" && d.Severity == DiagnosticSeverity.Warning);
+        Assert.Contains(diagnostics, d => string.Equals(d.Id, "ZTEL003", StringComparison.Ordinal) && d.Severity == DiagnosticSeverity.Warning);
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public class DiagnosticTests
             }
             """);
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "ZTEL003");
+        Assert.DoesNotContain(diagnostics, d => string.Equals(d.Id, "ZTEL003", StringComparison.Ordinal));
     }
 
     private static Diagnostic[] RunAndCollectDiagnostics(string source)
