@@ -119,10 +119,22 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             return new ParseResult(null, diagnostics.ToImmutable());
         }
 
-        var members = target.GetMembers().OfType<IMethodSymbol>();
-        var methods = new List<MethodModel>();
+        var methods = BuildMethods(target);
+        var ns        = target.ContainingNamespace.IsGlobalNamespace ? null : target.ContainingNamespace.ToDisplayString();
+        var ifaceName = target.Name;
+        var proxyName = (ifaceName.StartsWith("I", StringComparison.Ordinal) && ifaceName.Length > 1)
+                        ? ifaceName.Substring(1) + "Instrumented"
+                        : ifaceName + "Instrumented";
 
-        foreach (var member in members)
+        return new ParseResult(
+            new InstrumentModel(ns, ifaceName, proxyName, activitySource, methods),
+            diagnostics.ToImmutable());
+    }
+
+    private static List<MethodModel> BuildMethods(INamedTypeSymbol target)
+    {
+        var methods = new List<MethodModel>();
+        foreach (var member in target.GetMembers().OfType<IMethodSymbol>())
         {
             var traceName   = GetAttributeFirstArg(member, TraceAttributeFqn);
             var countMetric = GetAttributeFirstArg(member, CountAttributeFqn);
@@ -135,28 +147,17 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                            || string.Equals(returnType, "global::System.Threading.Tasks.Task", StringComparison.Ordinal)
                            || string.Equals(returnType, "void", StringComparison.Ordinal);
 
-            var parameters = BuildParameters(member);
-
             methods.Add(new MethodModel(
                 member.Name,
                 returnType,
                 isAsync,
                 returnsVoid,
-                parameters,
+                BuildParameters(member),
                 traceName,
                 countMetric,
                 histMetric));
         }
-
-        var ns        = target.ContainingNamespace.IsGlobalNamespace ? null : target.ContainingNamespace.ToDisplayString();
-        var ifaceName = target.Name;
-        var proxyName = (ifaceName.StartsWith("I", StringComparison.Ordinal) && ifaceName.Length > 1)
-                        ? ifaceName.Substring(1) + "Instrumented"
-                        : ifaceName + "Instrumented";
-
-        return new ParseResult(
-            new InstrumentModel(ns, ifaceName, proxyName, activitySource, methods),
-            diagnostics.ToImmutable());
+        return methods;
     }
 
     private static ParameterModel[] BuildParameters(IMethodSymbol method)
