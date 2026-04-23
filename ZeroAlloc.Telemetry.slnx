@@ -3,6 +3,9 @@
     <Project Path="src/ZeroAlloc.Telemetry.Generator/ZeroAlloc.Telemetry.Generator.csproj" />
     <Project Path="src/ZeroAlloc.Telemetry/ZeroAlloc.Telemetry.csproj" />
   </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/ZeroAlloc.Telemetry.AotSmoke/ZeroAlloc.Telemetry.AotSmoke.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ZeroAlloc.Telemetry.Tests/ZeroAlloc.Telemetry.Tests.csproj" />
     <Project Path="tests/ZeroAlloc.Telemetry.Generator.Tests/ZeroAlloc.Telemetry.Generator.Tests.csproj" />
