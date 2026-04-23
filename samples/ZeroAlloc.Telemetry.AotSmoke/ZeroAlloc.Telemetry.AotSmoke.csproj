@@ -9,6 +9,9 @@
     <OptimizationPreference>Size</OptimizationPreference>
 
     <WarningsAsErrors>$(WarningsAsErrors);IL2026;IL2067;IL2075;IL2091;IL3050;IL3051</WarningsAsErrors>
+    <!-- EPC12 fires on generator-emitted exception handling that intentionally
+         observes only _ex.Message — matches the runtime test project's suppress. -->
+    <NoWarn>$(NoWarn);EPC12</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
