@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.1.0...v1.1.1) (2026-04-28)
+
+
+### Documentation
+
+* add GitHub Sponsors badge to README ([80937d0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/80937d045777c404825ff6ce4d649e56a6e18250))
+* add GitHub Sponsors badge to README ([c5de3fa](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/c5de3faac1b788c5a8abc1d22a1dacc0f68cc323))
+
 ## [1.1.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.0.0...v1.1.0) (2026-04-23)
 
 
