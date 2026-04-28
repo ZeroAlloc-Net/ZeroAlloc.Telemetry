@@ -1,6 +1,7 @@
 # ZeroAlloc.Telemetry
 
 [![NuGet](https://img.shields.io/nuget/v/ZeroAlloc.Telemetry.svg)](https://www.nuget.org/packages/ZeroAlloc.Telemetry) [![Build](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/actions/workflows/ci.yml/badge.svg)](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/MarcelRoozekrans?style=flat&logo=githubsponsors&color=ea4aaa&label=Sponsor)](https://github.com/sponsors/MarcelRoozekrans)
 
 Source-generated OpenTelemetry instrumentation for .NET — `Activity` spans and `Meter` instruments without reflection, `params object[]` boxing, or runtime attribute inspection. Native AOT safe.
 
