@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.1.1...v1.1.2) (2026-04-29)
+
+
+### Documentation
+
+* **readme:** standardize 5-badge set ([09634c8](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/09634c868384d2c2ef5a595b2e2179bd2d3bba68))
+* **readme:** standardize 5-badge set (NuGet/Build/License/AOT/Sponsors) ([7b701bd](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/7b701bdf5b8d4f90429a149f5b79e56b84449d3d))
+
 ## [1.1.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.1.0...v1.1.1) (2026-04-28)
 
 
