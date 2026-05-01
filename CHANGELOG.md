@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.1.3...v1.2.0) (2026-05-01)
+
+
+### Features
+
+* lock public API surface (PublicApiAnalyzers + api-compat gate) ([#19](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/19)) ([c587080](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/c5870808d9ce2cfaeb07d7995bbcf22b5fbfa1d0))
+
+
+### Bug Fixes
+
+* restore generator package publishing (revert IsPackable=false) ([195bd07](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/195bd0706142fd27fab2cebf8640764936afe3ea))
+* restore generator package publishing with correct packaging ([206a5d6](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/206a5d654e95ca9c5e7c2ae546fd2d999f81b8b2))
+
 ## [1.1.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.1.2...v1.1.3) (2026-04-30)
 
 
