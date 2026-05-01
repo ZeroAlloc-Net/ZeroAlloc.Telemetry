@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.1.2...v1.1.3) (2026-04-30)
+
+
+### Bug Fixes
+
+* stop publishing broken stand-alone generator nupkg ([5ac7d83](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/5ac7d83465d9eb24eea393ca1a93e592d92b44e6))
+* stop publishing broken stand-alone generator nupkg ([19c5ce9](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/19c5ce954995c42a3689eebc080efd2723f25807))
+
 ## [1.1.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.1.1...v1.1.2) (2026-04-29)
 
 
