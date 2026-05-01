@@ -1,1 +1,13 @@
 #nullable enable
+ZeroAlloc.Telemetry.CountAttribute
+ZeroAlloc.Telemetry.CountAttribute.CountAttribute(string! metric) -> void
+ZeroAlloc.Telemetry.CountAttribute.Metric.get -> string!
+ZeroAlloc.Telemetry.HistogramAttribute
+ZeroAlloc.Telemetry.HistogramAttribute.HistogramAttribute(string! metric) -> void
+ZeroAlloc.Telemetry.HistogramAttribute.Metric.get -> string!
+ZeroAlloc.Telemetry.InstrumentAttribute
+ZeroAlloc.Telemetry.InstrumentAttribute.ActivitySource.get -> string!
+ZeroAlloc.Telemetry.InstrumentAttribute.InstrumentAttribute(string! activitySource) -> void
+ZeroAlloc.Telemetry.TraceAttribute
+ZeroAlloc.Telemetry.TraceAttribute.Name.get -> string!
+ZeroAlloc.Telemetry.TraceAttribute.TraceAttribute(string! name) -> void
