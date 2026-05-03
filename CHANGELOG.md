@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.2.0...v1.2.1) (2026-05-03)
+
+
+### Bug Fixes
+
+* **release-please:** drop pre-major flags (package is post-1.0) ([#20](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/20)) ([cac7918](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/cac79183ecd970fdeeed071b9d920a9655544d7c))
+
 ## [1.2.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.1.3...v1.2.0) (2026-05-01)
 
 
