@@ -108,11 +108,11 @@ Full docs at [telemetry.zeroalloc.net](https://telemetry.zeroalloc.net).
 
 | Page | Description |
 |---|---|
-| [Getting Started](docs/getting-started.md) | Install and instrument your first interface |
-| [Attribute Reference](docs/attributes.md) | `[Instrument]`, `[Trace]`, `[Count]`, `[Histogram]` |
-| [Source Generator](docs/source-generator.md) | What the generator emits — input/output examples |
-| [Testing](docs/testing.md) | Assert spans and metrics with BCL listeners |
-| [AOT & Trimming](docs/aot.md) | Native AOT compatibility |
+| [Getting Started](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/blob/main/docs/getting-started.md) | Install and instrument your first interface |
+| [Attribute Reference](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/blob/main/docs/attributes.md) | `[Instrument]`, `[Trace]`, `[Count]`, `[Histogram]` |
+| [Source Generator](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/blob/main/docs/source-generator.md) | What the generator emits — input/output examples |
+| [Testing](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/blob/main/docs/testing.md) | Assert spans and metrics with BCL listeners |
+| [AOT & Trimming](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/blob/main/docs/aot.md) | Native AOT compatibility |
 
 ## License
 
