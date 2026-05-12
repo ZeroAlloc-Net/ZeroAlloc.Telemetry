@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.2.1...v1.2.2) (2026-05-12)
+
+
+### Bug Fixes
+
+* **readme:** absolute GitHub URLs so nuget.org links resolve ([#25](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/25)) ([60cc1bc](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/60cc1bce9a71fa7a9c3fcae2d5ec759ca14f7c57))
+
 ## [1.2.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.2.0...v1.2.1) (2026-05-03)
 
 
