@@ -81,6 +81,20 @@ internal sealed class OrderServiceInstrumented : IOrderService
 }
 ```
 
+## Performance
+
+Head-to-head vs hand-written `ActivitySource` + `Meter` instrumentation (no-listeners profile, .NET 10.0.7, BenchmarkDotNet v0.15.4):
+
+| Method | Time | Allocated |
+|---|---:|---:|
+| Direct call (no instrumentation) | 87 ns | 72 B |
+| Hand-written `ActivitySource` + `Counter` + `Histogram` | 201 ns | 72 B |
+| **ZA.Telemetry generated proxy** | **201 ns** | **72 B** |
+
+ZA's generated code is **at parity with hand-written instrumentation** (within measurement noise). The value isn't faster instrumentation — it's eliminating the boilerplate so every `[Trace]` / `[Count]` / `[Histogram]`-annotated method gets the same try/finally pattern, with zero risk of forgetting to dispose an Activity or skipping a metric.
+
+Full methodology: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/blob/main/docs/performance.md).
+
 ## Instruments
 
 | Attribute | Instrument | Recorded when |
