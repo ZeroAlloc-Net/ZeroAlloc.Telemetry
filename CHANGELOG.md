@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.2.2...v1.3.0) (2026-05-13)
+
+
+### Features
+
+* **benchmarks:** add hand-written ActivitySource comparison ([#27](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/27)) ([9479911](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/9479911e98eeafaa14252a59f5192fdd7db06167))
+
 ## [1.2.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.2.1...v1.2.2) (2026-05-12)
 
 
