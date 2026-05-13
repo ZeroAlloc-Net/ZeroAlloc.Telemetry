@@ -68,9 +68,29 @@ Counter/histogram increments go through `Counter<long>.Add(...)` and `Histogram<
 
 Tags, when present, are emitted as positional `TagList` struct values — allocated on the stack, never boxed. The generator knows the tag names and value types at compile time.
 
-## Benchmark
+## Head-to-head vs hand-written ActivitySource
 
-The [benchmarks/ZeroAlloc.Telemetry.Benchmarks](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/tree/main/benchmarks/ZeroAlloc.Telemetry.Benchmarks) project contains a single representative measurement: `InstrumentedProxyBenchmark`. It compares:
+<!-- BENCH:START -->
+_Last refreshed: 2026-05-13_
+
+The realistic alternative to ZA.Telemetry's generator is hand-written `ActivitySource` + `Meter` wrapping — wrapping every instrumented method with `using var activity = source.StartActivity(...); counter.Add(1); histogram.Record(...)`. This benchmark compares the two in the no-listeners profile (the common production case after sampling).
+
+.NET 10.0.7, i9-12900HK, BenchmarkDotNet v0.15.4.
+
+| Method | Time | Allocated |
+|---|---:|---:|
+| Direct call (no instrumentation) | 87 ns | 72 B |
+| Hand-written `ActivitySource` + `Counter` + `Histogram` | 201 ns | 72 B |
+| **ZA.Telemetry generated proxy** | **201 ns** | **72 B** |
+
+ZA.Telemetry's generator produces code **at parity with hand-written instrumentation** (within measurement noise; 0.04% delta). The 72 B in all three rows is the `Task<int>` allocation from the async/await pattern, not from instrumentation. Both wrappers add ~115 ns over the direct call in the no-listeners path — the `Activity.StartActivity` null-check, the `Counter.Add`, and the `Histogram.Record` — all unavoidable if you want the spans + metrics available when a sampler does subscribe.
+
+**The takeaway**: ZA.Telemetry's value isn't faster instrumentation than hand-writing it — it's eliminating the boilerplate so every instrumented method gets the same try/finally + counter + histogram pattern, with zero risk of forgetting to dispose an Activity or skipping a metric.
+<!-- BENCH:END -->
+
+## Self-benchmark
+
+The [benchmarks/ZeroAlloc.Telemetry.Benchmarks](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/tree/main/benchmarks/ZeroAlloc.Telemetry.Benchmarks) project also contains `InstrumentedProxyBenchmark`. It compares:
 
 - **Baseline**: direct call on the underlying `IOrderService` implementation
 - **Proxy (no listeners)**: the generator-emitted `OrderServiceInstrumented` with no `ActivityListener` subscribed — the production-common path when tracing is sampled away
