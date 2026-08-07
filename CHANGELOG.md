@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.4.0...v1.4.1) (2026-08-07)
+
+
+### Bug Fixes
+
+* **generator:** preserve nullable annotations in generated signatures ([#33](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/33)) ([f648d03](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/f648d03720814e3d6502ffcf57eed2133033d243)), closes [#29](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/29)
+
 ## [1.4.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.3.0...v1.4.0) (2026-08-07)
 
 
