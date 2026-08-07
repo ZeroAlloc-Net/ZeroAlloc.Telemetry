@@ -254,6 +254,65 @@ public class TraceTagTests
         return Verifier.Verify(RunGenerator(source));
     }
 
+    /// <summary>
+    /// Covers <c>[TraceTag(name, member)]</c> (issue #35). Uses the shapes the issue measured as
+    /// the largest inexpressible category — counts on collection parameters, and a dotted path
+    /// into a value-object id.
+    /// </summary>
+    [Fact]
+    public Task GeneratesSetTag_ForParameterMemberPaths()
+    {
+        var source = """
+            using ZeroAlloc.Telemetry;
+            using System.Collections.Generic;
+            using System.Threading;
+            using System.Threading.Tasks;
+
+            public sealed class DocumentId { public string Value { get; set; } = ""; }
+            public sealed class DocumentMetadata
+            {
+                public DocumentId? DocumentId { get; set; }
+                public string? ContentType { get; set; }
+            }
+
+            [Instrument("MyApp.Ingest")]
+            public interface IIngest
+            {
+                [Trace("ingest.store")]
+                Task StoreAsync(
+                    [TraceTag("document.id", "DocumentId.Value")] DocumentMetadata metadata,
+                    [TraceTag("vectorstore.batch.size", "Count")] IReadOnlyList<string> chunks,
+                    CancellationToken ct);
+            }
+            """;
+
+        return Verifier.Verify(RunGenerator(source));
+    }
+
+    /// <summary>
+    /// A member path on a non-nullable value-type parameter must not null-test the argument:
+    /// there is nothing to test, and a copy would be noise.
+    /// </summary>
+    [Fact]
+    public Task GeneratesPlainAccess_ForValueTypeParameter()
+    {
+        var source = """
+            using ZeroAlloc.Telemetry;
+            using System;
+            using System.Threading;
+            using System.Threading.Tasks;
+
+            [Instrument("MyApp.Spans")]
+            public interface ISpans
+            {
+                [Trace("spans.take")]
+                Task TakeAsync([TraceTag("span.length", "Length")] ReadOnlyMemory<byte> buffer, CancellationToken ct);
+            }
+            """;
+
+        return Verifier.Verify(RunGenerator(source));
+    }
+
     private static GeneratorDriver RunGenerator(string source)
     {
         var trustedPlatformAssemblies = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string ?? string.Empty;

@@ -169,7 +169,9 @@ catch (Exception _ex)
 public sealed class TraceTagAttribute : Attribute
 {
     public string Name { get; }
+    public string? Member { get; }
     public TraceTagAttribute(string name);
+    public TraceTagAttribute(string name, string member);
 }
 ```
 
@@ -191,6 +193,35 @@ using var _activity = _activitySource.StartActivity("vectorstore.search");
 _activity?.SetTag("vectorstore.collection", collection);
 _activity?.SetTag("top.k", topK);
 ```
+
+### Tagging a member of an argument
+
+The second overload takes a member path, which is often what you actually want — a count on a collection parameter, or an id nested inside a request object:
+
+```csharp
+[Trace("ingest.store")]
+Task StoreAsync(
+    [TraceTag("document.id", "DocumentId.Value")] DocumentMetadata metadata,
+    [TraceTag("vectorstore.batch.size", "Count")] IReadOnlyList<EmbeddedChunk> chunks,
+    CancellationToken ct);
+```
+
+```csharp
+// Generated:
+var _tag_metadata = metadata;
+_activity?.SetTag("document.id", _tag_metadata?.DocumentId?.Value);
+var _tag_chunks = chunks;
+_activity?.SetTag("vectorstore.batch.size", _tag_chunks?.Count);
+```
+
+Every step is null-safe where the value can be null, so a null part-way along records a null tag instead of throwing. On a non-nullable value type there is nothing to test, so the access is plain and no copy is taken:
+
+```csharp
+[TraceTag("span.length", "Length")] ReadOnlyMemory<byte> buffer
+// → _activity?.SetTag("span.length", buffer.Length);
+```
+
+The copy exists for a specific reason: the tagged argument is still forwarded to the wrapped call, and null-testing it directly would leave it maybe-null for the rest of the method — CS8604 in any consumer with nullable warnings enabled.
 
 Without `[Trace]` there is no span to carry the tag, so the generator reports **ZTEL004** rather than silently dropping it.
 

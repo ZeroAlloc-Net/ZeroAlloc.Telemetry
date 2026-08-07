@@ -14,8 +14,10 @@ ZeroAlloc.Telemetry.TraceAttribute
 ZeroAlloc.Telemetry.TraceAttribute.Name.get -> string!
 ZeroAlloc.Telemetry.TraceAttribute.TraceAttribute(string! name) -> void
 ZeroAlloc.Telemetry.TraceTagAttribute
+ZeroAlloc.Telemetry.TraceTagAttribute.Member.get -> string?
 ZeroAlloc.Telemetry.TraceTagAttribute.Name.get -> string!
 ZeroAlloc.Telemetry.TraceTagAttribute.TraceTagAttribute(string! name) -> void
+ZeroAlloc.Telemetry.TraceTagAttribute.TraceTagAttribute(string! name, string! member) -> void
 ZeroAlloc.Telemetry.TraceTagConstantAttribute
 ZeroAlloc.Telemetry.TraceTagConstantAttribute.Name.get -> string!
 ZeroAlloc.Telemetry.TraceTagConstantAttribute.TraceTagConstantAttribute(string! name, object? value) -> void

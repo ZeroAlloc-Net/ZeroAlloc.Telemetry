@@ -391,27 +391,54 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         var result = new ParameterModel[ps.Length];
         for (var i = 0; i < ps.Length; i++)
         {
+            var (tagName, member) = GetTraceTag(ps[i]);
+
+            string? accessSuffix = null;
+            var needsCopy = false;
+
+            if (tagName is not null && !string.IsNullOrEmpty(member))
+            {
+                accessSuffix = ResolveMemberAccess(ps[i].Type, member!);
+
+                // A copy is only needed when the emitted access actually null-tests the
+                // argument; a plain `.Member` on a non-nullable value leaves its state alone.
+                needsCopy = accessSuffix is null
+                    ? CanBeNull(ps[i].Type)
+                    : accessSuffix.StartsWith("?.", StringComparison.Ordinal);
+            }
+
             result[i] = new ParameterModel(
                 ps[i].Type.ToDisplayString(TypeFormat),
                 ps[i].Name,
-                GetTraceTagName(ps[i]));
+                tagName,
+                accessSuffix,
+                needsCopy);
         }
 
         return result;
     }
 
-    private static string? GetTraceTagName(IParameterSymbol parameter)
+    private static (string? Name, string? Member) GetTraceTag(IParameterSymbol parameter)
     {
         foreach (var attr in parameter.GetAttributes())
         {
             if (!string.Equals(attr.AttributeClass?.ToDisplayString(), TraceTagAttributeFqn, StringComparison.Ordinal))
                 continue;
 
-            if (attr.ConstructorArguments.Length > 0)
-                return attr.ConstructorArguments[0].Value as string;
+            if (attr.ConstructorArguments.Length == 0)
+                continue;
+
+            var name = attr.ConstructorArguments[0].Value as string;
+
+            // Second positional argument is the optional member path.
+            var member = attr.ConstructorArguments.Length > 1
+                ? attr.ConstructorArguments[1].Value as string
+                : null;
+
+            return (name, member);
         }
 
-        return null;
+        return (null, null);
     }
 
     private static ResultTagModel[] BuildResultTags(IMethodSymbol method)
