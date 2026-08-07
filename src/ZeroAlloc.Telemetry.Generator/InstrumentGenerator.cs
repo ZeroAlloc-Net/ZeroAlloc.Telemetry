@@ -15,6 +15,20 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
     private const string TraceTagAttributeFqn      = "ZeroAlloc.Telemetry.TraceTagAttribute";
     private const string TraceTagFromResultAttrFqn = "ZeroAlloc.Telemetry.TraceTagFromResultAttribute";
 
+    /// <summary>
+    /// Fully-qualified names that keep nullable reference type annotations.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="SymbolDisplayFormat.FullyQualifiedFormat"/> omits the <c>?</c> suffix. Since the
+    /// proxy implements the interface, dropping it does not merely lose information — the
+    /// signatures stop matching and the consumer's build fails with CS8613 on a return type or
+    /// CS8767 on a parameter (Telemetry#29). The annotation is part of the signature, so it has to
+    /// survive the round-trip through the model.
+    /// </remarks>
+    private static readonly SymbolDisplayFormat TypeFormat =
+        SymbolDisplayFormat.FullyQualifiedFormat.AddMiscellaneousOptions(
+            SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Broaden the predicate to every TypeDeclarationSyntax so we can raise
@@ -152,7 +166,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             var countMetric = GetAttributeFirstArg(member, CountAttributeFqn);
             var histMetric  = GetAttributeFirstArg(member, HistogramAttributeFqn);
 
-            var returnType  = member.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            var returnType  = member.ReturnType.ToDisplayString(TypeFormat);
             var isAsync     = returnType.IndexOf("ValueTask", StringComparison.Ordinal) >= 0
                            || returnType.IndexOf("Task", StringComparison.Ordinal) >= 0;
             var returnsVoid = string.Equals(returnType, "global::System.Threading.Tasks.ValueTask", StringComparison.Ordinal)
@@ -251,7 +265,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         for (var i = 0; i < ps.Length; i++)
         {
             result[i] = new ParameterModel(
-                ps[i].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                ps[i].Type.ToDisplayString(TypeFormat),
                 ps[i].Name,
                 GetTraceTagName(ps[i]));
         }
