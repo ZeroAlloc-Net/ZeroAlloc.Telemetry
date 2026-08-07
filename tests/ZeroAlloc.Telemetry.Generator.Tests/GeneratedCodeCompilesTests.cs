@@ -24,6 +24,19 @@ public class GeneratedCodeCompilesTests
 
             public enum ProbeMode { First = 1, Second = 2 }
 
+            public sealed class ProbeResult
+            {
+                public bool IsSuccess { get; }
+                public bool? MaybeOk { get; }
+                public Inner? Value { get; }
+            }
+
+            public readonly struct ProbeOutcome
+            {
+                public bool Ok { get; }
+                public int Count { get; }
+            }
+
             public readonly struct Extent { public int Width { get; } }
 
             public sealed class Inner { public IReadOnlyList<string>? Items { get; set; } }
@@ -66,6 +79,17 @@ public class GeneratedCodeCompilesTests
                     [TraceTag("p.width", "Width")] Extent extent,
                     [TraceTag("p.deep", "Inner.Items.Count")] Outer outer,
                     CancellationToken ct);
+
+                // When guards: nullable reference root, nullable bool guard, and a
+                // non-nullable struct root that must not get a null-tolerant comparison.
+                [Trace("probe.guard")]
+                [TraceTagFromResult("g.count", "Value.Items.Count", When = "IsSuccess")]
+                [TraceTagFromResult("g.maybe", "Value.Items.Count", When = "MaybeOk")]
+                Task<ProbeResult> GuardAsync(CancellationToken ct);
+
+                [Trace("probe.guardStruct")]
+                [TraceTagFromResult("g.structCount", "Count", When = "Ok")]
+                ValueTask<ProbeOutcome> GuardStructAsync(CancellationToken ct);
 
                 [Trace("probe.constant")]
                 [TraceTagConstant("c.string", "a \"quoted\" and C:\\path")]

@@ -235,6 +235,7 @@ public sealed class TraceTagFromResultAttribute : Attribute
 {
     public string Name { get; }
     public string? Member { get; }
+    public string? When { get; set; }
     public TraceTagFromResultAttribute(string name);
     public TraceTagFromResultAttribute(string name, string member);
 }
@@ -255,6 +256,33 @@ For async methods the value comes from the **awaited result**, not the task. Omi
 Member access is null-safe — a null result records a null tag rather than throwing. Instrumentation must never fail a call that would otherwise have succeeded.
 
 On a method returning `void`, `Task` or `ValueTask` there is no result to read, so the generator reports **ZTEL005**.
+
+### Tagging only on one branch
+
+`When` names a boolean member that must be true for the tag to be recorded. This is for results whose value is valid on one branch only — a `Result<T, E>` where the count lives at `Value.Count`:
+
+```csharp
+[Trace("ingest.chunk")]
+[TraceTagFromResult("chunk.count", "Value.Count", When = "IsSuccess")]
+Task<Result<IReadOnlyList<Chunk>, RagError>> ChunkAsync(CancellationToken ct);
+```
+
+```csharp
+// Generated:
+var _tagged = _result;
+if (_tagged?.IsSuccess == true)
+    _activity?.SetTag("chunk.count", _tagged?.Value?.Count);
+```
+
+The guard does something the null-conditional cannot: it stops the member being **read at all**. `?.` protects against a null *result*, not against a result whose value is unset — reading `Value` on a failed result is meaningless at best and throws at worst.
+
+Any boolean member works, so this is not tied to any particular result type. The comparison against `true` is added only where the guard can be null; on a non-nullable value type the bare boolean is emitted:
+
+```csharp
+// ValueTask<Outcome> where Outcome is a struct with bool Ok
+if (_result.Ok)
+    _activity?.SetTag("outcome.count", _result.Count);
+```
 
 ---
 
