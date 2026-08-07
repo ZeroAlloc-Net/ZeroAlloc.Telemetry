@@ -34,7 +34,37 @@ public sealed class TraceTagAttribute : Attribute
     /// <summary>The tag key written to the span.</summary>
     public string Name { get; }
 
+    /// <summary>
+    /// Member of the argument to record, e.g. <c>Count</c> or <c>DocumentId.Value</c>. Null
+    /// records the argument itself. Use <c>nameof</c> where the shape allows, to keep it checked
+    /// by the compiler.
+    /// </summary>
+    public string? Member { get; }
+
     /// <summary>Creates a tag that records the decorated argument under <paramref name="name"/>.</summary>
     /// <param name="name">The tag key, e.g. <c>vectorstore.collection</c>.</param>
-    public TraceTagAttribute(string name) => Name = name;
+    public TraceTagAttribute(string name)
+    {
+        Name = name;
+        Member = null;
+    }
+
+    /// <summary>
+    /// Creates a tag that records <paramref name="member"/> of the decorated argument.
+    /// </summary>
+    /// <param name="name">The tag key, e.g. <c>vectorstore.batch.size</c>.</param>
+    /// <param name="member">
+    /// Member of the argument to read — <c>Count</c> on a collection parameter, or a dotted path
+    /// such as <c>DocumentId.Value</c>.
+    /// </param>
+    /// <remarks>
+    /// Each step of the path is null-safe where the value can be null, so a null part-way along
+    /// records a null tag rather than throwing. Tagging must never be able to fail a call that
+    /// would otherwise have succeeded.
+    /// </remarks>
+    public TraceTagAttribute(string name, string member)
+    {
+        Name = name;
+        Member = member;
+    }
 }

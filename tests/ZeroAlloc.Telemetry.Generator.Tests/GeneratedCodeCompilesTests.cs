@@ -14,12 +14,9 @@ namespace ZeroAlloc.Telemetry.Generator.Tests;
 /// </summary>
 public class GeneratedCodeCompilesTests
 {
-    [Fact]
-    public void DottedMemberPaths_ProduceCompilableCode()
-    {
-        // Deliberately mixes nullable reference, non-nullable struct, and nullable value types
-        // along the paths, so every operator decision the resolver makes is exercised.
-        var source = """
+    // Deliberately mixes nullable reference, non-nullable struct, and nullable value types
+    // along the paths, so every operator decision the resolver makes is exercised.
+    private const string ProbeSource = """
             using ZeroAlloc.Telemetry;
             using System.Collections.Generic;
             using System.Threading;
@@ -61,6 +58,15 @@ public class GeneratedCodeCompilesTests
 
                 // Constant tags: every kind must render as a compilable literal, including
                 // strings needing escapes and an enum with no single named member.
+                // Parameter member paths: the tagged argument is still forwarded to the inner
+                // call, so a null test on it must not leak into its null-state (CS8604).
+                [Trace("probe.paramPath")]
+                Task ParamPathAsync(
+                    [TraceTag("p.count", "Count")] IReadOnlyList<string> items,
+                    [TraceTag("p.width", "Width")] Extent extent,
+                    [TraceTag("p.deep", "Inner.Items.Count")] Outer outer,
+                    CancellationToken ct);
+
                 [Trace("probe.constant")]
                 [TraceTagConstant("c.string", "a \"quoted\" and C:\\path")]
                 [TraceTagConstant("c.bool", false)]
@@ -68,9 +74,12 @@ public class GeneratedCodeCompilesTests
                 [TraceTagConstant("c.enum", ProbeMode.Second)]
                 Task<string> ConstantAsync(CancellationToken ct);
             }
-            """;
+        """;
 
-        var errors = CompileWithGenerator(source);
+    [Fact]
+    public void GeneratedOutput_Compiles()
+    {
+        var errors = CompileWithGenerator(ProbeSource);
 
         Assert.True(
             errors.Length == 0,

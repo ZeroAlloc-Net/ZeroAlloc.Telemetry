@@ -92,8 +92,24 @@ internal static class ProxyWriter
             // span, so an unsampled call neither evaluates nor boxes the argument.
             foreach (var p in method.Parameters)
             {
-                if (p.TagName is not null)
-                    sb.AppendLine($"        _activity?.SetTag(\"{p.TagName}\", {p.Name});");
+                if (p.TagName is null)
+                    continue;
+
+                // Read from a copy when the access null-tests the argument: Roslyn would
+                // otherwise treat the argument as maybe-null for the rest of the method, and it
+                // is forwarded to the inner call — CS8604 in any consumer with nullable warnings.
+                var source = p.Name;
+                if (p.TagNeedsCopy)
+                {
+                    source = $"_tag_{p.Name}";
+                    sb.AppendLine($"        var {source} = {p.Name};");
+                }
+
+                var access = p.TagAccessSuffix is { } suffix
+                    ? source + suffix
+                    : source;
+
+                sb.AppendLine($"        _activity?.SetTag(\"{p.TagName}\", {access});");
             }
         }
 
