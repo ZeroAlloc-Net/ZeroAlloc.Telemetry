@@ -45,4 +45,12 @@ internal static class InstrumentDiagnostics
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor UnknownSpanNameToken = new(
+        id: "ZTEL006",
+        title: "Unrecognised token in a [Trace] span name",
+        messageFormat: "'{0}' in the [Trace] name on '{1}.{2}' is not a recognised token and is emitted verbatim, so the span name will contain a literal brace. The only supported token is {{type}}, which substitutes the wrapped implementation's type name.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
 }

@@ -253,4 +253,58 @@ public class DiagnosticTests
         var driver = CSharpGeneratorDriver.Create(new InstrumentGenerator()).RunGenerators(compilation);
         return driver.GetRunResult().Diagnostics.ToArray();
     }
+
+    [Fact]
+    public void ZTEL006_UnknownTokenInSpanName_ProducesWarning()
+    {
+        var diagnostics = RunAndCollectDiagnostics("""
+            using ZeroAlloc.Telemetry;
+            using System.Threading.Tasks;
+
+            [Instrument("MyApp")]
+            public interface IStore
+            {
+                [Trace("store.save.{Type}")]
+                Task SaveAsync();
+            }
+            """);
+
+        Assert.Contains(diagnostics, d => string.Equals(d.Id, "ZTEL006", StringComparison.Ordinal) && d.Severity == DiagnosticSeverity.Warning);
+    }
+
+    [Fact]
+    public void ZTEL006_RecognisedTypeToken_ProducesNoWarning()
+    {
+        var diagnostics = RunAndCollectDiagnostics("""
+            using ZeroAlloc.Telemetry;
+            using System.Threading.Tasks;
+
+            [Instrument("MyApp")]
+            public interface IStore
+            {
+                [Trace("store.save.{type}")]
+                Task SaveAsync();
+            }
+            """);
+
+        Assert.DoesNotContain(diagnostics, d => string.Equals(d.Id, "ZTEL006", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ZTEL006_ConstantSpanName_ProducesNoWarning()
+    {
+        var diagnostics = RunAndCollectDiagnostics("""
+            using ZeroAlloc.Telemetry;
+            using System.Threading.Tasks;
+
+            [Instrument("MyApp")]
+            public interface IStore
+            {
+                [Trace("store.save")]
+                Task SaveAsync();
+            }
+            """);
+
+        Assert.DoesNotContain(diagnostics, d => string.Equals(d.Id, "ZTEL006", StringComparison.Ordinal));
+    }
 }

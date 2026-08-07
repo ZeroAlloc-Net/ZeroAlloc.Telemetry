@@ -38,14 +38,51 @@ internal static class ProxyWriter
         WriteMetricFields(sb, model);
 
         sb.AppendLine();
-        sb.AppendLine($"    private readonly {model.InterfaceName} _inner;");
-        sb.AppendLine($"    public {model.ProxyName}({model.InterfaceName} inner) => _inner = inner;");
+        WriteFieldsAndConstructor(sb, model);
 
-        foreach (var method in model.Methods)
-            WriteMethod(sb, method);
+        for (var i = 0; i < model.Methods.Count; i++)
+            WriteMethod(sb, model.Methods[i], i);
 
         sb.AppendLine("}");
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Emits the wrapped instance field, any resolved span-name fields, and the constructor.
+    /// </summary>
+    /// <remarks>
+    /// Span names containing <c>{type}</c> vary by implementation, so they cannot be literals at
+    /// the call site. They are resolved once in the constructor instead: the wrapped instance
+    /// cannot change for the lifetime of the proxy, so the name is stable, and composing it here
+    /// keeps the per-call path free of string concatenation.
+    /// </remarks>
+    private static void WriteFieldsAndConstructor(StringBuilder sb, InstrumentModel model)
+    {
+        sb.AppendLine($"    private readonly {model.InterfaceName} _inner;");
+
+        var templated = model.Methods
+            .Select((m, i) => (Method: m, Index: i))
+            .Where(x => x.Method.TraceNameExpression is not null)
+            .ToList();
+
+        foreach (var (method, index) in templated)
+            sb.AppendLine($"    private readonly string {SpanNameField(method, index)};");
+
+        if (templated.Count == 0)
+        {
+            sb.AppendLine($"    public {model.ProxyName}({model.InterfaceName} inner) => _inner = inner;");
+            return;
+        }
+
+        sb.AppendLine($"    public {model.ProxyName}({model.InterfaceName} inner)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        _inner = inner;");
+        sb.AppendLine("        // Composed once per wrapped instance. Doing it per call would allocate a");
+        sb.AppendLine("        // string on every invocation of an instrumented method.");
+        sb.AppendLine("        var _implName = inner.GetType().Name;");
+        foreach (var (method, index) in templated)
+            sb.AppendLine($"        {SpanNameField(method, index)} = {method.TraceNameExpression};");
+        sb.AppendLine("    }");
     }
 
     private static void WriteMetricFields(StringBuilder sb, InstrumentModel model)
@@ -67,7 +104,14 @@ internal static class ProxyWriter
         }
     }
 
-    private static void WriteMethod(StringBuilder sb, MethodModel method)
+    /// <summary>
+    /// Field holding a resolved <c>{type}</c> span name. Indexed as well as named, because
+    /// overloads share a method name and would otherwise collide on one field.
+    /// </summary>
+    private static string SpanNameField(MethodModel method, int index) =>
+        $"_spanName_{method.Name}_{index}";
+
+    private static void WriteMethod(StringBuilder sb, MethodModel method, int index)
     {
         sb.AppendLine();
 
@@ -79,39 +123,7 @@ internal static class ProxyWriter
         sb.AppendLine("    {");
 
         if (method.TraceName is not null)
-        {
-            sb.AppendLine($"        using var _activity = _activitySource.StartActivity(\"{method.TraceName}\");");
-
-            // Constants first: they identify which implementation is running, so they are the
-            // most useful thing present if a sampler inspects tags at ActivityStarted.
-            foreach (var constant in method.ConstantTags)
-                sb.AppendLine($"        _activity?.SetTag(\"{constant.TagName}\", {constant.Literal});");
-
-            // Set immediately after the span starts so the tags are present for its whole
-            // lifetime. `_activity?.` short-circuits the whole call when nothing sampled the
-            // span, so an unsampled call neither evaluates nor boxes the argument.
-            foreach (var p in method.Parameters)
-            {
-                if (p.TagName is null)
-                    continue;
-
-                // Read from a copy when the access null-tests the argument: Roslyn would
-                // otherwise treat the argument as maybe-null for the rest of the method, and it
-                // is forwarded to the inner call — CS8604 in any consumer with nullable warnings.
-                var source = p.Name;
-                if (p.TagNeedsCopy)
-                {
-                    source = $"_tag_{p.Name}";
-                    sb.AppendLine($"        var {source} = {p.Name};");
-                }
-
-                var access = p.TagAccessSuffix is { } suffix
-                    ? source + suffix
-                    : source;
-
-                sb.AppendLine($"        _activity?.SetTag(\"{p.TagName}\", {access});");
-            }
-        }
+            WriteSpanStartAndTags(sb, method, index);
 
         if (method.HistogramMetric is not null)
             sb.AppendLine("        var _sw = Stopwatch.GetTimestamp();");
@@ -126,6 +138,49 @@ internal static class ProxyWriter
             WritePassthroughBody(sb, method, argList);
 
         sb.AppendLine("    }");
+    }
+
+    /// <summary>
+    /// Starts the span and sets the tags that are known before the wrapped call runs.
+    /// </summary>
+    private static void WriteSpanStartAndTags(StringBuilder sb, MethodModel method, int index)
+    {
+        // A templated name was resolved against the wrapped instance in the constructor; a
+        // constant one is emitted inline, so the common case stays a plain string literal.
+        var spanName = method.TraceNameExpression is not null
+            ? SpanNameField(method, index)
+            : $"\"{method.TraceName}\"";
+        sb.AppendLine($"        using var _activity = _activitySource.StartActivity({spanName});");
+
+        // Constants first: they identify which implementation is running, so they are the
+        // most useful thing present if a sampler inspects tags at ActivityStarted.
+        foreach (var constant in method.ConstantTags)
+            sb.AppendLine($"        _activity?.SetTag(\"{constant.TagName}\", {constant.Literal});");
+
+        // Set immediately after the span starts so the tags are present for its whole
+        // lifetime. `_activity?.` short-circuits the whole call when nothing sampled the
+        // span, so an unsampled call neither evaluates nor boxes the argument.
+        foreach (var p in method.Parameters)
+        {
+            if (p.TagName is null)
+                continue;
+
+            // Read from a copy when the access null-tests the argument: Roslyn would
+            // otherwise treat the argument as maybe-null for the rest of the method, and it
+            // is forwarded to the inner call — CS8604 in any consumer with nullable warnings.
+            var source = p.Name;
+            if (p.TagNeedsCopy)
+            {
+                source = $"_tag_{p.Name}";
+                sb.AppendLine($"        var {source} = {p.Name};");
+            }
+
+            var access = p.TagAccessSuffix is { } suffix
+                ? source + suffix
+                : source;
+
+            sb.AppendLine($"        _activity?.SetTag(\"{p.TagName}\", {access});");
+        }
     }
 
     private static void WriteInstrumentedBody(StringBuilder sb, MethodModel method, string argList)

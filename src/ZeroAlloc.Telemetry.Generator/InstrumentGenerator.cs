@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using ZeroAlloc.Telemetry.Generator.Models;
@@ -179,6 +180,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             var constantTags = BuildConstantTags(member);
 
             ReportTagDiagnostics(diagnostics, target, member, parameters, resultTags, constantTags, traceName, returnsVoid);
+            ReportUnknownSpanNameTokens(diagnostics, target, member, traceName);
 
             methods.Add(new MethodModel(
                 member.Name,
@@ -191,9 +193,95 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 histMetric,
                 resultTags,
                 ResultCanBeNull(member),
-                constantTags));
+                constantTags,
+                BuildTraceNameExpression(traceName)));
         }
         return methods;
+    }
+
+    /// <summary>The only token recognised inside a <c>[Trace]</c> span name.</summary>
+    private const string ImplTypeToken = "{type}";
+
+    /// <summary>
+    /// Builds the C# expression that composes a span name containing <c>{type}</c> from the
+    /// wrapped instance's type name, or null when the name is a plain constant.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>[Trace]</c> lives on the interface method, so without this every implementation of a
+    /// multi-implementation interface produces the same span name — a vector store's Qdrant and
+    /// Weaviate backends become indistinguishable in a trace, which is usually the distinction
+    /// the span existed to draw.
+    /// </para>
+    /// <para>
+    /// The result is emitted against a local named <c>_implName</c> that the proxy constructor
+    /// establishes. Composing there rather than at the call site means the concatenation happens
+    /// once per wrapped instance instead of once per call, so instrumenting a hot path still
+    /// allocates nothing per invocation.
+    /// </para>
+    /// </remarks>
+    private static string? BuildTraceNameExpression(string? traceName)
+    {
+        if (traceName is null || traceName.IndexOf(ImplTypeToken, StringComparison.Ordinal) < 0)
+            return null;
+
+        var parts = traceName.Split(new[] { ImplTypeToken }, StringSplitOptions.None);
+        var sb = new StringBuilder();
+
+        for (var i = 0; i < parts.Length; i++)
+        {
+            // Every part after the first is preceded by an occurrence of the token.
+            if (i > 0)
+            {
+                if (sb.Length > 0) sb.Append(" + ");
+                sb.Append("_implName");
+            }
+
+            // Skip empty literals so "{type}" yields `_implName`, not `"" + _implName + ""`.
+            if (parts[i].Length == 0) continue;
+
+            if (sb.Length > 0) sb.Append(" + ");
+            sb.Append(Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(parts[i], quote: true));
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Reports any <c>{...}</c> in a span name that is not <c>{type}</c>. Left undiagnosed, a
+    /// typo such as <c>{Type}</c> is not an error — it is emitted verbatim, and the first sign of
+    /// trouble is a literal brace sitting in a dashboard weeks later.
+    /// </summary>
+    private static void ReportUnknownSpanNameTokens(
+        ImmutableArray<Diagnostic>.Builder diagnostics,
+        INamedTypeSymbol target,
+        IMethodSymbol member,
+        string? traceName)
+    {
+        if (traceName is null) return;
+
+        var i = 0;
+        while (i < traceName.Length)
+        {
+            var open = traceName.IndexOf('{', i);
+            if (open < 0) break;
+
+            var close = traceName.IndexOf('}', open + 1);
+            if (close < 0) break;
+
+            var token = traceName.Substring(open, close - open + 1);
+            if (!string.Equals(token, ImplTypeToken, StringComparison.Ordinal))
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    InstrumentDiagnostics.UnknownSpanNameToken,
+                    member.Locations.FirstOrDefault() ?? target.Locations.FirstOrDefault(),
+                    token,
+                    target.Name,
+                    member.Name));
+            }
+
+            i = close + 1;
+        }
     }
 
     /// <summary>

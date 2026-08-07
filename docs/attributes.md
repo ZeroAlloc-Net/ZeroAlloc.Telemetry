@@ -83,6 +83,64 @@ catch (Exception _ex)
 }
 ```
 
+### Varying the span name by implementation
+
+`[Trace]` goes on the interface method, so by default **every implementation
+produces the same span name**. On an interface with one implementation that is
+fine. On one with several it is a problem: a slow call shows a single span name
+and gives no way to tell which implementation was the cost.
+
+The `{type}` token substitutes the wrapped implementation's type name:
+
+```csharp
+[Instrument("ragnet")]
+public interface IVectorStore
+{
+    [Trace("vectorstore.search.{type}")]
+    Task<IReadOnlyList<SearchResult>> SearchAsync(string collection, CancellationToken ct);
+}
+```
+
+A proxy wrapping `QdrantVectorStore` emits spans named
+`vectorstore.search.QdrantVectorStore`; one wrapping `WeaviateVectorStore` emits
+`vectorstore.search.WeaviateVectorStore`. The two are now distinguishable in any
+trace UI, and group separately.
+
+This also replaces the common workaround of tagging the type by hand:
+
+```csharp
+// No longer needed — the distinction lives in the span name, where a trace UI groups on it.
+activity?.SetTag("vector.store", GetType().Name);
+```
+
+The token may appear anywhere in the name, and more than once. `{type}` alone is
+a valid name, yielding just the type name.
+
+**Cost: nothing per call.** The wrapped instance cannot change for the lifetime
+of a proxy, so the name is composed once in the constructor and reused:
+
+```csharp
+private readonly string _spanName_SearchAsync_0;
+
+public VectorStoreInstrumented(IVectorStore inner)
+{
+    _inner = inner;
+    var _implName = inner.GetType().Name;
+    _spanName_SearchAsync_0 = "vectorstore.search." + _implName;
+}
+
+public async Task<...> SearchAsync(...)
+{
+    using var _activity = _activitySource.StartActivity(_spanName_SearchAsync_0);
+```
+
+A name with no token is still emitted as a plain string literal, so nothing
+changes for existing code.
+
+`{type}` is the only recognised token. Anything else in braces is emitted
+verbatim and reported as **ZTEL006**, rather than leaving a literal brace in a
+span name to be discovered on a dashboard later.
+
 ---
 
 ## [Count]
