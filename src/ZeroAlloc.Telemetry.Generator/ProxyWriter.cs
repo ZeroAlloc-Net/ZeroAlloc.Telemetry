@@ -170,15 +170,20 @@ internal static class ProxyWriter
                 // No member access, so no null test and no effect on _result's null-state.
                 access = "_result";
             }
-            else if (method.ResultCanBeNull)
+            else if (tag.AccessSuffix is { } suffix)
             {
-                access = $"_tagged?.{tag.Member}";
+                // The operator for every segment was chosen from the resolved types, so a null
+                // anywhere along the path yields a null tag instead of throwing. Read from the
+                // copy when the root can be null, to keep _result's null-state intact.
+                access = (method.ResultCanBeNull ? "_tagged" : "_result") + suffix;
             }
             else
             {
-                // `?.` against a non-nullable value type does not compile, and a value type
-                // cannot be null, so plain access is both required and safe.
-                access = $"_result.{tag.Member}";
+                // Path did not resolve — almost always a typo. Emit it as written so the
+                // compiler reports the unknown member rather than the generator guessing.
+                access = method.ResultCanBeNull
+                    ? $"_tagged?.{tag.Member}"
+                    : $"_result.{tag.Member}";
             }
 
             sb.AppendLine($"            _activity?.SetTag(\"{tag.TagName}\", {access});");

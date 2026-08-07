@@ -216,6 +216,122 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             || type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T;
     }
 
+    /// <summary>Unwraps <c>Task&lt;T&gt;</c>/<c>ValueTask&lt;T&gt;</c> to the awaited type.</summary>
+    private static ITypeSymbol UnwrapAwaited(ITypeSymbol type)
+    {
+        if (type is INamedTypeSymbol { IsGenericType: true, TypeArguments.Length: 1 } named)
+        {
+            var definition = named.OriginalDefinition.ToDisplayString();
+            if (string.Equals(definition, "System.Threading.Tasks.Task<TResult>", StringComparison.Ordinal)
+                || string.Equals(definition, "System.Threading.Tasks.ValueTask<TResult>", StringComparison.Ordinal))
+            {
+                return named.TypeArguments[0];
+            }
+        }
+
+        return type;
+    }
+
+    private static bool CanBeNull(ITypeSymbol type) =>
+        type.IsReferenceType || type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T;
+
+    /// <summary>Returns T for <c>Nullable&lt;T&gt;</c>, otherwise the type unchanged.</summary>
+    private static ITypeSymbol UnwrapNullable(ITypeSymbol type) =>
+        type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T
+            && type is INamedTypeSymbol { TypeArguments.Length: 1 } n
+                ? n.TypeArguments[0]
+                : type;
+
+    /// <summary>
+    /// Resolves a dotted member path against <paramref name="rootType"/> and returns it as it
+    /// should be emitted — for example <c>?.Value?.Count</c>.
+    /// </summary>
+    /// <remarks>
+    /// The operator for each segment cannot be chosen from the path text: <c>?.</c> is required
+    /// wherever the preceding value may be null and is a compile error wherever it cannot be. So
+    /// each segment is resolved to a symbol and the operator picked from the type before it.
+    /// <para>
+    /// Emitting <c>?.</c> only on the first segment — as this generator did — leaves every later
+    /// segment unguarded, so a null part-way along a path throws from instrumentation. That is the
+    /// one thing tagging must never do.
+    /// </para>
+    /// <para>
+    /// Returns null when a segment cannot be resolved, which leaves the caller on its previous
+    /// behaviour rather than emitting a guess. An unresolvable path is almost always a typo, and
+    /// the generated code then fails to compile with the member name in the message.
+    /// </para>
+    /// </remarks>
+    private static string? ResolveMemberAccess(ITypeSymbol rootType, string memberPath)
+    {
+        if (string.IsNullOrWhiteSpace(memberPath))
+            return null;
+
+        var current = rootType;
+        var sb = new System.Text.StringBuilder();
+
+        foreach (var rawSegment in memberPath.Split('.'))
+        {
+            var segment = rawSegment.Trim();
+            if (segment.Length == 0)
+                return null;
+
+            var nullable = CanBeNull(current);
+            var underlying = UnwrapNullable(current);
+
+            // `x?.Value` on a Nullable<T> does not mean Nullable<T>.Value: the null-conditional
+            // unwraps first, so the member is looked up on T and `.Value` fails to compile. The
+            // segment is also redundant — the tag boxes to the same T-or-null either way — so
+            // drop it and carry on from the underlying type.
+            if (nullable && !ReferenceEquals(underlying, current)
+                && string.Equals(segment, "Value", StringComparison.Ordinal))
+            {
+                current = underlying;
+                continue;
+            }
+
+            sb.Append(nullable ? "?." : ".");
+            sb.Append(segment);
+
+            // Look up against the underlying type for the same reason: after `?.` on a
+            // Nullable<T>, members resolve on T.
+            var memberType = FindMemberType(underlying, segment);
+            if (memberType is null)
+                return null;
+
+            current = memberType;
+        }
+
+        // May be empty when every segment resolved away — a bare "Value" on a nullable result.
+        // That is a successful resolution meaning "tag the root itself", which is distinct from
+        // the null returned above for a path that could not be resolved at all.
+        return sb.ToString();
+    }
+
+    /// <summary>Finds a property or field by name, walking base types.</summary>
+    private static ITypeSymbol? FindMemberType(ITypeSymbol type, string name)
+    {
+        for (var t = type; t is not null; t = t.BaseType)
+        {
+            foreach (var m in t.GetMembers(name))
+            {
+                if (m is IPropertySymbol { Parameters.Length: 0 } p) return p.Type;
+                if (m is IFieldSymbol f) return f.Type;
+            }
+        }
+
+        // Interfaces do not inherit through BaseType, so check the full interface set too —
+        // ICollection<T>.Count on an IReadOnlyList<T> parameter is the common case.
+        foreach (var iface in type.AllInterfaces)
+        {
+            foreach (var m in iface.GetMembers(name))
+            {
+                if (m is IPropertySymbol { Parameters.Length: 0 } p) return p.Type;
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// A tag with nowhere to go is a silent no-op, which is worse than a build message: the
     /// telemetry simply never appears and the gap is only noticed downstream.
@@ -307,7 +423,11 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 ? attr.ConstructorArguments[1].Value as string
                 : null;
 
-            (tags ??= new List<ResultTagModel>()).Add(new ResultTagModel(name!, member));
+            var accessSuffix = string.IsNullOrEmpty(member)
+                ? null
+                : ResolveMemberAccess(UnwrapAwaited(method.ReturnType), member!);
+
+            (tags ??= new List<ResultTagModel>()).Add(new ResultTagModel(name!, member, accessSuffix));
         }
 
         return tags?.ToArray() ?? [];

@@ -38,7 +38,7 @@ internal sealed class GraphInstrumented : IGraph
         {
             var _result = await _inner.CountAsync(ct);
             var _tagged = _result;
-            _activity?.SetTag("graph.node.count", _tagged?.Value);
+            _activity?.SetTag("graph.node.count", _tagged);
             return _result;
         }
         catch (Exception _ex)
