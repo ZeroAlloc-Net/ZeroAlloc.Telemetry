@@ -29,4 +29,20 @@ internal static class InstrumentDiagnostics
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor TagWithoutTrace = new(
+        id: "ZTEL004",
+        title: "[TraceTag]/[TraceTagFromResult] without [Trace] records nothing",
+        messageFormat: "[{0}] on '{1}.{2}' records nothing — the method has no [Trace], so no span is started to carry the tag. Add [Trace] to the method or remove the tag.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ResultTagOnVoidMethod = new(
+        id: "ZTEL005",
+        title: "[TraceTagFromResult] on a method with no return value",
+        messageFormat: "[TraceTagFromResult] on '{0}.{1}' records nothing — the method returns void, Task or ValueTask, so there is no result to read. Remove the attribute or return a value.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
 }

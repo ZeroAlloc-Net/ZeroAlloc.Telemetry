@@ -116,6 +116,104 @@ public class DiagnosticTests
         Assert.DoesNotContain(diagnostics, d => string.Equals(d.Id, "ZTEL003", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void ZTEL004_TraceTagWithoutTrace_ProducesWarning()
+    {
+        var diagnostics = RunAndCollectDiagnostics("""
+            using ZeroAlloc.Telemetry;
+            using System.Threading;
+            using System.Threading.Tasks;
+
+            [Instrument("MyApp")]
+            public interface IOrderService
+            {
+                [Count("orders.created")]
+                Task<string> CreateAsync([TraceTag("order.id")] string id, CancellationToken ct);
+            }
+            """);
+
+        Assert.Contains(diagnostics, d => string.Equals(d.Id, "ZTEL004", StringComparison.Ordinal) && d.Severity == DiagnosticSeverity.Warning);
+    }
+
+    [Fact]
+    public void ZTEL004_TraceTagFromResultWithoutTrace_ProducesWarning()
+    {
+        var diagnostics = RunAndCollectDiagnostics("""
+            using ZeroAlloc.Telemetry;
+            using System.Threading;
+            using System.Threading.Tasks;
+
+            [Instrument("MyApp")]
+            public interface IOrderService
+            {
+                [TraceTagFromResult("order.count", "Length")]
+                Task<string> CreateAsync(CancellationToken ct);
+            }
+            """);
+
+        Assert.Contains(diagnostics, d => string.Equals(d.Id, "ZTEL004", StringComparison.Ordinal) && d.Severity == DiagnosticSeverity.Warning);
+    }
+
+    [Fact]
+    public void ZTEL004_TagsWithTrace_ProduceNoWarning()
+    {
+        var diagnostics = RunAndCollectDiagnostics("""
+            using ZeroAlloc.Telemetry;
+            using System.Threading;
+            using System.Threading.Tasks;
+
+            [Instrument("MyApp")]
+            public interface IOrderService
+            {
+                [Trace("order.create")]
+                [TraceTagFromResult("order.length", "Length")]
+                Task<string> CreateAsync([TraceTag("order.id")] string id, CancellationToken ct);
+            }
+            """);
+
+        Assert.DoesNotContain(diagnostics, d => string.Equals(d.Id, "ZTEL004", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ZTEL005_ResultTagOnVoidReturningMethod_ProducesWarning()
+    {
+        var diagnostics = RunAndCollectDiagnostics("""
+            using ZeroAlloc.Telemetry;
+            using System.Threading;
+            using System.Threading.Tasks;
+
+            [Instrument("MyApp")]
+            public interface IOrderService
+            {
+                [Trace("order.create")]
+                [TraceTagFromResult("order.count", "Count")]
+                Task CreateAsync(CancellationToken ct);
+            }
+            """);
+
+        Assert.Contains(diagnostics, d => string.Equals(d.Id, "ZTEL005", StringComparison.Ordinal) && d.Severity == DiagnosticSeverity.Warning);
+    }
+
+    [Fact]
+    public void ZTEL005_ResultTagOnValueReturningMethod_ProducesNoWarning()
+    {
+        var diagnostics = RunAndCollectDiagnostics("""
+            using ZeroAlloc.Telemetry;
+            using System.Threading;
+            using System.Threading.Tasks;
+
+            [Instrument("MyApp")]
+            public interface IOrderService
+            {
+                [Trace("order.create")]
+                [TraceTagFromResult("order.length", "Length")]
+                Task<string> CreateAsync(CancellationToken ct);
+            }
+            """);
+
+        Assert.DoesNotContain(diagnostics, d => string.Equals(d.Id, "ZTEL005", StringComparison.Ordinal));
+    }
+
     private static Diagnostic[] RunAndCollectDiagnostics(string source)
     {
         var trustedPlatformAssemblies = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string ?? string.Empty;

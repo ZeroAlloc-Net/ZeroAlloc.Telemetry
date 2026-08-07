@@ -22,7 +22,8 @@ internal static class ProxyWriter
             sb.AppendLine();
         }
 
-        sb.AppendLine($"internal sealed class {model.ProxyName} : {model.InterfaceName}");
+        var accessibility = model.PublicProxy ? "public" : "internal";
+        sb.AppendLine($"{accessibility} sealed class {model.ProxyName} : {model.InterfaceName}");
         sb.AppendLine("{");
         sb.AppendLine($"    private static readonly ActivitySource _activitySource = new(\"{model.ActivitySourceName}\");");
         sb.AppendLine($"    private static readonly Meter _meter = new(\"{model.ActivitySourceName}\");");
@@ -71,7 +72,18 @@ internal static class ProxyWriter
         sb.AppendLine("    {");
 
         if (method.TraceName is not null)
+        {
             sb.AppendLine($"        using var _activity = _activitySource.StartActivity(\"{method.TraceName}\");");
+
+            // Set immediately after the span starts so the tags are present for its whole
+            // lifetime. `_activity?.` short-circuits the whole call when nothing sampled the
+            // span, so an unsampled call neither evaluates nor boxes the argument.
+            foreach (var p in method.Parameters)
+            {
+                if (p.TagName is not null)
+                    sb.AppendLine($"        _activity?.SetTag(\"{p.TagName}\", {p.Name});");
+            }
+        }
 
         if (method.HistogramMetric is not null)
             sb.AppendLine("        var _sw = Stopwatch.GetTimestamp();");
@@ -101,6 +113,11 @@ internal static class ProxyWriter
         else
             sb.AppendLine($"            var _result = {callExpr};");
 
+        // Result tags come first so they are recorded even if a metric line below were to change.
+        // Only emitted with a span to carry them and a value to read; ZTEL004/ZTEL005 warn otherwise.
+        if (method.TraceName is not null && !method.ReturnsVoid && method.ResultTags.Count > 0)
+            WriteResultTags(sb, method);
+
         if (method.CountMetric is not null)
         {
             var fieldName = ToFieldName(method.CountMetric);
@@ -118,6 +135,47 @@ internal static class ProxyWriter
 
         sb.AppendLine("        }");
         WriteCatchBlock(sb, method);
+    }
+
+    /// <summary>
+    /// Emits the result-derived tags.
+    /// </summary>
+    /// <remarks>
+    /// Member access goes through a copy of the result rather than the result itself. Roslyn
+    /// treats <c>_result?.Member</c> as a null test on <c>_result</c>, which leaves it in a
+    /// maybe-null state — and the following <c>return _result;</c> then raises CS8603 in any
+    /// consumer with nullable warnings enabled. Testing the copy keeps the returned value's
+    /// null-state intact while still guaranteeing instrumentation cannot throw on a null result.
+    /// </remarks>
+    private static void WriteResultTags(StringBuilder sb, MethodModel method)
+    {
+        var needsCopy = method.ResultCanBeNull
+                     && method.ResultTags.Any(t => !string.IsNullOrEmpty(t.Member));
+
+        if (needsCopy)
+            sb.AppendLine("            var _tagged = _result;");
+
+        foreach (var tag in method.ResultTags)
+        {
+            string access;
+            if (string.IsNullOrEmpty(tag.Member))
+            {
+                // No member access, so no null test and no effect on _result's null-state.
+                access = "_result";
+            }
+            else if (method.ResultCanBeNull)
+            {
+                access = $"_tagged?.{tag.Member}";
+            }
+            else
+            {
+                // `?.` against a non-nullable value type does not compile, and a value type
+                // cannot be null, so plain access is both required and safe.
+                access = $"_result.{tag.Member}";
+            }
+
+            sb.AppendLine($"            _activity?.SetTag(\"{tag.TagName}\", {access});");
+        }
     }
 
     private static void WriteCatchBlock(StringBuilder sb, MethodModel method)

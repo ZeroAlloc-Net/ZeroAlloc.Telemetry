@@ -1,0 +1,14 @@
+﻿{
+  Diagnostics: [
+    {
+      Id: ZTEL004,
+      Title: [TraceTag]/[TraceTagFromResult] without [Trace] records nothing,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (8,17)-(8,25),
+      MessageFormat: [{0}] on '{1}.{2}' records nothing — the method has no [Trace], so no span is started to carry the tag. Add [Trace] to the method or remove the tag.,
+      Message: [TraceTag] on 'IPlainService.RunAsync' records nothing — the method has no [Trace], so no span is started to carry the tag. Add [Trace] to the method or remove the tag.,
+      Category: ZeroAlloc.Telemetry
+    }
+  ]
+}
