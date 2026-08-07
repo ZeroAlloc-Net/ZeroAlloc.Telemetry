@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.3.0...v1.4.0) (2026-08-07)
+
+
+### Features
+
+* **generator:** record span tags from arguments and results ([#31](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/31)) ([79b6d59](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/79b6d5919df99f0d93e77346d4344ff9ebd43013)), closes [#30](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/30)
+
 ## [1.3.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.2.2...v1.3.0) (2026-05-13)
 
 
