@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Collections.Immutable;
 using System.Text;
 using Microsoft.CodeAnalysis;
@@ -31,6 +32,21 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         SymbolDisplayFormat.FullyQualifiedFormat.AddMiscellaneousOptions(
             SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
 
+    // EPS06 fires on every Where/Select in an incremental pipeline as of Roslyn
+    // 4.14: IncrementalValuesProvider<T> grew from one instance field to two
+    // (8 -> 16 bytes), crossing ErrorProne's large-struct threshold. It stayed a
+    // readonly struct, so there is no defensive copy and none of the correctness
+    // risk EPS06 exists to catch — only a 16-byte copy in setup code that runs
+    // once per compilation, not per syntax node.
+    //
+    // Suppressed rather than fixed because it cannot be fixed: Where and Select
+    // are extension methods on the Roslyn API taking the provider by value, with
+    // no by-ref overload. Chaining them *is* the incremental generator pipeline.
+    // ErrorProne.NET.Structs 0.1.2 exposes no threshold setting to correct instead.
+    [SuppressMessage(
+        "ErrorProne.NET.Structs",
+        "EPS06:Hidden struct copy operation",
+        Justification = "Roslyn's own pipeline API passes the readonly 16-byte IncrementalValuesProvider by value; there is no alternative overload.")]
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Broaden the predicate to every TypeDeclarationSyntax so we can raise
@@ -69,6 +85,10 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         RegisterMethodAttributeDiagnostic(context, HistogramAttributeFqn, "Histogram");
     }
 
+    [SuppressMessage(
+        "ErrorProne.NET.Structs",
+        "EPS06:Hidden struct copy operation",
+        Justification = "Same Roslyn pipeline-API constraint as Initialize — see the note there.")]
     private static void RegisterMethodAttributeDiagnostic(
         IncrementalGeneratorInitializationContext context,
         string methodAttrFqn,
