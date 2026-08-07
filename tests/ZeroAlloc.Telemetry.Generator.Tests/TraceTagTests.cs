@@ -313,6 +313,72 @@ public class TraceTagTests
         return Verifier.Verify(RunGenerator(source));
     }
 
+    /// <summary>
+    /// Covers <c>When</c> (issue #37) — a tag whose value is only valid on one branch of a
+    /// Result-style return. The guard must prevent the member being read at all, which a
+    /// null-conditional cannot do.
+    /// </summary>
+    [Fact]
+    public Task GeneratesGuardedSetTag_ForConditionalResultTags()
+    {
+        var source = """
+            using ZeroAlloc.Telemetry;
+            using System.Collections.Generic;
+            using System.Threading;
+            using System.Threading.Tasks;
+
+            public sealed class RagError { }
+
+            public sealed class Result<T, E>
+            {
+                public bool IsSuccess { get; }
+                public T Value { get; } = default!;
+            }
+
+            public sealed class Chunk { }
+
+            [Instrument("MyApp.Ingest")]
+            public interface IIngest
+            {
+                [Trace("ingest.chunk")]
+                [TraceTagFromResult("chunk.count", "Value.Count", When = "IsSuccess")]
+                Task<Result<IReadOnlyList<Chunk>, RagError>> ChunkAsync(CancellationToken ct);
+            }
+            """;
+
+        return Verifier.Verify(RunGenerator(source));
+    }
+
+    /// <summary>
+    /// A guard on a non-nullable value-type result needs no null-tolerant comparison — the bare
+    /// boolean reads better and some analyzers flag <c>x == true</c>.
+    /// </summary>
+    [Fact]
+    public Task GeneratesBareGuard_ForNonNullableBool()
+    {
+        var source = """
+            using ZeroAlloc.Telemetry;
+            using System.Threading;
+            using System.Threading.Tasks;
+
+            public readonly struct Outcome
+            {
+                public bool Ok { get; }
+                public int Count { get; }
+            }
+
+            [Instrument("MyApp.Outcome")]
+            public interface IOutcome
+            {
+                [Trace("outcome.run")]
+                [TraceTagFromResult("outcome.count", "Count", When = "Ok")]
+                ValueTask<Outcome> RunAsync(CancellationToken ct);
+            }
+            """;
+
+        return Verifier.Verify(RunGenerator(source));
+    }
+
     private static GeneratorDriver RunGenerator(string source)
     {
         var trustedPlatformAssemblies = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string ?? string.Empty;

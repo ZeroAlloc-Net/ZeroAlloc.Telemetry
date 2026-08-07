@@ -14,4 +14,12 @@ namespace ZeroAlloc.Telemetry.Generator.Models;
 /// wherever it cannot be.
 /// </para>
 /// </param>
-internal sealed record ResultTagModel(string TagName, string? Member, string? AccessSuffix = null);
+/// <param name="GuardExpression">
+/// The condition the tag is emitted under, already resolved and null-tolerant — e.g.
+/// <c>?.IsSuccess == true</c> appended to the root. Null records unconditionally.
+/// </param>
+internal sealed record ResultTagModel(
+    string TagName,
+    string? Member,
+    string? AccessSuffix = null,
+    string? GuardExpression = null);

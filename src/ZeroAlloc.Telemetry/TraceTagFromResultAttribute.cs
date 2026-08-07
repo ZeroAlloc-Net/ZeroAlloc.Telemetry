@@ -39,6 +39,24 @@ public sealed class TraceTagFromResultAttribute : Attribute
     /// </summary>
     public string? Member { get; }
 
+    /// <summary>
+    /// A boolean member of the result that must be true for the tag to be recorded, e.g.
+    /// <c>IsSuccess</c>. Null records unconditionally.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// For results whose value is only valid on one branch — a <c>Result&lt;T, E&gt;</c> where the
+    /// count lives at <c>Value.Count</c> and reading it on the failure branch is meaningless at
+    /// best, and throws at worst. The guard prevents the member being read at all, which a
+    /// null-conditional cannot do: <c>?.</c> guards against a null result, not against a result
+    /// whose value is unset.
+    /// </para>
+    /// <para>
+    /// Any boolean member works, so this is not tied to any particular result type.
+    /// </para>
+    /// </remarks>
+    public string? When { get; set; }
+
     /// <summary>Records the whole result under <paramref name="name"/>.</summary>
     /// <param name="name">The tag key.</param>
     public TraceTagFromResultAttribute(string name)

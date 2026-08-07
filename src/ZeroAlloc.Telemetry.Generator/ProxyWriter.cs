@@ -177,8 +177,10 @@ internal static class ProxyWriter
     /// </remarks>
     private static void WriteResultTags(StringBuilder sb, MethodModel method)
     {
+        // A guard reads from the same local as the member access, so it needs the copy too —
+        // a tag that is guarded but records the whole result still null-tests _result otherwise.
         var needsCopy = method.ResultCanBeNull
-                     && method.ResultTags.Any(t => !string.IsNullOrEmpty(t.Member));
+                     && method.ResultTags.Any(t => !string.IsNullOrEmpty(t.Member) || t.GuardExpression is not null);
 
         if (needsCopy)
             sb.AppendLine("            var _tagged = _result;");
@@ -207,7 +209,20 @@ internal static class ProxyWriter
                     : $"_result.{tag.Member}";
             }
 
-            sb.AppendLine($"            _activity?.SetTag(\"{tag.TagName}\", {access});");
+            if (tag.GuardExpression is { } guard)
+            {
+                // The guard has to prevent the member being read at all, which a null-conditional
+                // cannot: `?.` protects against a null result, not against a result whose value is
+                // unset — reading Value on a failed Result is meaningless at best and throws at
+                // worst.
+                var root = method.ResultCanBeNull ? "_tagged" : "_result";
+                sb.AppendLine($"            if ({root}{guard})");
+                sb.AppendLine($"                _activity?.SetTag(\"{tag.TagName}\", {access});");
+            }
+            else
+            {
+                sb.AppendLine($"            _activity?.SetTag(\"{tag.TagName}\", {access});");
+            }
         }
     }
 

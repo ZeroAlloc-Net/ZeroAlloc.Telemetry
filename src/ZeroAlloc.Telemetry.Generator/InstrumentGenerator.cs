@@ -264,8 +264,17 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
     /// the generated code then fails to compile with the member name in the message.
     /// </para>
     /// </remarks>
-    private static string? ResolveMemberAccess(ITypeSymbol rootType, string memberPath)
+    private static string? ResolveMemberAccess(ITypeSymbol rootType, string memberPath) =>
+        ResolveMemberAccess(rootType, memberPath, out _);
+
+    /// <summary>
+    /// As <see cref="ResolveMemberAccess(ITypeSymbol, string)"/>, also reporting the type the
+    /// path ends at — needed by the When guard to decide whether the comparison must tolerate
+    /// null.
+    /// </summary>
+    private static string? ResolveMemberAccess(ITypeSymbol rootType, string memberPath, out ITypeSymbol? finalType)
     {
+        finalType = null;
         if (string.IsNullOrWhiteSpace(memberPath))
             return null;
 
@@ -307,6 +316,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         // May be empty when every segment resolved away — a bare "Value" on a nullable result.
         // That is a successful resolution meaning "tag the root itself", which is distinct from
         // the null returned above for a path that could not be resolved at all.
+        finalType = current;
         return sb.ToString();
     }
 
@@ -461,11 +471,23 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 ? attr.ConstructorArguments[1].Value as string
                 : null;
 
+            var resultType = UnwrapAwaited(method.ReturnType);
+
             var accessSuffix = string.IsNullOrEmpty(member)
                 ? null
-                : ResolveMemberAccess(UnwrapAwaited(method.ReturnType), member!);
+                : ResolveMemberAccess(resultType, member!);
 
-            (tags ??= new List<ResultTagModel>()).Add(new ResultTagModel(name!, member, accessSuffix));
+            // "When" is a named argument, so it is not in ConstructorArguments.
+            string? when = null;
+            foreach (var named in attr.NamedArguments)
+            {
+                if (string.Equals(named.Key, "When", StringComparison.Ordinal))
+                    when = named.Value.Value as string;
+            }
+
+            var guard = BuildGuardExpression(resultType, when);
+
+            (tags ??= new List<ResultTagModel>()).Add(new ResultTagModel(name!, member, accessSuffix, guard));
         }
 
         return tags?.ToArray() ?? [];
@@ -513,6 +535,31 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 // emit something that will not compile.
                 return null;
         }
+    }
+
+    /// <summary>
+    /// Builds the condition a result tag is emitted under, or null when it is unconditional.
+    /// </summary>
+    /// <remarks>
+    /// The comparison against true is added only when the resolved guard can be null — either
+    /// because a step along the path is null-tested, or because the member itself is
+    /// <c>bool?</c>. On a plain bool the bare expression is emitted, since <c>x == true</c> reads
+    /// as noise and some analyzers flag it.
+    /// </remarks>
+    private static string? BuildGuardExpression(ITypeSymbol resultType, string? when)
+    {
+        if (string.IsNullOrWhiteSpace(when))
+            return null;
+
+        var suffix = ResolveMemberAccess(resultType, when!, out var guardType);
+        if (suffix is null)
+        {
+            // Unresolvable — emit as written and let the compiler name the bad member.
+            return CanBeNull(resultType) ? $"?.{when} == true" : $".{when} == true";
+        }
+
+        var nullable = suffix.Contains("?.") || (guardType is not null && CanBeNull(guardType));
+        return nullable ? suffix + " == true" : suffix;
     }
 
     private static ConstantTagModel[] BuildConstantTags(IMethodSymbol method)

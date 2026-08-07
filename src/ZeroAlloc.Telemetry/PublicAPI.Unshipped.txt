@@ -27,3 +27,5 @@ ZeroAlloc.Telemetry.TraceTagFromResultAttribute.Member.get -> string?
 ZeroAlloc.Telemetry.TraceTagFromResultAttribute.Name.get -> string!
 ZeroAlloc.Telemetry.TraceTagFromResultAttribute.TraceTagFromResultAttribute(string! name) -> void
 ZeroAlloc.Telemetry.TraceTagFromResultAttribute.TraceTagFromResultAttribute(string! name, string! member) -> void
+ZeroAlloc.Telemetry.TraceTagFromResultAttribute.When.get -> string?
+ZeroAlloc.Telemetry.TraceTagFromResultAttribute.When.set -> void
