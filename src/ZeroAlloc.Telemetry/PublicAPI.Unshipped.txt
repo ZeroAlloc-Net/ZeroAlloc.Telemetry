@@ -8,6 +8,16 @@ ZeroAlloc.Telemetry.HistogramAttribute.Metric.get -> string!
 ZeroAlloc.Telemetry.InstrumentAttribute
 ZeroAlloc.Telemetry.InstrumentAttribute.ActivitySource.get -> string!
 ZeroAlloc.Telemetry.InstrumentAttribute.InstrumentAttribute(string! activitySource) -> void
+ZeroAlloc.Telemetry.InstrumentAttribute.PublicProxy.get -> bool
+ZeroAlloc.Telemetry.InstrumentAttribute.PublicProxy.set -> void
 ZeroAlloc.Telemetry.TraceAttribute
 ZeroAlloc.Telemetry.TraceAttribute.Name.get -> string!
 ZeroAlloc.Telemetry.TraceAttribute.TraceAttribute(string! name) -> void
+ZeroAlloc.Telemetry.TraceTagAttribute
+ZeroAlloc.Telemetry.TraceTagAttribute.Name.get -> string!
+ZeroAlloc.Telemetry.TraceTagAttribute.TraceTagAttribute(string! name) -> void
+ZeroAlloc.Telemetry.TraceTagFromResultAttribute
+ZeroAlloc.Telemetry.TraceTagFromResultAttribute.Member.get -> string?
+ZeroAlloc.Telemetry.TraceTagFromResultAttribute.Name.get -> string!
+ZeroAlloc.Telemetry.TraceTagFromResultAttribute.TraceTagFromResultAttribute(string! name) -> void
+ZeroAlloc.Telemetry.TraceTagFromResultAttribute.TraceTagFromResultAttribute(string! name, string! member) -> void
