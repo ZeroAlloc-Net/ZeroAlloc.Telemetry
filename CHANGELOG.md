@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.5.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.4.2...v1.5.0) (2026-08-07)
+
+
+### Features
+
+* **generator:** add [TraceTagConstant] for compile-time constant tags ([#48](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/48)) ([e9c363e](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/e9c363e068d98e42dc8b60cd08f2d42281ba1d1c)), closes [#36](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/36)
+* **generator:** add When to [TraceTagFromResult] for conditional tags ([#52](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/52)) ([59e45ae](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/59e45ae6a11dd537fedc04da35915d4c6c8e1934)), closes [#37](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/37)
+* **generator:** let [TraceTag] read a member of an argument ([#51](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/51)) ([9ae1819](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/9ae18190de77aff70ff5c35ba6ec36cd652524d8)), closes [#35](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/35)
+
+
+### Bug Fixes
+
+* **generator:** make dotted member paths null-safe and compilable ([#46](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/46)) ([56be404](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/56be4043b95f04c2dd30a2b260241ce6cdcd2f54))
+
 ## [1.4.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.4.1...v1.4.2) (2026-08-07)
 
 
