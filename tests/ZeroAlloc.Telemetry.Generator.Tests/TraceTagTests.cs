@@ -198,6 +198,62 @@ public class TraceTagTests
         return Verifier.Verify(RunGenerator(source));
     }
 
+    /// <summary>
+    /// Covers <c>[TraceTagConstant]</c> (issue #36) — the discriminator tags that say which
+    /// implementation ran, and the constant-valued attributes the OTel semantic conventions
+    /// require. Exercises each constant kind, because each is rendered differently.
+    /// </summary>
+    [Fact]
+    public Task GeneratesSetTag_ForConstantTags()
+    {
+        var source = """
+            using ZeroAlloc.Telemetry;
+            using System.Threading;
+            using System.Threading.Tasks;
+
+            public enum SearchMode { Local = 1, Global = 2 }
+
+            [Instrument("MyApp.Rerank")]
+            public interface IReranker
+            {
+                [Trace("rerank.run")]
+                [TraceTagConstant("reranker.type", "CohereReranker")]
+                [TraceTagConstant("gen_ai.operation.name", "chat")]
+                [TraceTagConstant("vectorstore.hybrid", true)]
+                [TraceTagConstant("rerank.max", 42)]
+                [TraceTagConstant("graphrag.search.mode", SearchMode.Global)]
+                Task<string> RerankAsync(CancellationToken ct);
+            }
+            """;
+
+        return Verifier.Verify(RunGenerator(source));
+    }
+
+    /// <summary>
+    /// A tag value containing a quote or backslash must be escaped as the language would write
+    /// it, or the generated file does not compile.
+    /// </summary>
+    [Fact]
+    public Task GeneratesEscapedLiteral_ForAwkwardConstantValues()
+    {
+        var source = """
+            using ZeroAlloc.Telemetry;
+            using System.Threading;
+            using System.Threading.Tasks;
+
+            [Instrument("MyApp.Awkward")]
+            public interface IAwkward
+            {
+                [Trace("awkward.run")]
+                [TraceTagConstant("quote", "he said \"hi\"")]
+                [TraceTagConstant("path", "C:\\temp\\x")]
+                Task<string> RunAsync(CancellationToken ct);
+            }
+            """;
+
+        return Verifier.Verify(RunGenerator(source));
+    }
+
     private static GeneratorDriver RunGenerator(string source)
     {
         var trustedPlatformAssemblies = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string ?? string.Empty;

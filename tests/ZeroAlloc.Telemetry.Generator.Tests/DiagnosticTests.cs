@@ -214,6 +214,26 @@ public class DiagnosticTests
         Assert.DoesNotContain(diagnostics, d => string.Equals(d.Id, "ZTEL005", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void ZTEL004_TraceTagConstantWithoutTrace_ProducesWarning()
+    {
+        var diagnostics = RunAndCollectDiagnostics("""
+            using ZeroAlloc.Telemetry;
+            using System.Threading;
+            using System.Threading.Tasks;
+
+            [Instrument("MyApp")]
+            public interface IOrderService
+            {
+                [Count("orders.created")]
+                [TraceTagConstant("order.kind", "standard")]
+                Task<string> CreateAsync(CancellationToken ct);
+            }
+            """);
+
+        Assert.Contains(diagnostics, d => string.Equals(d.Id, "ZTEL004", StringComparison.Ordinal) && d.Severity == DiagnosticSeverity.Warning);
+    }
+
     private static Diagnostic[] RunAndCollectDiagnostics(string source)
     {
         var trustedPlatformAssemblies = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string ?? string.Empty;

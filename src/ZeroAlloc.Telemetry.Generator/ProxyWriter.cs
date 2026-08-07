@@ -82,6 +82,11 @@ internal static class ProxyWriter
         {
             sb.AppendLine($"        using var _activity = _activitySource.StartActivity(\"{method.TraceName}\");");
 
+            // Constants first: they identify which implementation is running, so they are the
+            // most useful thing present if a sampler inspects tags at ActivityStarted.
+            foreach (var constant in method.ConstantTags)
+                sb.AppendLine($"        _activity?.SetTag(\"{constant.TagName}\", {constant.Literal});");
+
             // Set immediately after the span starts so the tags are present for its whole
             // lifetime. `_activity?.` short-circuits the whole call when nothing sampled the
             // span, so an unsampled call neither evaluates nor boxes the argument.
