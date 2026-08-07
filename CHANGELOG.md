@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.4.1...v1.4.2) (2026-08-07)
+
+
+### Bug Fixes
+
+* **generator:** suppress EPC12 in the emitted proxy ([#42](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/42)) ([08f1d44](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/08f1d446f602d7ab48a5eb43cf62cb29bb22346d)), closes [#38](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/38)
+
 ## [1.4.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.4.0...v1.4.1) (2026-08-07)
 
 
