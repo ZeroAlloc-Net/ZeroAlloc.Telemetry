@@ -14,6 +14,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
     private const string HistogramAttributeFqn     = "ZeroAlloc.Telemetry.HistogramAttribute";
     private const string TraceTagAttributeFqn      = "ZeroAlloc.Telemetry.TraceTagAttribute";
     private const string TraceTagFromResultAttrFqn = "ZeroAlloc.Telemetry.TraceTagFromResultAttribute";
+    private const string TraceTagConstantAttrFqn   = "ZeroAlloc.Telemetry.TraceTagConstantAttribute";
 
     /// <summary>
     /// Fully-qualified names that keep nullable reference type annotations.
@@ -175,8 +176,9 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
 
             var parameters = BuildParameters(member);
             var resultTags = BuildResultTags(member);
+            var constantTags = BuildConstantTags(member);
 
-            ReportTagDiagnostics(diagnostics, target, member, parameters, resultTags, traceName, returnsVoid);
+            ReportTagDiagnostics(diagnostics, target, member, parameters, resultTags, constantTags, traceName, returnsVoid);
 
             methods.Add(new MethodModel(
                 member.Name,
@@ -188,7 +190,8 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 countMetric,
                 histMetric,
                 resultTags,
-                ResultCanBeNull(member)));
+                ResultCanBeNull(member),
+                constantTags));
         }
         return methods;
     }
@@ -342,6 +345,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         IMethodSymbol member,
         IReadOnlyList<ParameterModel> parameters,
         IReadOnlyList<ResultTagModel> resultTags,
+        IReadOnlyList<ConstantTagModel> constantTags,
         string? traceName,
         bool returnsVoid)
     {
@@ -362,6 +366,13 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 diagnostics.Add(Diagnostic.Create(
                     InstrumentDiagnostics.TagWithoutTrace,
                     location, "TraceTagFromResult", target.ToDisplayString(), member.Name));
+            }
+
+            if (constantTags.Count > 0)
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    InstrumentDiagnostics.TagWithoutTrace,
+                    location, "TraceTagConstant", target.ToDisplayString(), member.Name));
             }
         }
 
@@ -428,6 +439,75 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 : ResolveMemberAccess(UnwrapAwaited(method.ReturnType), member!);
 
             (tags ??= new List<ResultTagModel>()).Add(new ResultTagModel(name!, member, accessSuffix));
+        }
+
+        return tags?.ToArray() ?? [];
+    }
+
+    /// <summary>
+    /// Renders an attribute constant as the C# literal to emit, or null if it cannot be.
+    /// </summary>
+    /// <remarks>
+    /// Strings and chars go through Roslyn's <c>SymbolDisplay.FormatLiteral</c> so quoting and
+    /// escaping match the language — a tag value containing a quote or a backslash would
+    /// otherwise emit code that does not compile.
+    /// <para>
+    /// Enums are emitted as a cast over the underlying value rather than by member name. The name
+    /// would read better, but a cast is correct for combined flag values too, which have no single
+    /// member to name.
+    /// </para>
+    /// </remarks>
+    private static string? FormatConstant(TypedConstant constant)
+    {
+        if (constant.IsNull)
+            return "null";
+
+        switch (constant.Kind)
+        {
+            case TypedConstantKind.Primitive when constant.Value is string s:
+                return Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(s, quote: true);
+
+            case TypedConstantKind.Primitive when constant.Value is char c:
+                return Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(c, quote: true);
+
+            case TypedConstantKind.Primitive when constant.Value is bool b:
+                return b ? "true" : "false";
+
+            case TypedConstantKind.Primitive:
+                return System.Convert.ToString(constant.Value, System.Globalization.CultureInfo.InvariantCulture);
+
+            case TypedConstantKind.Enum when constant.Type is not null:
+                var enumType = constant.Type.ToDisplayString(TypeFormat);
+                var underlying = System.Convert.ToString(constant.Value, System.Globalization.CultureInfo.InvariantCulture);
+                return $"({enumType}){underlying}";
+
+            default:
+                // Arrays and typeof() have no sensible tag representation; skip rather than
+                // emit something that will not compile.
+                return null;
+        }
+    }
+
+    private static ConstantTagModel[] BuildConstantTags(IMethodSymbol method)
+    {
+        List<ConstantTagModel>? tags = null;
+        foreach (var attr in method.GetAttributes())
+        {
+            if (!string.Equals(attr.AttributeClass?.ToDisplayString(), TraceTagConstantAttrFqn, StringComparison.Ordinal))
+                continue;
+
+            if (attr.ConstructorArguments.Length < 2)
+                continue;
+
+            var name = attr.ConstructorArguments[0].Value as string;
+            if (string.IsNullOrEmpty(name))
+                continue;
+
+            var literal = FormatConstant(attr.ConstructorArguments[1]);
+            if (literal is null)
+                continue;
+
+            (tags ??= new List<ConstantTagModel>()).Add(new ConstantTagModel(name!, literal));
         }
 
         return tags?.ToArray() ?? [];

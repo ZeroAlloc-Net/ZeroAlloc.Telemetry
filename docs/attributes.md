@@ -2,7 +2,7 @@
 id: attributes
 title: Attribute Reference
 slug: /docs/attributes
-description: Reference for [Instrument], [Trace], [Count], [Histogram], [TraceTag], and [TraceTagFromResult] — the attributes in ZeroAlloc.Telemetry.
+description: Reference for [Instrument], [Trace], [Count], [Histogram], [TraceTag], [TraceTagFromResult], and [TraceTagConstant] — the attributes in ZeroAlloc.Telemetry.
 sidebar_position: 3
 ---
 
@@ -224,6 +224,58 @@ For async methods the value comes from the **awaited result**, not the task. Omi
 Member access is null-safe — a null result records a null tag rather than throwing. Instrumentation must never fail a call that would otherwise have succeeded.
 
 On a method returning `void`, `Task` or `ValueTask` there is no result to read, so the generator reports **ZTEL005**.
+
+---
+
+## [TraceTagConstant]
+
+```csharp
+[AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
+public sealed class TraceTagConstantAttribute : Attribute
+{
+    public string Name { get; }
+    public object? Value { get; }
+    public TraceTagConstantAttribute(string name, object? value);
+}
+```
+
+**Placement:** Method. Requires `[Trace]` on the same method.
+
+**Effect:** Records a compile-time constant as a tag. For values that are simply *known* rather than derived from an argument or a return value — which implementation ran, which mode, which provider.
+
+```csharp
+[Trace("rerank.run")]
+[TraceTagConstant("reranker.type", "CohereReranker")]
+[TraceTagConstant("gen_ai.operation.name", "chat")]
+Task<IReadOnlyList<RerankResult>> RerankAsync(CancellationToken ct);
+```
+
+```csharp
+// Generated:
+using var _activity = _activitySource.StartActivity("rerank.run");
+_activity?.SetTag("reranker.type", "CohereReranker");
+_activity?.SetTag("gen_ai.operation.name", "chat");
+```
+
+Any constant an attribute can carry works — string, bool, numeric, or enum:
+
+| Written | Emitted |
+|---|---|
+| `"CohereReranker"` | `"CohereReranker"` |
+| `true` | `true` |
+| `42` | `42` |
+| `SearchMode.Global` | `(global::SearchMode)2` |
+
+Enums are emitted as a cast rather than by member name, which is also correct for combined flag values that have no single member to name.
+
+Constants are emitted **before** argument tags, so they are the first thing present if a sampler inspects tags at `ActivityStarted`.
+
+Two places this earns its keep:
+
+- **Shared interfaces.** When several types implement one `[Instrument]` interface, a constant tag is how their spans are told apart.
+- **OTel semantic conventions**, which mandate several constant-valued attributes — `gen_ai.operation.name`, `gen_ai.provider.name`, `db.system.name`. There is no other way to express them.
+
+Without `[Trace]` there is no span to carry the tag, so the generator reports **ZTEL004**.
 
 ---
 

@@ -16,5 +16,6 @@ internal sealed record MethodModel(
     string? CountMetric,
     string? HistogramMetric,
     IReadOnlyList<ResultTagModel> ResultTags,
-    bool ResultCanBeNull
+    bool ResultCanBeNull,
+    IReadOnlyList<ConstantTagModel> ConstantTags
 );

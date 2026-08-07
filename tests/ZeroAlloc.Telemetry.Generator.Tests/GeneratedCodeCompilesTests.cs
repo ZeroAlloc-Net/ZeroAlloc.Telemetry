@@ -25,6 +25,8 @@ public class GeneratedCodeCompilesTests
             using System.Threading;
             using System.Threading.Tasks;
 
+            public enum ProbeMode { First = 1, Second = 2 }
+
             public readonly struct Extent { public int Width { get; } }
 
             public sealed class Inner { public IReadOnlyList<string>? Items { get; set; } }
@@ -56,6 +58,15 @@ public class GeneratedCodeCompilesTests
                 [Trace("probe.nullable")]
                 [TraceTagFromResult("nullable.value", "Value")]
                 Task<int?> NullableAsync(CancellationToken ct);
+
+                // Constant tags: every kind must render as a compilable literal, including
+                // strings needing escapes and an enum with no single named member.
+                [Trace("probe.constant")]
+                [TraceTagConstant("c.string", "a \"quoted\" and C:\\path")]
+                [TraceTagConstant("c.bool", false)]
+                [TraceTagConstant("c.int", -7)]
+                [TraceTagConstant("c.enum", ProbeMode.Second)]
+                Task<string> ConstantAsync(CancellationToken ct);
             }
             """;
 
