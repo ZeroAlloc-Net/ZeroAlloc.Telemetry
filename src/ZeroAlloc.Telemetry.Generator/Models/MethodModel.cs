@@ -6,6 +6,12 @@ namespace ZeroAlloc.Telemetry.Generator.Models;
 /// the result is emitted as <c>?.</c> or <c>.</c>; <c>?.</c> on a non-nullable value type does not
 /// compile.
 /// </param>
+/// <param name="TraceNameExpression">
+/// A C# expression composing the span name from the wrapped instance's type, when
+/// <see cref="TraceName"/> contains the <c>{type}</c> token — e.g. <c>"search." + _implName</c>.
+/// Null when the name is a constant, which is the common case. The proxy evaluates this once in
+/// its constructor and caches the result, so the per-call path never composes a string.
+/// </param>
 internal sealed record MethodModel(
     string Name,
     string ReturnType,
@@ -17,5 +23,6 @@ internal sealed record MethodModel(
     string? HistogramMetric,
     IReadOnlyList<ResultTagModel> ResultTags,
     bool ResultCanBeNull,
-    IReadOnlyList<ConstantTagModel> ConstantTags
+    IReadOnlyList<ConstantTagModel> ConstantTags,
+    string? TraceNameExpression = null
 );
