@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.5.0...v1.6.0) (2026-08-07)
+
+
+### Features
+
+* **generator:** substitute {type} in span names per implementation ([#54](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/54)) ([13c5bba](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/13c5bba31001966cd7185c023fdf6bd0d154f3e6)), closes [#53](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/53)
+
 ## [1.5.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.4.2...v1.5.0) (2026-08-07)
 
 
