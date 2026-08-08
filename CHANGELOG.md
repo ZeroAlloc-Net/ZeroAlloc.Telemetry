@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.6.0...v1.6.1) (2026-08-07)
+
+
+### Bug Fixes
+
+* **generator:** suppress EPS06 for Roslyn 4.14's larger pipeline struct ([#58](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/58)) ([78df711](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/78df7116884497cea7441d48e187b858081a398f))
+
 ## [1.6.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.5.0...v1.6.0) (2026-08-07)
 
 
