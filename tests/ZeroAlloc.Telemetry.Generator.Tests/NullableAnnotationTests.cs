@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using VerifyXunit;
+
+using ZeroAlloc.TestHelpers;
 
 namespace ZeroAlloc.Telemetry.Generator.Tests;
 
@@ -42,8 +43,8 @@ public class NullableAnnotationTests
         """;
 
     [Fact]
-    public Task PreservesNullableAnnotations_OnReturnsAndParameters()
-        => Verifier.Verify(RunGenerator(NullableSource));
+    public void PreservesNullableAnnotations_OnReturnsAndParameters()
+        => GeneratorSnapshot.Verify(RunGenerator(NullableSource));
 
     /// <summary>
     /// Asserts the emitted text directly rather than only through the snapshot: a snapshot that

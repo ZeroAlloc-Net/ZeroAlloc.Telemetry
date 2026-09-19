@@ -1,13 +1,14 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using VerifyXunit;
+
+using ZeroAlloc.TestHelpers;
 
 namespace ZeroAlloc.Telemetry.Generator.Tests;
 
 public class TraceTests
 {
     [Fact]
-    public Task GeneratesActivityProxy_ForTraceMethod()
+    public void GeneratesActivityProxy_ForTraceMethod()
     {
         var source = """
             using ZeroAlloc.Telemetry;
@@ -22,11 +23,11 @@ public class TraceTests
             }
             """;
 
-        return Verifier.Verify(RunGenerator(source));
+        GeneratorSnapshot.Verify(RunGenerator(source));
     }
 
     [Fact]
-    public Task GeneratesCounterIncrement_ForCountMethod()
+    public void GeneratesCounterIncrement_ForCountMethod()
     {
         var source = """
             using ZeroAlloc.Telemetry;
@@ -41,11 +42,11 @@ public class TraceTests
             }
             """;
 
-        return Verifier.Verify(RunGenerator(source));
+        GeneratorSnapshot.Verify(RunGenerator(source));
     }
 
     [Fact]
-    public Task GeneratesHistogramRecord_ForHistogramMethod()
+    public void GeneratesHistogramRecord_ForHistogramMethod()
     {
         var source = """
             using ZeroAlloc.Telemetry;
@@ -60,11 +61,11 @@ public class TraceTests
             }
             """;
 
-        return Verifier.Verify(RunGenerator(source));
+        GeneratorSnapshot.Verify(RunGenerator(source));
     }
 
     [Fact]
-    public Task GeneratesAllInstruments_WhenAllAttributesCombined()
+    public void GeneratesAllInstruments_WhenAllAttributesCombined()
     {
         var source = """
             using ZeroAlloc.Telemetry;
@@ -81,7 +82,7 @@ public class TraceTests
             }
             """;
 
-        return Verifier.Verify(RunGenerator(source));
+        GeneratorSnapshot.Verify(RunGenerator(source));
     }
 
     private static GeneratorDriver RunGenerator(string source)

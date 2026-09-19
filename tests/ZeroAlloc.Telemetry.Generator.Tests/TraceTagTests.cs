@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using VerifyXunit;
+
+using ZeroAlloc.TestHelpers;
 
 namespace ZeroAlloc.Telemetry.Generator.Tests;
 
@@ -11,7 +12,7 @@ namespace ZeroAlloc.Telemetry.Generator.Tests;
 public class TraceTagTests
 {
     [Fact]
-    public Task GeneratesSetTag_ForTaggedParameters()
+    public void GeneratesSetTag_ForTaggedParameters()
     {
         var source = """
             using ZeroAlloc.Telemetry;
@@ -30,11 +31,11 @@ public class TraceTagTests
             }
             """;
 
-        return Verifier.Verify(RunGenerator(source));
+        GeneratorSnapshot.Verify(RunGenerator(source));
     }
 
     [Fact]
-    public Task GeneratesSetTag_ForResultMember()
+    public void GeneratesSetTag_ForResultMember()
     {
         var source = """
             using ZeroAlloc.Telemetry;
@@ -51,11 +52,11 @@ public class TraceTagTests
             }
             """;
 
-        return Verifier.Verify(RunGenerator(source));
+        GeneratorSnapshot.Verify(RunGenerator(source));
     }
 
     [Fact]
-    public Task GeneratesMultipleResultTags_AndWholeResultTag()
+    public void GeneratesMultipleResultTags_AndWholeResultTag()
     {
         var source = """
             using ZeroAlloc.Telemetry;
@@ -82,7 +83,7 @@ public class TraceTagTests
             }
             """;
 
-        return Verifier.Verify(RunGenerator(source));
+        GeneratorSnapshot.Verify(RunGenerator(source));
     }
 
     /// <summary>
@@ -91,7 +92,7 @@ public class TraceTagTests
     /// breaks the consumer's build rather than merely losing a tag.
     /// </summary>
     [Fact]
-    public Task GeneratesPlainMemberAccess_ForValueTypeResult()
+    public void GeneratesPlainMemberAccess_ForValueTypeResult()
     {
         var source = """
             using ZeroAlloc.Telemetry;
@@ -112,11 +113,11 @@ public class TraceTagTests
             }
             """;
 
-        return Verifier.Verify(RunGenerator(source));
+        GeneratorSnapshot.Verify(RunGenerator(source));
     }
 
     [Fact]
-    public Task GeneratesPublicProxy_WhenPublicProxyRequested()
+    public void GeneratesPublicProxy_WhenPublicProxyRequested()
     {
         var source = """
             using ZeroAlloc.Telemetry;
@@ -131,11 +132,11 @@ public class TraceTagTests
             }
             """;
 
-        return Verifier.Verify(RunGenerator(source));
+        GeneratorSnapshot.Verify(RunGenerator(source));
     }
 
     [Fact]
-    public Task GeneratesNoTags_WhenMethodHasNoTrace()
+    public void GeneratesNoTags_WhenMethodHasNoTrace()
     {
         // Tags need a span. Without [Trace] nothing is emitted (and ZTEL004 is reported).
         var source = """
@@ -151,7 +152,7 @@ public class TraceTagTests
             }
             """;
 
-        return Verifier.Verify(RunGenerator(source));
+        GeneratorSnapshot.Verify(RunGenerator(source));
     }
 
     /// <summary>
@@ -160,7 +161,7 @@ public class TraceTagTests
     /// The operator for each segment is chosen from the resolved type.
     /// </summary>
     [Fact]
-    public Task GeneratesNullSafeAccess_ForEverySegmentOfADottedPath()
+    public void GeneratesNullSafeAccess_ForEverySegmentOfADottedPath()
     {
         var source = """
             using ZeroAlloc.Telemetry;
@@ -195,7 +196,7 @@ public class TraceTagTests
             }
             """;
 
-        return Verifier.Verify(RunGenerator(source));
+        GeneratorSnapshot.Verify(RunGenerator(source));
     }
 
     /// <summary>
@@ -204,7 +205,7 @@ public class TraceTagTests
     /// require. Exercises each constant kind, because each is rendered differently.
     /// </summary>
     [Fact]
-    public Task GeneratesSetTag_ForConstantTags()
+    public void GeneratesSetTag_ForConstantTags()
     {
         var source = """
             using ZeroAlloc.Telemetry;
@@ -226,7 +227,7 @@ public class TraceTagTests
             }
             """;
 
-        return Verifier.Verify(RunGenerator(source));
+        GeneratorSnapshot.Verify(RunGenerator(source));
     }
 
     /// <summary>
@@ -234,7 +235,7 @@ public class TraceTagTests
     /// it, or the generated file does not compile.
     /// </summary>
     [Fact]
-    public Task GeneratesEscapedLiteral_ForAwkwardConstantValues()
+    public void GeneratesEscapedLiteral_ForAwkwardConstantValues()
     {
         var source = """
             using ZeroAlloc.Telemetry;
@@ -251,7 +252,7 @@ public class TraceTagTests
             }
             """;
 
-        return Verifier.Verify(RunGenerator(source));
+        GeneratorSnapshot.Verify(RunGenerator(source));
     }
 
     /// <summary>
@@ -260,7 +261,7 @@ public class TraceTagTests
     /// into a value-object id.
     /// </summary>
     [Fact]
-    public Task GeneratesSetTag_ForParameterMemberPaths()
+    public void GeneratesSetTag_ForParameterMemberPaths()
     {
         var source = """
             using ZeroAlloc.Telemetry;
@@ -286,7 +287,7 @@ public class TraceTagTests
             }
             """;
 
-        return Verifier.Verify(RunGenerator(source));
+        GeneratorSnapshot.Verify(RunGenerator(source));
     }
 
     /// <summary>
@@ -294,7 +295,7 @@ public class TraceTagTests
     /// there is nothing to test, and a copy would be noise.
     /// </summary>
     [Fact]
-    public Task GeneratesPlainAccess_ForValueTypeParameter()
+    public void GeneratesPlainAccess_ForValueTypeParameter()
     {
         var source = """
             using ZeroAlloc.Telemetry;
@@ -310,7 +311,7 @@ public class TraceTagTests
             }
             """;
 
-        return Verifier.Verify(RunGenerator(source));
+        GeneratorSnapshot.Verify(RunGenerator(source));
     }
 
     /// <summary>
@@ -319,7 +320,7 @@ public class TraceTagTests
     /// null-conditional cannot do.
     /// </summary>
     [Fact]
-    public Task GeneratesGuardedSetTag_ForConditionalResultTags()
+    public void GeneratesGuardedSetTag_ForConditionalResultTags()
     {
         var source = """
             using ZeroAlloc.Telemetry;
@@ -346,7 +347,7 @@ public class TraceTagTests
             }
             """;
 
-        return Verifier.Verify(RunGenerator(source));
+        GeneratorSnapshot.Verify(RunGenerator(source));
     }
 
     /// <summary>
@@ -354,7 +355,7 @@ public class TraceTagTests
     /// boolean reads better and some analyzers flag <c>x == true</c>.
     /// </summary>
     [Fact]
-    public Task GeneratesBareGuard_ForNonNullableBool()
+    public void GeneratesBareGuard_ForNonNullableBool()
     {
         var source = """
             using ZeroAlloc.Telemetry;
@@ -376,7 +377,7 @@ public class TraceTagTests
             }
             """;
 
-        return Verifier.Verify(RunGenerator(source));
+        GeneratorSnapshot.Verify(RunGenerator(source));
     }
 
     private static GeneratorDriver RunGenerator(string source)
