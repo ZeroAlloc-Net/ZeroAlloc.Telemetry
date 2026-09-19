@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using VerifyXunit;
+
+using ZeroAlloc.TestHelpers;
 
 namespace ZeroAlloc.Telemetry.Generator.Tests;
 
@@ -15,7 +16,7 @@ namespace ZeroAlloc.Telemetry.Generator.Tests;
 public class SpanNamePerImplementationTests
 {
     [Fact]
-    public Task ResolvesSpanNameFromImplementation_WhenNameContainsTypeToken()
+    public void ResolvesSpanNameFromImplementation_WhenNameContainsTypeToken()
     {
         var source = """
             using ZeroAlloc.Telemetry;
@@ -31,14 +32,14 @@ public class SpanNamePerImplementationTests
             }
             """;
 
-        return Verifier.Verify(RunGenerator(source));
+        GeneratorSnapshot.Verify(RunGenerator(source));
     }
 
     /// <summary>
     /// A name that is nothing but the token must not emit <c>"" + _implName + ""</c>.
     /// </summary>
     [Fact]
-    public Task EmitsBareImplName_WhenNameIsOnlyTheToken()
+    public void EmitsBareImplName_WhenNameIsOnlyTheToken()
     {
         var source = """
             using ZeroAlloc.Telemetry;
@@ -52,14 +53,14 @@ public class SpanNamePerImplementationTests
             }
             """;
 
-        return Verifier.Verify(RunGenerator(source));
+        GeneratorSnapshot.Verify(RunGenerator(source));
     }
 
     /// <summary>
     /// Overloads share a method name, so the resolved-name fields must not collide.
     /// </summary>
     [Fact]
-    public Task GeneratesDistinctFields_ForOverloadsAndMixedNames()
+    public void GeneratesDistinctFields_ForOverloadsAndMixedNames()
     {
         var source = """
             using ZeroAlloc.Telemetry;
@@ -79,14 +80,14 @@ public class SpanNamePerImplementationTests
             }
             """;
 
-        return Verifier.Verify(RunGenerator(source));
+        GeneratorSnapshot.Verify(RunGenerator(source));
     }
 
     /// <summary>
     /// The token may sit anywhere, including mid-name and more than once.
     /// </summary>
     [Fact]
-    public Task SubstitutesEveryOccurrence_RegardlessOfPosition()
+    public void SubstitutesEveryOccurrence_RegardlessOfPosition()
     {
         var source = """
             using ZeroAlloc.Telemetry;
@@ -103,7 +104,7 @@ public class SpanNamePerImplementationTests
             }
             """;
 
-        return Verifier.Verify(RunGenerator(source));
+        GeneratorSnapshot.Verify(RunGenerator(source));
     }
 
     /// <summary>
