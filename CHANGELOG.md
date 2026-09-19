@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.6.1...v1.6.2) (2026-09-19)
+
+
+### Bug Fixes
+
+* **ci:** stamp the assembly version when publishing from a manifest ([#126](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/126)) ([527a765](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/527a76517e895f3a08502113d8c3fb5cd43954a0))
+
 ## [1.6.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.6.0...v1.6.1) (2026-08-07)
 
 
