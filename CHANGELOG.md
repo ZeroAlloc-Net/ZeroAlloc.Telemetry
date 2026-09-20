@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.6.2...v1.6.3) (2026-09-20)
+
+
+### Bug Fixes
+
+* **ci:** pin the SDK floor at the .NET 10 GA band, not the newest patch ([#131](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/131)) ([a984e0c](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/a984e0c7fcb34b042a496db05c5a7fa673f06b16))
+
 ## [1.6.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.6.1...v1.6.2) (2026-09-19)
 
 
