@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.6.3...v1.6.4) (2026-09-26)
+
+
+### Bug Fixes
+
+* mark released analyzer rules and public api as shipped and automate the move ([#144](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/144)) ([d08bd9a](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/d08bd9ab8089d462feeaec2cac5b651d840fa04e))
+
 ## [1.6.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.6.2...v1.6.3) (2026-09-20)
 
 
