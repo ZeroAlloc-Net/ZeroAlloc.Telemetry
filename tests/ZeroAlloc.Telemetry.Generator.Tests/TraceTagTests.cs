@@ -380,6 +380,37 @@ public class TraceTagTests
         GeneratorSnapshot.Verify(RunGenerator(source));
     }
 
+    /// <summary>
+    /// A <c>Value</c> segment on a nullable value type is dropped, because <c>?.</c> already
+    /// unwraps it. 1.6.4 then emitted a plain <c>.</c> for the next segment, and a bare
+    /// <c>bool?</c> as a guard. Neither compiles.
+    /// </summary>
+    [Fact]
+    public void GeneratesNullSafeAccess_AfterValueOnNullableValueType()
+    {
+        var source = """
+            using ZeroAlloc.Telemetry;
+            using System.Threading;
+            using System.Threading.Tasks;
+
+            public readonly struct Extent { public int Width { get; } }
+
+            [Instrument("MyApp.Extents")]
+            public interface IExtents
+            {
+                [Trace("extents.width")]
+                [TraceTagFromResult("extent.width", "Value.Width")]
+                Task<Extent?> WidthAsync(CancellationToken ct);
+
+                [Trace("extents.flag")]
+                [TraceTagFromResult("extent.flag", When = "Value")]
+                Task<bool?> FlagAsync(CancellationToken ct);
+            }
+            """;
+
+        GeneratorSnapshot.Verify(RunGenerator(source));
+    }
+
     private static GeneratorDriver RunGenerator(string source)
     {
         var trustedPlatformAssemblies = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string ?? string.Empty;

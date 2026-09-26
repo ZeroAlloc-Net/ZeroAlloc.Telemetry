@@ -17,7 +17,10 @@ namespace ZeroAlloc.Telemetry;
 /// <para>
 /// Requires <see cref="TraceAttribute"/> on the same method, and a method that returns a value —
 /// the generator reports <c>ZTEL004</c> or <c>ZTEL005</c> respectively rather than emitting a tag
-/// that could never be set. May be applied more than once to record several members.
+/// that could never be set. It also emits no tag, and reports an error instead, when the member
+/// path or <c>When</c> does not resolve to a readable property or field, which is <c>ZTEL007</c>,
+/// or when <c>When</c> is not <c>bool</c> or <c>bool?</c>, which is <c>ZTEL008</c>. May be
+/// applied more than once to record several members.
 /// </para>
 /// </remarks>
 /// <example>

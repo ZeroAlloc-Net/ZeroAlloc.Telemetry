@@ -62,10 +62,10 @@ internal sealed class OrderServiceInstrumented : IOrderService
     private static readonly ActivitySource _activitySource = new("MyApp.Orders");
     // One Meter per [Instrument] annotation — same name as ActivitySource
     private static readonly Meter _meter = new("MyApp.Orders");
-    // One Counter<long> per unique [Count] metric name across all methods
+    // One Counter<long> per metric name across all methods, including [CountFromResult]
     private static readonly Counter<long> _orders_created =
         _meter.CreateCounter<long>("orders.created");
-    // One Histogram<double> per unique [Histogram] metric name across all methods
+    // One Histogram<double> per metric name across all methods, including [HistogramFromResult]
     private static readonly Histogram<double> _order_get_ms =
         _meter.CreateHistogram<double>("order.get_ms");
 
@@ -76,7 +76,7 @@ internal sealed class OrderServiceInstrumented : IOrderService
 }
 ```
 
-Static metric fields are deduplicated by metric name — if two methods share `[Count("orders.created")]`, only one `Counter<long>` field is emitted.
+Static metric fields are keyed by instrument kind and metric name. If two methods share `[Count("orders.created")]`, or a `[Count]` and a `[CountFromResult]` use the same name, only one `Counter<long>` field is emitted. A `[Histogram]` with the same name gets its own `Histogram<double>` field.
 
 ## Per-Method Output
 
@@ -155,15 +155,53 @@ public async ValueTask DeleteOrderAsync(OrderId id, CancellationToken ct)
 
 No try/catch, no timing, no span.
 
+### Result-driven instruments
+
+Input:
+```csharp
+[CountFromResult("llm.tokens.input", "Value.Input", When = "IsSuccess", Unit = "{token}")]
+[HistogramFromResult("llm.cost", "Value.Cost", When = "IsSuccess", Unit = "USD")]
+Task<Result<TokenUsage, LlmError>> CompleteAsync(string prompt, CancellationToken ct);
+```
+
+Output:
+```csharp
+private static readonly Counter<long> _llm_tokens_input = _meter.CreateCounter<long>("llm.tokens.input", unit: "{token}");
+private static readonly Histogram<double> _llm_cost = _meter.CreateHistogram<double>("llm.cost", unit: "USD");
+
+public async Task<Result<TokenUsage, LlmError>> CompleteAsync(string prompt, CancellationToken ct)
+{
+    try
+    {
+        var _result = await _inner.CompleteAsync(prompt, ct);
+        var _tagged = _result;
+        if (_tagged?.IsSuccess == true && _tagged?.Value?.Input is { } _read0)
+            _llm_tokens_input.Add(_read0);
+        if (_tagged?.IsSuccess == true && _tagged?.Value?.Cost is { } _read1)
+            _llm_cost.Record((double)_read1);
+        return _result;
+    }
+    catch (Exception)
+    {
+        throw;
+    }
+}
+```
+
+The catch only declares the exception variable when a `[Trace]` span reads it.
+
 ## Field Name Derivation
 
-Metric names are converted to valid C# identifiers for field names by replacing `.` and `-` with `_`:
+A field name is `_` plus the metric name, with every character that is not a letter, digit or underscore replaced by `_`:
 
 | Metric name | Field name |
 |---|---|
 | `orders.created` | `_orders_created` |
 | `order.get_ms` | `_order_get_ms` |
 | `payment.charge-duration` | `_payment_charge_duration` |
+| `http/requests total` | `_http_requests_total` |
+
+Names that would still collide are made distinct with a numeric suffix, in the order the generator visits them: interface members top to bottom, and within a method `[Count]`, then `[Histogram]`, then `[CountFromResult]` and `[HistogramFromResult]` in attribute order. `a.b` then `a_b` give `_a_b` and `_a_b_2`, and a `[Count("x")]` and a `[Histogram("x")]` give `_x` and `_x_2`. A name that would clash with the proxy's own members or locals, such as `meter` or `result`, is prefixed instead: `_metric_meter`, `_metric_result`. Metric, span and tag names are emitted as escaped string literals, so any character is safe.
 
 ## v1 Limitations
 
@@ -171,6 +209,28 @@ Metric names are converted to valid C# identifiers for field names by replacing 
 - `ref` and `out` parameters are not supported
 - Generic interface methods are not supported
 - Sync methods are supported (no `async`/`await` wrapper needed)
+- A method is proxied with `async`/`await` when it returns `Task`, `Task<T>`, `ValueTask`, `ValueTask<T>`, or a task-like type marked `[AsyncMethodBuilder]`, such as PooledAwait's `PooledTask<T>`. For a task-like type, result reads start from what `GetAwaiter().GetResult()` returns
+
+## Diagnostics
+
+| ID | Severity | Reported when |
+|---|---|---|
+| ZTEL001 | Error | `[Instrument]` is on a class, struct or record instead of an interface |
+| ZTEL002 | Error | `[Instrument]` has an empty or whitespace name |
+| ZTEL003 | Warning | `[Trace]`, `[Count]`, `[Histogram]`, `[CountFromResult]` or `[HistogramFromResult]` is on a method of a type without `[Instrument]`, so no proxy is generated |
+| ZTEL004 | Warning | `[TraceTag]`, `[TraceTagFromResult]` or `[TraceTagConstant]` is on a method without `[Trace]` |
+| ZTEL005 | Warning | `[TraceTagFromResult]`, `[CountFromResult]`, `[HistogramFromResult]`, or `When` on `[Count]`/`[Histogram]`, is on a method returning `void`, `Task`, `ValueTask`, or a task-like type with no result. The message names the attribute; nothing is recorded |
+| ZTEL006 | Warning | A `[Trace]` name contains a `{token}` other than `{type}` |
+| ZTEL007 | Error | A segment of a member path or `When` names no readable, accessible instance property or field of the type reached so far. Reported at the argument, naming the segment and the type |
+| ZTEL008 | Error | `When` resolves to a member that is not `bool` or `bool?` |
+| ZTEL009 | Error | `[CountFromResult]`'s member does not convert implicitly to `long`, or `[HistogramFromResult]`'s member is not numeric. A member reached through `dynamic` cannot be checked, so it is reported too |
+
+ZTEL007 and ZTEL008 mostly replace what used to be a compile error inside the generated proxy. Two cases compiled on 1.6.4 and are now errors:
+
+- a `When` whose member is not `bool` or `bool?` but converts implicitly to `bool`, which is **ZTEL008**;
+- a path through an extension property, which the resolver does not look up, which is **ZTEL007**.
+
+In both cases, expose a `bool` or an instance member on the result type. A path through `dynamic` still compiles; see [Member paths and When](attributes.md#member-paths-and-when).
 
 ## Release tracking
 

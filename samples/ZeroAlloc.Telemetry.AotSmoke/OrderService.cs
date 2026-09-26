@@ -12,4 +12,7 @@ public sealed class OrderService : IOrderService
         CallCount++;
         return ValueTask.FromResult(42);
     }
+
+    public ValueTask<OrderReceipt> ReceiptAsync(string customerId, CancellationToken ct) =>
+        ValueTask.FromResult(new OrderReceipt { Lines = 3 });
 }

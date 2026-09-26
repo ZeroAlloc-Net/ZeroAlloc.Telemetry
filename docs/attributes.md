@@ -2,7 +2,7 @@
 id: attributes
 title: Attribute Reference
 slug: /docs/attributes
-description: Reference for [Instrument], [Trace], [Count], [Histogram], [TraceTag], [TraceTagFromResult], and [TraceTagConstant] — the attributes in ZeroAlloc.Telemetry.
+description: Reference for [Instrument], [Trace], [Count], [Histogram], [CountFromResult], [HistogramFromResult], [TraceTag], [TraceTagFromResult], and [TraceTagConstant] — the attributes in ZeroAlloc.Telemetry.
 sidebar_position: 3
 ---
 
@@ -150,6 +150,9 @@ span name to be discovered on a dashboard later.
 public sealed class CountAttribute : Attribute
 {
     public string Metric { get; }
+    public string? When { get; set; }
+    public string? Unit { get; set; }
+    public string? Description { get; set; }
     public CountAttribute(string metric);
 }
 ```
@@ -158,7 +161,7 @@ public sealed class CountAttribute : Attribute
 
 **Effect:** Increments a `Counter<long>` by 1 after a successful (non-throwing) call only.
 
-The counter field is a static field on the proxy — one per unique metric name across all methods. If two methods share the same metric name, only one `Counter<long>` field is emitted.
+The counter field is a static field on the proxy — one per metric name and instrument kind across all methods. If two methods share `[Count("x")]`, only one `Counter<long>` field is emitted. A `[Histogram("x")]` gets its own field.
 
 ```csharp
 [Count("payments.charged")]
@@ -174,6 +177,35 @@ private static readonly Counter<long> _payments_charged =
 _payments_charged.Add(1);
 ```
 
+### Counting only real successes
+
+A method returning a `Result<T, E>` returns normally when it fails, so a plain `[Count]` counts failures as successes. `When` names a boolean member of the return value that must be true. It is the same guard as [`[TraceTagFromResult]`](#tagging-only-on-one-branch), described under [Member paths and When](#member-paths-and-when):
+
+```csharp
+[Count("orders.accepted", When = "IsSuccess")]
+Task<Result<OrderId, OrderError>> AcceptAsync(Order order, CancellationToken ct);
+```
+
+```csharp
+// Generated, for a Result that is a class:
+var _tagged = _result;
+if (_tagged?.IsSuccess == true)
+    _orders_accepted.Add(1);
+```
+
+`When` needs a return value. On a method returning `void`, `Task` or `ValueTask` the generator reports **ZTEL005** and the counter records nothing, rather than counting the very calls the guard was meant to exclude.
+
+### Unit and description
+
+`Unit` and `Description` pass through to `Meter.CreateCounter`, and are only emitted when set:
+
+```csharp
+[Count("orders.created", Unit = "{order}", Description = "Orders accepted for fulfilment")]
+// → _meter.CreateCounter<long>("orders.created", unit: "{order}", description: "Orders accepted for fulfilment");
+```
+
+Attributes that share a metric name and kind share one instrument. The first `Unit` and the first `Description` set on any of them are the ones used, taking them in the order the generator visits them: interface members top to bottom, and within a method `[Count]`, then `[Histogram]`, then `[CountFromResult]` and `[HistogramFromResult]` in attribute order. Declare each once, so the order does not matter.
+
 ---
 
 ## [Histogram]
@@ -183,6 +215,9 @@ _payments_charged.Add(1);
 public sealed class HistogramAttribute : Attribute
 {
     public string Metric { get; }
+    public string? When { get; set; }
+    public string? Unit { get; set; }
+    public string? Description { get; set; }
     public HistogramAttribute(string metric);
 }
 ```
@@ -194,14 +229,14 @@ public sealed class HistogramAttribute : Attribute
 Uses `Stopwatch.GetTimestamp()` before the call and `Stopwatch.GetElapsedTime(ts).TotalMilliseconds` after, so the measurement includes the full method duration regardless of outcome.
 
 ```csharp
-[Histogram("payment.charge_ms")]
+[Histogram("payment.charge_ms", Unit = "ms")]
 ValueTask<ChargeResult> ChargeAsync(ChargeRequest request, CancellationToken ct);
 ```
 
 Generated field + recording:
 ```csharp
 private static readonly Histogram<double> _payment_charge_ms =
-    _meter.CreateHistogram<double>("payment.charge_ms");
+    _meter.CreateHistogram<double>("payment.charge_ms", unit: "ms");
 
 // In the method body:
 var _sw = Stopwatch.GetTimestamp();
@@ -211,12 +246,139 @@ try
     _payment_charge_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
     return _result;
 }
-catch (Exception _ex)
+catch (Exception)
 {
     _payment_charge_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
     throw;
 }
 ```
+
+### Timing only successful calls
+
+With `When`, the duration is recorded only on a non-throwing return whose guard is true. **A call that throws records nothing**: there is no result to evaluate the guard against, and guessing either way would put the wrong calls in the distribution. An unguarded histogram still records on both paths.
+
+```csharp
+[Trace("orders.accept")]
+[Histogram("orders.accept_ms", When = "IsSuccess", Unit = "ms")]
+Task<Result<string, OrderError>> AcceptAsync(string orderId, CancellationToken ct);
+```
+
+```csharp
+// Generated:
+try
+{
+    var _result = await _inner.AcceptAsync(orderId, ct);
+    var _tagged = _result;
+    if (_tagged?.IsSuccess == true)
+        _orders_accept_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
+    return _result;
+}
+catch (Exception _ex)
+{
+    _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
+    throw;   // no Record: a guarded histogram has nothing to evaluate on a throw
+}
+```
+
+`Unit` and `Description` work as on [`[Count]`](#unit-and-description).
+
+---
+
+## [CountFromResult]
+
+```csharp
+[AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
+public sealed class CountFromResultAttribute : Attribute
+{
+    public string Metric { get; }
+    public string Member { get; }
+    public string? When { get; set; }
+    public string? Unit { get; set; }
+    public string? Description { get; set; }
+    public CountFromResultAttribute(string metric, string member);
+}
+```
+
+**Placement:** Method. Does **not** need `[Trace]`: it is a metric, not span data. May be applied more than once.
+
+**Effect:** After a successful (non-throwing) call, adds the value of `member` to a `Counter<long>`. For values only known once the call returns: tokens consumed, rows written, items returned.
+
+```csharp
+[CountFromResult("llm.tokens.input", "Value.Usage.InputTokens", When = "IsSuccess", Unit = "{token}")]
+[CountFromResult("llm.tokens.output", "Value.Usage.OutputTokens", When = "IsSuccess", Unit = "{token}")]
+ValueTask<Result<ChatResponse, ChatError>> CompleteAsync(ChatRequest request, CancellationToken ct);
+```
+
+```csharp
+// Generated, for a Result that is a struct and a ChatResponse and Usage that are classes:
+var _result = await _inner.CompleteAsync(request, ct);
+if (_result.IsSuccess && _result.Value?.Usage?.InputTokens is { } _read0)
+    _llm_tokens_input.Add(_read0);
+if (_result.IsSuccess && _result.Value?.Usage?.OutputTokens is { } _read1)
+    _llm_tokens_output.Add(_read1);
+```
+
+- **Member type.** It must convert implicitly to `long`: `sbyte`, `byte`, `short`, `ushort`, `int`, `uint` or `long`, or a nullable form of one. Anything else, including `ulong`, `char`, enums, floating-point types and `dynamic`, is **ZTEL009**.
+- **Null.** A null value, or a null anywhere along the path, is not recorded.
+- **Counters only go up.** A negative value is added as it is. Backends expect a counter to be monotonic, and may reject a decrease or read it as a reset, so count quantities that cannot go negative.
+- **An empty member** adds the return value itself: `[CountFromResult("batch.items", "")]` on `Task<int>`.
+- Each metric name gets its own counter, so the two above are separate instruments.
+
+---
+
+## [HistogramFromResult]
+
+```csharp
+[AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
+public sealed class HistogramFromResultAttribute : Attribute
+{
+    public string Metric { get; }
+    public string Member { get; }
+    public string? When { get; set; }
+    public string? Unit { get; set; }
+    public string? Description { get; set; }
+    public HistogramFromResultAttribute(string metric, string member);
+}
+```
+
+**Placement:** Method. Does not need `[Trace]`. May be applied more than once.
+
+**Effect:** After a successful (non-throwing) call, records the value of `member` in a `Histogram<double>`. For distributions known only afterwards: a confidence score, a result size, a cost.
+
+```csharp
+[HistogramFromResult("answer.confidence", "Value.Confidence", When = "IsSuccess", Unit = "1")]
+[HistogramFromResult("answer.cost", "Value.Cost", When = "IsSuccess", Unit = "USD")]
+Task<Result<Answer, AskError>> AskAsync(Question question, CancellationToken ct);
+```
+
+```csharp
+// Generated, for a Result and an Answer that are classes, with a double Confidence and a decimal Cost:
+var _tagged = _result;
+if (_tagged?.IsSuccess == true && _tagged?.Value?.Confidence is { } _read0)
+    _answer_confidence.Record(_read0);
+if (_tagged?.IsSuccess == true && _tagged?.Value?.Cost is { } _read1)
+    _answer_cost.Record((double)_read1);
+```
+
+- **Member type.** It must be numeric: `sbyte`, `byte`, `short`, `ushort`, `int`, `uint`, `long`, `ulong`, `float`, `double` or `decimal`, or a nullable form of one. Anything else, including `dynamic`, is **ZTEL009**.
+- **`decimal`** has no implicit conversion to `double`, so it is converted with an explicit `(double)` cast.
+- **Null** values are not recorded, and **a call that throws** records nothing, since there is no result.
+
+---
+
+## Member paths and When
+
+`[TraceTagFromResult]`, `[CountFromResult]`, `[HistogramFromResult]` and every `When` share one path resolver.
+
+- **Paths start at the awaited return value.** For `Task<Result<T, E>>` that is the `Result`, so the success value is reached through `Value`, as in `Value.Usage.InputTokens`. For a task-like type marked `[AsyncMethodBuilder]`, such as `PooledTask<T>`, it is what `GetAwaiter().GetResult()` returns.
+- **Each segment** names a property or field of the type reached so far, including members inherited from base types and interfaces.
+- **The operator for each step** is chosen from the type: `?.` where the value can be null, `.` where it cannot. A `Value` segment on a nullable value type is dropped, since `?.` already unwraps it.
+- **`dynamic`** ends the checking. Once a segment reaches a `dynamic` value, the rest of the path is emitted unchecked with `?.` and bound at run time, as 1.6.4 did. A tag or a `When` guard through `dynamic` compiles; a guard is compared with `== true`. `[CountFromResult]` and `[HistogramFromResult]` cannot check that a `dynamic` value fits the instrument, so they report **ZTEL009**; expose a typed member instead.
+- **`When`** is a path to a `bool` or `bool?` member that must be `true`. The guard runs first and short-circuits, so the member is **not read at all** when it is false. That matters for a `Result` whose `Value` throws when unset.
+- **A segment that names no readable, accessible instance property or field** is **ZTEL007**. It is reported at the argument, naming the segment and the type it was looked up on. A `When` that resolves to anything other than `bool` or `bool?` is **ZTEL008**. Both are errors, and neither attribute is emitted, so the diagnostic is the only error.
+- **On a method with no return value** (`void`, `Task`, `ValueTask`, or a task-like type with no result), the result-reading attributes and `When` on `[Count]`/`[Histogram]` report **ZTEL005** and record nothing.
+
+**Where the reads happen.** After the inner call, inside the same `try`, the result tags come first, then the result-driven instruments, then `[Count]` and `[Histogram]`. When the result can be null, all of them read one copy, `_tagged`. Null-testing `_result` itself would leave it maybe-null for the `return _result;` that follows, and that raises CS8603 in consumers with nullable warnings on.
 
 ---
 
@@ -314,6 +476,8 @@ For async methods the value comes from the **awaited result**, not the task. Omi
 Member access is null-safe — a null result records a null tag rather than throwing. Instrumentation must never fail a call that would otherwise have succeeded.
 
 On a method returning `void`, `Task` or `ValueTask` there is no result to read, so the generator reports **ZTEL005**.
+
+A misspelt member or `When` is reported as **ZTEL007**, and a `When` that is not a boolean as **ZTEL008** — see [Member paths and When](#member-paths-and-when).
 
 ### Tagging only on one branch
 
@@ -459,4 +623,4 @@ The generated code records the span with its tags, the histogram (on both succes
 
 ## Methods Without Attributes
 
-Methods with no `[Trace]`, `[Count]`, or `[Histogram]` annotation are passed through to the inner implementation without any wrapping — no try/catch, no timing, no span. They are still correctly proxied.
+Methods with no `[Trace]`, `[Count]`, `[Histogram]`, `[CountFromResult]` or `[HistogramFromResult]` annotation are passed through to the inner implementation without any wrapping — no try/catch, no timing, no span. They are still correctly proxied.

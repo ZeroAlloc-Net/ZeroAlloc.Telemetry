@@ -8,11 +8,11 @@ namespace ZeroAlloc.Telemetry;
 /// </summary>
 /// <example>
 /// <code>
-/// [Instrument(ActivitySource = "MyApp.Orders")]
+/// [Instrument("MyApp.Orders")]
 /// public interface IOrderService
 /// {
-///     [Trace(Name = "order.create")]
-///     [Count(Metric = "orders.created")]
+///     [Trace("order.create")]
+///     [Count("orders.created")]
 ///     ValueTask&lt;OrderId&gt; CreateOrderAsync(CreateOrderRequest request, CancellationToken ct);
 /// }
 /// // Generator emits: OrderServiceInstrumented : IOrderService

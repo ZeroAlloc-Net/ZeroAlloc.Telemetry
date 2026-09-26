@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="4.0.0" PrivateAssets="all" />
+    <PackageReference Include="AwesomeAssertions" Version="9.6.0" />
+    <ProjectReference Include="..\..\src\ZeroAlloc.Telemetry\ZeroAlloc.Telemetry.csproj" />
+    <!-- The attribute project's own generator reference is PrivateAssets and does not flow, so
+         the proxies here come from this reference, as they would for a consumer. -->
+    <ProjectReference Include="..\..\src\ZeroAlloc.Telemetry.Generator\ZeroAlloc.Telemetry.Generator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="AwesomeAssertions" />
+  </ItemGroup>
+</Project>

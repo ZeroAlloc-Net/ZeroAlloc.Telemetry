@@ -87,11 +87,11 @@ The source name (`"MyApp.Orders"`) must match what you passed to `[Instrument]`.
 | Call outcome | `[Trace]` span | `[Count]` counter | `[Histogram]` |
 |---|---|---|---|
 | Success | Started + stopped | Incremented by 1 | Records elapsed ms |
-| Exception | Started + Error status | Not incremented | Records elapsed ms |
+| Exception | Started + Error status | Not incremented | Records elapsed ms, unless `When` is set |
 | No attribute | — | — | — |
 
 ## Next steps
 
-- [Attribute Reference](attributes.md) — all four attributes with generated output
+- [Attribute Reference](attributes.md) — every attribute with its generated output
 - [Source Generator](source-generator.md) — full generated class layout
 - [Testing](testing.md) — assert spans and metrics in tests without an exporter

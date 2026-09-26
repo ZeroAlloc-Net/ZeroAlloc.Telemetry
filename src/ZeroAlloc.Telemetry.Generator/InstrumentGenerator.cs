@@ -17,6 +17,8 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
     private const string TraceTagAttributeFqn      = "ZeroAlloc.Telemetry.TraceTagAttribute";
     private const string TraceTagFromResultAttrFqn = "ZeroAlloc.Telemetry.TraceTagFromResultAttribute";
     private const string TraceTagConstantAttrFqn   = "ZeroAlloc.Telemetry.TraceTagConstantAttribute";
+    private const string CountFromResultAttrFqn     = "ZeroAlloc.Telemetry.CountFromResultAttribute";
+    private const string HistogramFromResultAttrFqn = "ZeroAlloc.Telemetry.HistogramFromResultAttribute";
 
     /// <summary>
     /// Fully-qualified names that keep nullable reference type annotations.
@@ -77,12 +79,14 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             }
         });
 
-        // ZTEL003: method attributes on a method whose containing type lacks
-        // [Instrument] are silently ignored. Scan every method carrying any of
-        // the three per-method attributes and check the enclosing type.
+        // ZTEL003: method-level metric and trace attributes on a method whose containing type
+        // lacks [Instrument] are silently ignored. Scan every method carrying any of them and
+        // check the enclosing type.
         RegisterMethodAttributeDiagnostic(context, TraceAttributeFqn, "Trace");
         RegisterMethodAttributeDiagnostic(context, CountAttributeFqn, "Count");
         RegisterMethodAttributeDiagnostic(context, HistogramAttributeFqn, "Histogram");
+        RegisterMethodAttributeDiagnostic(context, CountFromResultAttrFqn, "CountFromResult");
+        RegisterMethodAttributeDiagnostic(context, HistogramFromResultAttrFqn, "HistogramFromResult");
     }
 
     [SuppressMessage(
@@ -165,7 +169,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 publicProxy = named.Value.Value is true;
         }
 
-        var methods = BuildMethods(target, diagnostics);
+        var methods = BuildMethods(target, ctx.SemanticModel.Compilation, diagnostics);
         var ns        = target.ContainingNamespace.IsGlobalNamespace ? null : target.ContainingNamespace.ToDisplayString();
         var ifaceName = target.Name;
         var proxyName = (ifaceName.StartsWith("I", StringComparison.Ordinal) && ifaceName.Length > 1)
@@ -179,25 +183,26 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
 
     private static List<MethodModel> BuildMethods(
         INamedTypeSymbol target,
+        Compilation compilation,
         ImmutableArray<Diagnostic>.Builder diagnostics)
     {
         var methods = new List<MethodModel>();
         foreach (var member in target.GetMembers().OfType<IMethodSymbol>())
         {
             var traceName   = GetAttributeFirstArg(member, TraceAttributeFqn);
-            var countMetric = GetAttributeFirstArg(member, CountAttributeFqn);
-            var histMetric  = GetAttributeFirstArg(member, HistogramAttributeFqn);
 
             var returnType  = member.ReturnType.ToDisplayString(TypeFormat);
-            var isAsync     = returnType.IndexOf("ValueTask", StringComparison.Ordinal) >= 0
-                           || returnType.IndexOf("Task", StringComparison.Ordinal) >= 0;
-            var returnsVoid = string.Equals(returnType, "global::System.Threading.Tasks.ValueTask", StringComparison.Ordinal)
-                           || string.Equals(returnType, "global::System.Threading.Tasks.Task", StringComparison.Ordinal)
-                           || string.Equals(returnType, "void", StringComparison.Ordinal);
+            var isAsync     = TaskShapes.IsAwaitable(member.ReturnType);
+            var returnsVoid = member.ReturnsVoid || TaskShapes.IsVoidAwaitable(member.ReturnType);
 
-            var parameters = BuildParameters(member);
-            var resultTags = BuildResultTags(member);
+            var parameters = BuildParameters(compilation, member);
+            var resultType = TaskShapes.UnwrapAwaited(member.ReturnType);
+            var resultTags = BuildResultTags(compilation, member, resultType, returnsVoid, traceName is null, diagnostics);
             var constantTags = BuildConstantTags(member);
+
+            var count         = BuildPlainMetric(compilation, target, member, CountAttributeFqn, "Count", MetricKind.Counter, resultType, returnsVoid, diagnostics);
+            var histogram     = BuildPlainMetric(compilation, target, member, HistogramAttributeFqn, "Histogram", MetricKind.Histogram, resultType, returnsVoid, diagnostics);
+            var resultMetrics = BuildResultMetrics(compilation, target, member, resultType, returnsVoid, diagnostics);
 
             ReportTagDiagnostics(diagnostics, target, member, parameters, resultTags, constantTags, traceName, returnsVoid);
             ReportUnknownSpanNameTokens(diagnostics, target, member, traceName);
@@ -209,11 +214,12 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 returnsVoid,
                 parameters,
                 traceName,
-                countMetric,
-                histMetric,
+                count,
+                histogram,
                 resultTags,
                 ResultCanBeNull(member),
                 constantTags,
+                resultMetrics,
                 BuildTraceNameExpression(traceName)));
         }
         return methods;
@@ -305,153 +311,12 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
     }
 
     /// <summary>
-    /// Whether the value a result tag reads from can be null, after unwrapping
-    /// <c>Task&lt;T&gt;</c>/<c>ValueTask&lt;T&gt;</c>. Emitting <c>?.</c> against a non-nullable
+    /// Whether the value a result tag reads from can be null, after unwrapping the awaited type
+    /// of <c>Task&lt;T&gt;</c>, <c>ValueTask&lt;T&gt;</c> or a task-like type. Emitting <c>?.</c> against a non-nullable
     /// value type is a compile error, so the writer needs to know which operator to use.
     /// </summary>
-    private static bool ResultCanBeNull(IMethodSymbol method)
-    {
-        var type = method.ReturnType;
-
-        if (type is INamedTypeSymbol { IsGenericType: true, TypeArguments.Length: 1 } named)
-        {
-            var definition = named.OriginalDefinition.ToDisplayString();
-            if (string.Equals(definition, "System.Threading.Tasks.Task<TResult>", StringComparison.Ordinal)
-                || string.Equals(definition, "System.Threading.Tasks.ValueTask<TResult>", StringComparison.Ordinal))
-            {
-                type = named.TypeArguments[0];
-            }
-        }
-
-        return type.IsReferenceType
-            || type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T;
-    }
-
-    /// <summary>Unwraps <c>Task&lt;T&gt;</c>/<c>ValueTask&lt;T&gt;</c> to the awaited type.</summary>
-    private static ITypeSymbol UnwrapAwaited(ITypeSymbol type)
-    {
-        if (type is INamedTypeSymbol { IsGenericType: true, TypeArguments.Length: 1 } named)
-        {
-            var definition = named.OriginalDefinition.ToDisplayString();
-            if (string.Equals(definition, "System.Threading.Tasks.Task<TResult>", StringComparison.Ordinal)
-                || string.Equals(definition, "System.Threading.Tasks.ValueTask<TResult>", StringComparison.Ordinal))
-            {
-                return named.TypeArguments[0];
-            }
-        }
-
-        return type;
-    }
-
-    private static bool CanBeNull(ITypeSymbol type) =>
-        type.IsReferenceType || type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T;
-
-    /// <summary>Returns T for <c>Nullable&lt;T&gt;</c>, otherwise the type unchanged.</summary>
-    private static ITypeSymbol UnwrapNullable(ITypeSymbol type) =>
-        type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T
-            && type is INamedTypeSymbol { TypeArguments.Length: 1 } n
-                ? n.TypeArguments[0]
-                : type;
-
-    /// <summary>
-    /// Resolves a dotted member path against <paramref name="rootType"/> and returns it as it
-    /// should be emitted — for example <c>?.Value?.Count</c>.
-    /// </summary>
-    /// <remarks>
-    /// The operator for each segment cannot be chosen from the path text: <c>?.</c> is required
-    /// wherever the preceding value may be null and is a compile error wherever it cannot be. So
-    /// each segment is resolved to a symbol and the operator picked from the type before it.
-    /// <para>
-    /// Emitting <c>?.</c> only on the first segment — as this generator did — leaves every later
-    /// segment unguarded, so a null part-way along a path throws from instrumentation. That is the
-    /// one thing tagging must never do.
-    /// </para>
-    /// <para>
-    /// Returns null when a segment cannot be resolved, which leaves the caller on its previous
-    /// behaviour rather than emitting a guess. An unresolvable path is almost always a typo, and
-    /// the generated code then fails to compile with the member name in the message.
-    /// </para>
-    /// </remarks>
-    private static string? ResolveMemberAccess(ITypeSymbol rootType, string memberPath) =>
-        ResolveMemberAccess(rootType, memberPath, out _);
-
-    /// <summary>
-    /// As <see cref="ResolveMemberAccess(ITypeSymbol, string)"/>, also reporting the type the
-    /// path ends at — needed by the When guard to decide whether the comparison must tolerate
-    /// null.
-    /// </summary>
-    private static string? ResolveMemberAccess(ITypeSymbol rootType, string memberPath, out ITypeSymbol? finalType)
-    {
-        finalType = null;
-        if (string.IsNullOrWhiteSpace(memberPath))
-            return null;
-
-        var current = rootType;
-        var sb = new System.Text.StringBuilder();
-
-        foreach (var rawSegment in memberPath.Split('.'))
-        {
-            var segment = rawSegment.Trim();
-            if (segment.Length == 0)
-                return null;
-
-            var nullable = CanBeNull(current);
-            var underlying = UnwrapNullable(current);
-
-            // `x?.Value` on a Nullable<T> does not mean Nullable<T>.Value: the null-conditional
-            // unwraps first, so the member is looked up on T and `.Value` fails to compile. The
-            // segment is also redundant — the tag boxes to the same T-or-null either way — so
-            // drop it and carry on from the underlying type.
-            if (nullable && !ReferenceEquals(underlying, current)
-                && string.Equals(segment, "Value", StringComparison.Ordinal))
-            {
-                current = underlying;
-                continue;
-            }
-
-            sb.Append(nullable ? "?." : ".");
-            sb.Append(segment);
-
-            // Look up against the underlying type for the same reason: after `?.` on a
-            // Nullable<T>, members resolve on T.
-            var memberType = FindMemberType(underlying, segment);
-            if (memberType is null)
-                return null;
-
-            current = memberType;
-        }
-
-        // May be empty when every segment resolved away — a bare "Value" on a nullable result.
-        // That is a successful resolution meaning "tag the root itself", which is distinct from
-        // the null returned above for a path that could not be resolved at all.
-        finalType = current;
-        return sb.ToString();
-    }
-
-    /// <summary>Finds a property or field by name, walking base types.</summary>
-    private static ITypeSymbol? FindMemberType(ITypeSymbol type, string name)
-    {
-        for (var t = type; t is not null; t = t.BaseType)
-        {
-            foreach (var m in t.GetMembers(name))
-            {
-                if (m is IPropertySymbol { Parameters.Length: 0 } p) return p.Type;
-                if (m is IFieldSymbol f) return f.Type;
-            }
-        }
-
-        // Interfaces do not inherit through BaseType, so check the full interface set too —
-        // ICollection<T>.Count on an IReadOnlyList<T> parameter is the common case.
-        foreach (var iface in type.AllInterfaces)
-        {
-            foreach (var m in iface.GetMembers(name))
-            {
-                if (m is IPropertySymbol { Parameters.Length: 0 } p) return p.Type;
-            }
-        }
-
-        return null;
-    }
+    private static bool ResultCanBeNull(IMethodSymbol method) =>
+        PathResolver.CanBeNull(TaskShapes.UnwrapAwaited(method.ReturnType));
 
     /// <summary>
     /// A tag with nowhere to go is a silent no-op, which is worse than a build message: the
@@ -498,12 +363,12 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         if (returnsVoid && resultTags.Count > 0)
         {
             diagnostics.Add(Diagnostic.Create(
-                InstrumentDiagnostics.ResultTagOnVoidMethod,
-                location, target.ToDisplayString(), member.Name));
+                InstrumentDiagnostics.ResultReadOnVoidMethod,
+                location, "TraceTagFromResult", target.ToDisplayString(), member.Name));
         }
     }
 
-    private static ParameterModel[] BuildParameters(IMethodSymbol method)
+    private static ParameterModel[] BuildParameters(Compilation compilation, IMethodSymbol method)
     {
         var ps = method.Parameters;
         var result = new ParameterModel[ps.Length];
@@ -516,12 +381,12 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
 
             if (tagName is not null && !string.IsNullOrEmpty(member))
             {
-                accessSuffix = ResolveMemberAccess(ps[i].Type, member!);
+                accessSuffix = PathResolver.Resolve(compilation, ps[i].Type, member!).Access;
 
                 // A copy is only needed when the emitted access actually null-tests the
                 // argument; a plain `.Member` on a non-nullable value leaves its state alone.
                 needsCopy = accessSuffix is null
-                    ? CanBeNull(ps[i].Type)
+                    ? PathResolver.CanBeNull(ps[i].Type)
                     : accessSuffix.StartsWith("?.", StringComparison.Ordinal);
             }
 
@@ -559,12 +424,18 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         return (null, null);
     }
 
-    private static ResultTagModel[] BuildResultTags(IMethodSymbol method)
+    private static ResultTagModel[] BuildResultTags(
+        Compilation compilation,
+        IMethodSymbol method,
+        ITypeSymbol resultType,
+        bool returnsVoid,
+        bool untraced,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
     {
         List<ResultTagModel>? tags = null;
         foreach (var attr in method.GetAttributes())
         {
-            if (!string.Equals(attr.AttributeClass?.ToDisplayString(), TraceTagFromResultAttrFqn, StringComparison.Ordinal))
+            if (!IsAttribute(attr, TraceTagFromResultAttrFqn))
                 continue;
 
             if (attr.ConstructorArguments.Length == 0)
@@ -579,21 +450,40 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 ? attr.ConstructorArguments[1].Value as string
                 : null;
 
-            var resultType = UnwrapAwaited(method.ReturnType);
-
-            var accessSuffix = string.IsNullOrEmpty(member)
-                ? null
-                : ResolveMemberAccess(resultType, member!);
-
-            // "When" is a named argument, so it is not in ConstructorArguments.
-            string? when = null;
-            foreach (var named in attr.NamedArguments)
+            // The writer emits result tags only with a span and a result, so neither case reads
+            // the path. With no result, ZTEL005 reports the attribute, and resolving against Task
+            // would only add a misleading ZTEL007. Without [Trace], ZTEL004 reports it, and the
+            // method compiled before path validation existed, so a bad path must not now fail it.
+            // The unresolved tag is kept so that those warnings still fire.
+            if (returnsVoid || untraced)
             {
-                if (string.Equals(named.Key, "When", StringComparison.Ordinal))
-                    when = named.Value.Value as string;
+                (tags ??= new List<ResultTagModel>()).Add(new ResultTagModel(name!, member));
+                continue;
             }
 
-            var guard = BuildGuardExpression(resultType, when);
+            string? accessSuffix = null;
+            var pathOk = true;
+            if (!string.IsNullOrEmpty(member))
+            {
+                var path = PathResolver.Resolve(compilation, resultType, member!);
+                if (path.Resolved)
+                {
+                    accessSuffix = path.Access;
+                }
+                else
+                {
+                    diagnostics.Add(PathNotFound(
+                        AttributeLocations.Positional(attr, 1, "member", MethodLocation(method)), member!, path));
+                    pathOk = false;
+                }
+            }
+
+            // Checked even after a bad path, so one build reports every error on the attribute.
+            var guardOk = TryBuildGuard(
+                compilation, attr, method, resultType, GetNamedString(attr, "When"), diagnostics, out var guard);
+
+            if (!pathOk || !guardOk)
+                continue;
 
             (tags ??= new List<ResultTagModel>()).Add(new ResultTagModel(name!, member, accessSuffix, guard));
         }
@@ -646,29 +536,75 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
     }
 
     /// <summary>
-    /// Builds the condition a result tag is emitted under, or null when it is unconditional.
+    /// Resolves a <c>When</c> guard into the condition appended to the result root. Returns false,
+    /// having reported ZTEL007 or ZTEL008, when the guard cannot be emitted. The caller then emits
+    /// nothing for the attribute, so the diagnostic is the only error the user sees.
     /// </summary>
     /// <remarks>
-    /// The comparison against true is added only when the resolved guard can be null — either
-    /// because a step along the path is null-tested, or because the member itself is
-    /// <c>bool?</c>. On a plain bool the bare expression is emitted, since <c>x == true</c> reads
-    /// as noise and some analyzers flag it.
+    /// The comparison against true is added only when the guard can be null, either because a
+    /// step along the path is null-tested or because the member is <c>bool?</c>. On a plain bool
+    /// the bare expression is emitted, since <c>x == true</c> reads as noise.
     /// </remarks>
-    private static string? BuildGuardExpression(ITypeSymbol resultType, string? when)
+    private static bool TryBuildGuard(
+        Compilation compilation,
+        AttributeData attr,
+        IMethodSymbol method,
+        ITypeSymbol resultType,
+        string? when,
+        ImmutableArray<Diagnostic>.Builder diagnostics,
+        out string? guard)
     {
+        guard = null;
         if (string.IsNullOrWhiteSpace(when))
-            return null;
+            return true;
 
-        var suffix = ResolveMemberAccess(resultType, when!, out var guardType);
-        if (suffix is null)
+        var location = AttributeLocations.Named(attr, "When", MethodLocation(method));
+        var path = PathResolver.Resolve(compilation, resultType, when!);
+        if (!path.Resolved)
         {
-            // Unresolvable — emit as written and let the compiler name the bad member.
-            return CanBeNull(resultType) ? $"?.{when} == true" : $".{when} == true";
+            diagnostics.Add(PathNotFound(location, when!, path));
+            return false;
         }
 
-        var nullable = suffix.Contains("?.") || (guardType is not null && CanBeNull(guardType));
-        return nullable ? suffix + " == true" : suffix;
+        // A guard through dynamic cannot be checked, but compiled on 1.6.4: it is evaluated at
+        // run time, and the comparison below makes a null or false value skip the read.
+        if (!PathResolver.IsBoolean(path.FinalType!) && !PathResolver.IsDynamic(path.FinalType!))
+        {
+            diagnostics.Add(Diagnostic.Create(
+                InstrumentDiagnostics.WhenNotBoolean, location, when, path.FinalType!.ToDisplayString()));
+            return false;
+        }
+
+        guard = path.CanBeNull ? path.Access + " == true" : path.Access;
+        return true;
     }
+
+    private static Diagnostic PathNotFound(Location location, string path, PathResolver.Resolution resolution) =>
+        string.IsNullOrEmpty(resolution.MissingSegment)
+            ? Diagnostic.Create(InstrumentDiagnostics.MemberPathEmptySegment, location, path)
+            : Diagnostic.Create(
+                InstrumentDiagnostics.MemberPathNotFound,
+                location,
+                resolution.MissingSegment,
+                path,
+                resolution.MissingOn?.ToDisplayString());
+
+    private static bool IsAttribute(AttributeData attr, string attributeFqn) =>
+        string.Equals(attr.AttributeClass?.ToDisplayString(), attributeFqn, StringComparison.Ordinal);
+
+    private static string? GetNamedString(AttributeData attr, string name)
+    {
+        foreach (var named in attr.NamedArguments)
+        {
+            if (string.Equals(named.Key, name, StringComparison.Ordinal))
+                return named.Value.Value as string;
+        }
+
+        return null;
+    }
+
+    private static Location MethodLocation(IMethodSymbol method) =>
+        method.Locations.FirstOrDefault() ?? Location.None;
 
     private static ConstantTagModel[] BuildConstantTags(IMethodSymbol method)
     {
@@ -704,6 +640,210 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
 
             if (attr.ConstructorArguments.Length > 0)
                 return attr.ConstructorArguments[0].Value as string;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Builds the model for <c>[Count]</c> or <c>[Histogram]</c>. Null when the method has none, or
+    /// when its <c>When</c> guard cannot be emitted.
+    /// </summary>
+    private static MetricModel? BuildPlainMetric(
+        Compilation compilation,
+        INamedTypeSymbol target,
+        IMethodSymbol method,
+        string attributeFqn,
+        string shortName,
+        MetricKind kind,
+        ITypeSymbol resultType,
+        bool returnsVoid,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        var attr = FindAttribute(method, attributeFqn);
+        if (attr is null || attr.ConstructorArguments.Length == 0 || attr.ConstructorArguments[0].Value is not string metric)
+            return null;
+
+        var when = GetNamedString(attr, "When");
+        string? guard = null;
+        if (!string.IsNullOrWhiteSpace(when))
+        {
+            // A guard needs a result to read. Recording unguarded instead would count exactly the
+            // calls the guard was written to exclude, so the instrument records nothing.
+            if (returnsVoid)
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    InstrumentDiagnostics.ResultReadOnVoidMethod,
+                    MethodLocation(method),
+                    $"{shortName}(When = {Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(when!, quote: true)})",
+                    target.ToDisplayString(),
+                    method.Name));
+                return null;
+            }
+
+            if (!TryBuildGuard(compilation, attr, method, resultType, when, diagnostics, out guard))
+                return null;
+        }
+
+        return new MetricModel(kind, metric, GetNamedString(attr, "Unit"), GetNamedString(attr, "Description"), guard);
+    }
+
+    private const string CounterTypesReason =
+        "A counter adds long values, so the member must be sbyte, byte, short, ushort, int, uint or long, or a nullable form of one";
+
+    private const string HistogramTypesReason =
+        "A histogram records double values, so the member must be sbyte, byte, short, ushort, int, uint, long, ulong, float, double or decimal, or a nullable form of one";
+
+    private const string DynamicTypeReason =
+        "The type of a dynamic member is only known at run time, so it cannot be checked against the instrument; expose a typed member instead";
+
+    /// <summary>The last sentence of ZTEL009: what the instrument accepts, or why dynamic cannot be checked.</summary>
+    private static string FitReason(MetricKind kind, ITypeSymbol type) =>
+        PathResolver.IsDynamic(type) ? DynamicTypeReason
+        : kind == MetricKind.Counter ? CounterTypesReason
+        : HistogramTypesReason;
+
+    /// <summary>
+    /// Builds <c>[CountFromResult]</c> and <c>[HistogramFromResult]</c> in attribute order. One that
+    /// cannot be emitted is reported and left out, so its diagnostic is the only error.
+    /// </summary>
+    /// <remarks>
+    /// Unlike result tags, these need no <c>[Trace]</c>: they are metrics, not span data, so they
+    /// are always resolved and validated.
+    /// </remarks>
+    private static MetricModel[] BuildResultMetrics(
+        Compilation compilation,
+        INamedTypeSymbol target,
+        IMethodSymbol method,
+        ITypeSymbol resultType,
+        bool returnsVoid,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        List<MetricModel>? metrics = null;
+        foreach (var attr in method.GetAttributes())
+        {
+            MetricKind kind;
+            string shortName;
+            if (IsAttribute(attr, CountFromResultAttrFqn))
+            {
+                kind = MetricKind.Counter;
+                shortName = "CountFromResult";
+            }
+            else if (IsAttribute(attr, HistogramFromResultAttrFqn))
+            {
+                kind = MetricKind.Histogram;
+                shortName = "HistogramFromResult";
+            }
+            else
+            {
+                continue;
+            }
+
+            if (attr.ConstructorArguments.Length < 2 || attr.ConstructorArguments[0].Value is not string metric)
+                continue;
+
+            // No result, so nothing to resolve: reading the path against Task would only add a
+            // misleading ZTEL007 to the ZTEL005 that already explains the problem.
+            if (returnsVoid)
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    InstrumentDiagnostics.ResultReadOnVoidMethod,
+                    MethodLocation(method), shortName, target.ToDisplayString(), method.Name));
+                continue;
+            }
+
+            if (BuildResultMetric(compilation, attr, method, kind, shortName, metric, resultType, diagnostics) is { } model)
+                (metrics ??= new List<MetricModel>()).Add(model);
+        }
+
+        return metrics?.ToArray() ?? [];
+    }
+
+    /// <summary>
+    /// Resolves and type-checks one result-driven instrument. Null, having reported ZTEL007,
+    /// ZTEL008 or ZTEL009, when it cannot be emitted.
+    /// </summary>
+    private static MetricModel? BuildResultMetric(
+        Compilation compilation,
+        AttributeData attr,
+        IMethodSymbol method,
+        MetricKind kind,
+        string shortName,
+        string metric,
+        ITypeSymbol resultType,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        var member = attr.ConstructorArguments[1].Value as string ?? string.Empty;
+        var memberLocation = AttributeLocations.Positional(attr, 1, "member", MethodLocation(method));
+
+        var path = PathResolver.Resolve(compilation, resultType, member);
+        var valueOk = path.Resolved;
+        if (!valueOk)
+        {
+            diagnostics.Add(PathNotFound(memberLocation, member, path));
+        }
+        else if (!Fits(kind, path.FinalType!))
+        {
+            diagnostics.Add(Diagnostic.Create(
+                InstrumentDiagnostics.MemberDoesNotFitInstrument,
+                memberLocation,
+                shortName,
+                member.Length == 0 ? "the return value" : $"'{member}'",
+                path.FinalType!.ToDisplayString(),
+                FitReason(kind, path.FinalType!)));
+            valueOk = false;
+        }
+
+        // Checked even after a bad member, so one build reports every error on the attribute.
+        var guardOk = TryBuildGuard(
+            compilation, attr, method, resultType, GetNamedString(attr, "When"), diagnostics, out var guard);
+
+        if (!valueOk || !guardOk)
+            return null;
+
+        return new MetricModel(
+            kind,
+            metric,
+            GetNamedString(attr, "Unit"),
+            GetNamedString(attr, "Description"),
+            guard,
+            path.Access,
+            path.CanBeNull,
+            PathResolver.UnwrapNullable(path.FinalType!).SpecialType == SpecialType.System_Decimal);
+    }
+
+    /// <summary>
+    /// Whether the value can go to the instrument without a cast the user did not write, or with
+    /// the explicit decimal cast the spec calls for.
+    /// </summary>
+    /// <remarks>
+    /// Explicit SpecialType sets rather than <c>Compilation.ClassifyConversion</c>. That would also
+    /// admit <c>char</c>, and any type with a user-defined implicit conversion, and neither is a
+    /// quantity a counter or a histogram should silently accept.
+    /// </remarks>
+    private static bool Fits(MetricKind kind, ITypeSymbol type)
+    {
+        var special = PathResolver.UnwrapNullable(type).SpecialType;
+
+        var convertsToLong = special is SpecialType.System_SByte or SpecialType.System_Byte
+            or SpecialType.System_Int16 or SpecialType.System_UInt16
+            or SpecialType.System_Int32 or SpecialType.System_UInt32
+            or SpecialType.System_Int64;
+
+        if (kind == MetricKind.Counter)
+            return convertsToLong;
+
+        return convertsToLong
+            || special is SpecialType.System_UInt64 or SpecialType.System_Single
+                or SpecialType.System_Double or SpecialType.System_Decimal;
+    }
+
+    private static AttributeData? FindAttribute(IMethodSymbol method, string attributeFqn)
+    {
+        foreach (var attr in method.GetAttributes())
+        {
+            if (IsAttribute(attr, attributeFqn))
+                return attr;
         }
 
         return null;

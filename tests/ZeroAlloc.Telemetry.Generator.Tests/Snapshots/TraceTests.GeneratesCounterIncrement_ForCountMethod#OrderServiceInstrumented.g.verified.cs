@@ -23,7 +23,7 @@ internal sealed class OrderServiceInstrumented : IOrderService
             await _inner.CreateOrderAsync(orderId, ct);
             _orders_created.Add(1);
         }
-        catch (Exception _ex)
+        catch (Exception)
         {
             throw;
         }
