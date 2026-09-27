@@ -21,10 +21,9 @@ public class GeneratedProxyBehaviorTests
     }
 
     // Hand-written proxy matching generator output pattern.
-    // Pragmas suppress analyzer rules that the generator itself violates by design:
-    //   EPC12 – SetStatus intentionally passes only the message (mirrors generated code)
-    //   MA0004 – generated code does not use ConfigureAwait; proxy mirrors that
-#pragma warning disable EPC12, MA0004
+    // MA0004 is disabled because the generated code does not use ConfigureAwait, and this
+    // proxy mirrors that.
+#pragma warning disable MA0004
     private sealed class SimpleServiceInstrumented : ISimpleService
     {
         private static readonly ActivitySource _activitySource = new("TestSource");
@@ -68,7 +67,7 @@ public class GeneratedProxyBehaviorTests
             }
         }
     }
-#pragma warning restore EPC12, MA0004
+#pragma warning restore MA0004
 
     private sealed class FakeService : ISimpleService
     {

@@ -154,8 +154,6 @@ public class SpanNamePerImplementationTests
             .Create(new InstrumentGenerator())
             .RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
 
-        // foreach rather than LINQ: GetDiagnostics returns an ImmutableArray, and Where on it
-        // trips EPS06 (hidden struct copy).
         var errors = new List<string>();
         foreach (var d in output.GetDiagnostics())
         {
