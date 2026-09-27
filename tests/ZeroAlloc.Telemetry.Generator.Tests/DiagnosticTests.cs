@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Diagnostics;
 using ZeroAlloc.Telemetry;
 
 namespace ZeroAlloc.Telemetry.Generator.Tests;
@@ -139,6 +140,151 @@ public class DiagnosticTests
         Assert.Equal(
             $"[{shortName}] on 'OrphanService.GetAsync' is ignored — the containing type does not have [Instrument] applied, so no proxy is generated. Either apply [Instrument] to the enclosing interface or remove this attribute.",
             d.GetMessage(CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>
+    /// Tag attributes are ignored on a type without [Instrument] just as [Trace] is, so they are
+    /// reported the same way rather than dropped without a word.
+    /// </summary>
+    [Theory]
+    [InlineData("[TraceTagFromResult(\"t\", \"Length\")]", "TraceTagFromResult")]
+    [InlineData("[TraceTagConstant(\"t\", \"web\")]", "TraceTagConstant")]
+    public void ZTEL003_TagOnMethodWithoutInstrumentContainer_ProducesWarning(string attribute, string shortName)
+    {
+        var diagnostics = RunAndCollectDiagnostics($$"""
+            using ZeroAlloc.Telemetry;
+            using System.Threading.Tasks;
+
+            public class OrphanService
+            {
+                {{attribute}}
+                public Task<string> GetAsync() => Task.FromResult("");
+            }
+            """);
+
+        var d = Single(diagnostics, "ZTEL003");
+        Assert.Equal(DiagnosticSeverity.Warning, d.Severity);
+        Assert.Equal("GetAsync", LocationText(d));
+        Assert.Equal(
+            $"[{shortName}] on 'OrphanService.GetAsync' is ignored — the containing type does not have [Instrument] applied, so no proxy is generated. Either apply [Instrument] to the enclosing interface or remove this attribute.",
+            d.GetMessage(CultureInfo.InvariantCulture));
+    }
+
+    [Theory]
+    [InlineData("[TraceTagFromResult(\"t\", \"Length\")]")]
+    [InlineData("[TraceTagConstant(\"t\", \"web\")]")]
+    public void ZTEL003_TagInsideInstrumentedInterface_ProducesNoWarning(string attribute)
+    {
+        var diagnostics = RunAndCollectDiagnostics($$"""
+            using ZeroAlloc.Telemetry;
+            using System.Threading.Tasks;
+
+            [Instrument("MyApp")]
+            public interface IProperService
+            {
+                [Trace("proper.get")]
+                {{attribute}}
+                Task<string> GetAsync();
+            }
+            """);
+
+        Assert.Empty(diagnostics);
+    }
+
+    [Fact]
+    public void ZTEL010_UnresolvedTraceTagPath_IsWarningAtTheArgument()
+    {
+        var source = ChunksSource("[TraceTag(\"batch.size\", \"Cuont\")]");
+        var diagnostics = RunAndCollectDiagnostics(source);
+
+        var d = Single(diagnostics, "ZTEL010");
+        Assert.Equal(DiagnosticSeverity.Warning, d.Severity);
+        Assert.Equal("\"Cuont\"", LocationText(d));
+        Assert.Equal(
+            "'Cuont' in the path 'Cuont' is not a readable instance property or field of 'System.Collections.Generic.IReadOnlyList<string>', so [TraceTag] on 'chunks' records nothing. " + ParameterPathTail,
+            d.GetMessage(CultureInfo.InvariantCulture));
+        Assert.DoesNotContain(diagnostics, x => string.Equals(x.Id, "ZTEL007", StringComparison.Ordinal));
+        AssertNoOutputErrors(source);
+    }
+
+    [Fact]
+    public void ZTEL010_NamesTheSegmentAndTheTypeItWasLookedUpOn()
+    {
+        var source = ChunksSource("[TraceTag(\"batch.size\", member: \"Count.Digits\")]");
+        var diagnostics = RunAndCollectDiagnostics(source);
+
+        var d = Single(diagnostics, "ZTEL010");
+        Assert.Equal("\"Count.Digits\"", LocationText(d));
+        Assert.Equal(
+            "'Digits' in the path 'Count.Digits' is not a readable instance property or field of 'int', so [TraceTag] on 'chunks' records nothing. " + ParameterPathTail,
+            d.GetMessage(CultureInfo.InvariantCulture));
+        AssertNoOutputErrors(source);
+    }
+
+    [Fact]
+    public void ZTEL010_EmptySegment_IsNamedAsSuch()
+    {
+        var source = ChunksSource("[TraceTag(\"batch.size\", \"Count..Digits\")]");
+        var diagnostics = RunAndCollectDiagnostics(source);
+
+        var d = Single(diagnostics, "ZTEL010");
+        Assert.Equal(DiagnosticSeverity.Warning, d.Severity);
+        Assert.Equal("\"Count..Digits\"", LocationText(d));
+        Assert.Equal(
+            "The path 'Count..Digits' has an empty segment, so [TraceTag] on 'chunks' records nothing. " + ParameterPathTail,
+            d.GetMessage(CultureInfo.InvariantCulture));
+        AssertNoOutputErrors(source);
+    }
+
+    [Theory]
+    [InlineData("[TraceTag(\"batch.size\", \"Count\")]")]
+    [InlineData("[TraceTag(\"batch\")]")]
+    [InlineData("[TraceTag(\"batch\", \"\")]")]
+    public void ZTEL010_ResolvedOrAbsentPath_ReportsNothing(string attribute)
+    {
+        var source = ChunksSource(attribute);
+
+        Assert.Empty(RunAndCollectDiagnostics(source));
+        AssertNoOutputErrors(source);
+    }
+
+    /// <summary>
+    /// Without [Trace] no tag is emitted, so the path is never read and ZTEL004 already says the
+    /// tag records nothing. A second warning about the path would only repeat it.
+    /// </summary>
+    [Fact]
+    public void ZTEL010_WithoutTrace_ReportsOnlyZtel004()
+    {
+        const string source = """
+            using ZeroAlloc.Telemetry;
+            using System.Collections.Generic;
+            using System.Threading.Tasks;
+
+            [Instrument("MyApp")]
+            public interface IChunks
+            {
+                Task StoreAsync([TraceTag("batch.size", "Cuont")] IReadOnlyList<string> chunks);
+            }
+            """;
+
+        Assert.Equal(["ZTEL004"], RunAndCollectDiagnostics(source).Select(x => x.Id).ToArray());
+        AssertNoOutputErrors(source);
+    }
+
+    /// <summary>
+    /// ZTEL010 is a warning on code that built before it existed, so it has to be suppressible
+    /// where it is reported, as any other warning is.
+    /// </summary>
+    [Fact]
+    public void ZTEL010_IsSuppressedByPragma()
+    {
+        const string attribute = "[TraceTag(\"batch.size\", \"Cuont\")]";
+
+        Assert.False(Single(EffectiveDiagnostics(ChunksSource(attribute)), "ZTEL010").IsSuppressed);
+
+        var suppressed = ChunksSource(attribute)
+            .Replace("[Instrument(", "#pragma warning disable ZTEL010\n[Instrument(", StringComparison.Ordinal);
+        Assert.True(Single(EffectiveDiagnostics(suppressed), "ZTEL010").IsSuppressed);
     }
 
     [Fact]
@@ -618,6 +764,40 @@ public class DiagnosticTests
     private const string PathNotFoundTail =
         "Each segment of a member path names a property or field of the type reached so far, starting from the awaited return value.";
 
+    private const string ParameterPathTail =
+        "Each segment of a member path names a property or field of the type reached so far, starting from the parameter.";
+
+    private static string ChunksSource(string attribute) => $$"""
+        using ZeroAlloc.Telemetry;
+        using System.Collections.Generic;
+        using System.Threading.Tasks;
+
+        [Instrument("MyApp")]
+        public interface IChunks
+        {
+            [Trace("chunks.store")]
+            Task StoreAsync({{attribute}} IReadOnlyList<string> chunks);
+        }
+        """;
+
+    /// <summary>
+    /// The generator's diagnostics after the compiler applies <c>#pragma warning</c>. One the
+    /// pragma disables comes back with <see cref="Diagnostic.IsSuppressed"/> set, and a build
+    /// does not report it.
+    /// </summary>
+    private static Diagnostic[] EffectiveDiagnostics(string source)
+    {
+        var compilation = CSharpCompilation.Create("TestAssembly",
+            [CSharpSyntaxTree.ParseText(source)],
+            References(),
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var diagnostics = CSharpGeneratorDriver.Create(new InstrumentGenerator())
+            .RunGenerators(compilation).GetRunResult().Diagnostics;
+
+        return CompilationWithAnalyzers.GetEffectiveDiagnostics(diagnostics, compilation).ToArray();
+    }
+
     private static string TotalsSource(string attributes) => $$"""
         using ZeroAlloc.Telemetry;
         using System.Threading.Tasks;
@@ -641,20 +821,21 @@ public class DiagnosticTests
         }
         """;
 
-    private static Diagnostic[] RunAndCollectDiagnostics(string source)
+    private static MetadataReference[] References()
     {
         var trustedPlatformAssemblies = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string ?? string.Empty;
-        var runtimeRefs = trustedPlatformAssemblies
+        return trustedPlatformAssemblies
             .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
-            .Select(p => MetadataReference.CreateFromFile(p))
+            .Select(p => (MetadataReference)MetadataReference.CreateFromFile(p))
+            .Append(MetadataReference.CreateFromFile(typeof(InstrumentAttribute).Assembly.Location))
             .ToArray();
+    }
 
+    private static Diagnostic[] RunAndCollectDiagnostics(string source)
+    {
         var compilation = CSharpCompilation.Create("TestAssembly",
             [CSharpSyntaxTree.ParseText(source)],
-            runtimeRefs.Concat<MetadataReference>(
-            [
-                MetadataReference.CreateFromFile(typeof(InstrumentAttribute).Assembly.Location),
-            ]),
+            References(),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var driver = CSharpGeneratorDriver.Create(new InstrumentGenerator()).RunGenerators(compilation);

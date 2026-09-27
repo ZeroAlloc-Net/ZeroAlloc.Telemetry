@@ -217,13 +217,14 @@ Names that would still collide are made distinct with a numeric suffix, in the o
 |---|---|---|
 | ZTEL001 | Error | `[Instrument]` is on a class, struct or record instead of an interface |
 | ZTEL002 | Error | `[Instrument]` has an empty or whitespace name |
-| ZTEL003 | Warning | `[Trace]`, `[Count]`, `[Histogram]`, `[CountFromResult]` or `[HistogramFromResult]` is on a method of a type without `[Instrument]`, so no proxy is generated |
+| ZTEL003 | Warning | `[Trace]`, `[Count]`, `[Histogram]`, `[CountFromResult]`, `[HistogramFromResult]`, `[TraceTagFromResult]` or `[TraceTagConstant]` is on a method of a type without `[Instrument]`, so no proxy is generated |
 | ZTEL004 | Warning | `[TraceTag]`, `[TraceTagFromResult]` or `[TraceTagConstant]` is on a method without `[Trace]` |
 | ZTEL005 | Warning | `[TraceTagFromResult]`, `[CountFromResult]`, `[HistogramFromResult]`, or `When` on `[Count]`/`[Histogram]`, is on a method returning `void`, `Task`, `ValueTask`, or a task-like type with no result. The message names the attribute; nothing is recorded |
 | ZTEL006 | Warning | A `[Trace]` name contains a `{token}` other than `{type}` |
 | ZTEL007 | Error | A segment of a member path or `When` names no readable, accessible instance property or field of the type reached so far. Reported at the argument, naming the segment and the type |
 | ZTEL008 | Error | `When` resolves to a member that is not `bool` or `bool?` |
 | ZTEL009 | Error | `[CountFromResult]`'s member does not convert implicitly to `long`, or `[HistogramFromResult]`'s member is not numeric. A member reached through `dynamic` cannot be checked, so it is reported too |
+| ZTEL010 | Warning | A segment of a `[TraceTag(name, member)]` path names no readable, accessible instance property or field of the type reached so far, starting from the parameter. Reported at the argument; no tag is emitted for that parameter |
 
 ZTEL007 and ZTEL008 mostly replace what used to be a compile error inside the generated proxy. Two cases compiled on 1.6.4 and are now errors:
 
@@ -231,6 +232,8 @@ ZTEL007 and ZTEL008 mostly replace what used to be a compile error inside the ge
 - a path through an extension property, which the resolver does not look up, which is **ZTEL007**.
 
 In both cases, expose a `bool` or an instance member on the result type. A path through `dynamic` still compiles; see [Member paths and When](attributes.md#member-paths-and-when).
+
+ZTEL010 is the parameter-side counterpart of ZTEL007, and a warning rather than an error. Before it existed, a `[TraceTag]` path that did not resolve compiled and tagged the whole argument, so an error would break builds that work today. The generator now emits no tag for that parameter, so the warning is the only signal and the span never carries the argument under a name that promises one of its members. Without `[Trace]` the path is not checked, since ZTEL004 already reports that the tag records nothing.
 
 ## Release tracking
 

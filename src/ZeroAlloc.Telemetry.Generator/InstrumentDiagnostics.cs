@@ -89,4 +89,26 @@ internal static class InstrumentDiagnostics
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    /// <summary>
+    /// The <c>[TraceTag]</c> counterpart of ZTEL007. A warning, not an error: before this rule a
+    /// bad parameter path compiled and tagged the whole argument, so an error would break builds
+    /// that work today. The tag is not emitted, so this warning is the only sign of the typo.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ParameterTagPathNotFound = new(
+        id: "ZTEL010",
+        title: "[TraceTag] member path does not resolve",
+        messageFormat: "'{0}' in the path '{1}' is not a readable instance property or field of '{2}', so [TraceTag] on '{3}' records nothing. Each segment of a member path names a property or field of the type reached so far, starting from the parameter.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    /// <summary>ZTEL010 for a path with an empty segment; see <see cref="MemberPathEmptySegment"/>.</summary>
+    public static readonly DiagnosticDescriptor ParameterTagPathEmptySegment = new(
+        id: "ZTEL010",
+        title: "[TraceTag] member path does not resolve",
+        messageFormat: "The path '{0}' has an empty segment, so [TraceTag] on '{1}' records nothing. Each segment of a member path names a property or field of the type reached so far, starting from the parameter.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
 }

@@ -87,7 +87,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             }
         });
 
-        // ZTEL003: method-level metric and trace attributes on a method whose containing type
+        // ZTEL003: method-level metric, trace and tag attributes on a method whose containing type
         // lacks [Instrument] are silently ignored. Scan every method carrying any of them and
         // check the enclosing type.
         RegisterMethodAttributeDiagnostic(context, TraceAttributeFqn, "Trace");
@@ -95,6 +95,8 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         RegisterMethodAttributeDiagnostic(context, HistogramAttributeFqn, "Histogram");
         RegisterMethodAttributeDiagnostic(context, CountFromResultAttrFqn, "CountFromResult");
         RegisterMethodAttributeDiagnostic(context, HistogramFromResultAttrFqn, "HistogramFromResult");
+        RegisterMethodAttributeDiagnostic(context, TraceTagFromResultAttrFqn, "TraceTagFromResult");
+        RegisterMethodAttributeDiagnostic(context, TraceTagConstantAttrFqn, "TraceTagConstant");
     }
 
     [SuppressMessage(
@@ -204,7 +206,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             var isAsync     = TaskShapes.IsAwaitable(member.ReturnType);
             var returnsVoid = member.ReturnsVoid || TaskShapes.IsVoidAwaitable(member.ReturnType);
 
-            var parameters = BuildParameters(compilation, member);
+            var parameters = BuildParameters(compilation, member, traceName is null, diagnostics);
             var resultType = TaskShapes.UnwrapAwaited(member.ReturnType);
             var resultTags = BuildResultTags(compilation, member, resultType, returnsVoid, traceName is null, diagnostics);
             var constantTags = BuildConstantTags(member);
@@ -377,26 +379,49 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         }
     }
 
-    private static ParameterModel[] BuildParameters(Compilation compilation, IMethodSymbol method)
+    /// <summary>
+    /// Builds the parameter models. A <c>[TraceTag]</c> whose member path does not resolve is
+    /// reported as ZTEL010 and dropped, so no tag is emitted for it.
+    /// </summary>
+    /// <remarks>
+    /// Before ZTEL010 an unresolved path tagged the whole argument under a name that promised one
+    /// member of it, so the tag was wrong rather than missing and nothing said so. Without
+    /// <c>[Trace]</c> no tag is emitted at all and ZTEL004 already reports it, so the path is not
+    /// resolved there: a second warning would only repeat the first.
+    /// </remarks>
+    private static ParameterModel[] BuildParameters(
+        Compilation compilation,
+        IMethodSymbol method,
+        bool untraced,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         var ps = method.Parameters;
         var result = new ParameterModel[ps.Length];
         for (var i = 0; i < ps.Length; i++)
         {
-            var (tagName, member) = GetTraceTag(ps[i]);
+            var (tagName, member, attr) = GetTraceTag(ps[i]);
 
             string? accessSuffix = null;
             var needsCopy = false;
 
-            if (tagName is not null && !string.IsNullOrEmpty(member))
+            if (tagName is not null && !untraced && !string.IsNullOrEmpty(member))
             {
-                accessSuffix = PathResolver.Resolve(compilation, ps[i].Type, member!).Access;
+                var path = PathResolver.Resolve(compilation, ps[i].Type, member!);
+                if (path.Resolved)
+                {
+                    accessSuffix = path.Access;
 
-                // A copy is only needed when the emitted access actually null-tests the
-                // argument; a plain `.Member` on a non-nullable value leaves its state alone.
-                needsCopy = accessSuffix is null
-                    ? PathResolver.CanBeNull(ps[i].Type)
-                    : accessSuffix.StartsWith("?.", StringComparison.Ordinal);
+                    // A copy is only needed when the emitted access actually null-tests the
+                    // argument; a plain `.Member` on a non-nullable value leaves its state alone.
+                    needsCopy = path.Access!.StartsWith("?.", StringComparison.Ordinal);
+                }
+                else
+                {
+                    var fallback = ps[i].Locations.FirstOrDefault() ?? MethodLocation(method);
+                    diagnostics.Add(ParameterTagPathNotFound(
+                        AttributeLocations.Positional(attr!, 1, "member", fallback), member!, ps[i].Name, path));
+                    tagName = null;
+                }
             }
 
             result[i] = new ParameterModel(
@@ -410,7 +435,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         return result;
     }
 
-    private static (string? Name, string? Member) GetTraceTag(IParameterSymbol parameter)
+    private static (string? Name, string? Member, AttributeData? Attribute) GetTraceTag(IParameterSymbol parameter)
     {
         foreach (var attr in parameter.GetAttributes())
         {
@@ -427,10 +452,10 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 ? attr.ConstructorArguments[1].Value as string
                 : null;
 
-            return (name, member);
+            return (name, member, attr);
         }
 
-        return (null, null);
+        return (null, null, null);
     }
 
     private static ResultTagModel[] BuildResultTags(
@@ -597,6 +622,18 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 resolution.MissingSegment,
                 path,
                 resolution.MissingOn?.ToDisplayString());
+
+    private static DiagnosticInfo ParameterTagPathNotFound(
+        Location location, string path, string parameterName, PathResolver.Resolution resolution) =>
+        string.IsNullOrEmpty(resolution.MissingSegment)
+            ? DiagnosticInfo.Create(InstrumentDiagnostics.ParameterTagPathEmptySegment, location, path, parameterName)
+            : DiagnosticInfo.Create(
+                InstrumentDiagnostics.ParameterTagPathNotFound,
+                location,
+                resolution.MissingSegment,
+                path,
+                resolution.MissingOn?.ToDisplayString(),
+                parameterName);
 
     private static bool IsAttribute(AttributeData attr, string attributeFqn) =>
         string.Equals(attr.AttributeClass?.ToDisplayString(), attributeFqn, StringComparison.Ordinal);

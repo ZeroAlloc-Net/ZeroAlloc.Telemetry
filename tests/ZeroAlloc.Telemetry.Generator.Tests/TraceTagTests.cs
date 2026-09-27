@@ -291,6 +291,34 @@ public class TraceTagTests
     }
 
     /// <summary>
+    /// A path that does not resolve emits no tag at all, rather than tagging the whole argument
+    /// under a name that promises one member of it. ZTEL010 is the only signal. The other tag on
+    /// the method is unaffected.
+    /// </summary>
+    [Fact]
+    public void GeneratesNoTag_ForUnresolvedParameterPath()
+    {
+        var source = """
+            using ZeroAlloc.Telemetry;
+            using System.Collections.Generic;
+            using System.Threading;
+            using System.Threading.Tasks;
+
+            [Instrument("MyApp.Ingest")]
+            public interface IIngest
+            {
+                [Trace("ingest.store")]
+                Task StoreAsync(
+                    [TraceTag("ingest.source")] string source,
+                    [TraceTag("vectorstore.batch.size", "Cuont")] IReadOnlyList<string> chunks,
+                    CancellationToken ct);
+            }
+            """;
+
+        GeneratorSnapshot.Verify(RunGenerator(source));
+    }
+
+    /// <summary>
     /// A member path on a non-nullable value-type parameter must not null-test the argument:
     /// there is nothing to test, and a copy would be noise.
     /// </summary>
