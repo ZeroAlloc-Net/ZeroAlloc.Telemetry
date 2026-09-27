@@ -101,7 +101,11 @@ Full methodology: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAll
 |---|---|---|
 | `[Trace("name")]` | `ActivitySource.StartActivity("name")` | Every call — stopped in `finally`, Error status on exception |
 | `[Count("metric")]` | `Counter<long>.Add(1)` | After a successful (non-throwing) call only |
-| `[Histogram("metric")]` | `Histogram<double>.Record(ms)` | Every call including on exception |
+| `[Histogram("metric")]` | `Histogram<double>.Record(ms)` | Every call including on exception, unless `When` is set |
+| `[CountFromResult("metric", "Member")]` | `Counter<long>.Add(value)` | After a successful call, when the member is not null |
+| `[HistogramFromResult("metric", "Member")]` | `Histogram<double>.Record(value)` | After a successful call, when the member is not null |
+
+**Metrics from the result.** `[CountFromResult]` and `[HistogramFromResult]` record a value carried by the return value, such as tokens consumed or a confidence score. `When = "IsSuccess"` on any metric records it only when the result says the call succeeded, so a failed `Result<T, E>` is no longer counted as a success. `Unit` and `Description` pass through to the instrument.
 
 ## Packages
 
@@ -123,7 +127,7 @@ Full docs at [telemetry.zeroalloc.net](https://telemetry.zeroalloc.net).
 | Page | Description |
 |---|---|
 | [Getting Started](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/blob/main/docs/getting-started.md) | Install and instrument your first interface |
-| [Attribute Reference](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/blob/main/docs/attributes.md) | `[Instrument]`, `[Trace]`, `[Count]`, `[Histogram]`, `[TraceTag]`, `[TraceTagFromResult]`, `[TraceTagConstant]` |
+| [Attribute Reference](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/blob/main/docs/attributes.md) | `[Instrument]`, `[Trace]`, `[Count]`, `[Histogram]`, `[CountFromResult]`, `[HistogramFromResult]`, `[TraceTag]`, `[TraceTagFromResult]`, `[TraceTagConstant]` |
 | [Source Generator](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/blob/main/docs/source-generator.md) | What the generator emits — input/output examples |
 | [Testing](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/blob/main/docs/testing.md) | Assert spans and metrics with BCL listeners |
 | [AOT & Trimming](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/blob/main/docs/aot.md) | Native AOT compatibility |

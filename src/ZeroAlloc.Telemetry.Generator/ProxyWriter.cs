@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using ZeroAlloc.Telemetry.Generator.Models;
 
@@ -32,16 +33,17 @@ internal static class ProxyWriter
         var accessibility = model.PublicProxy ? "public" : "internal";
         sb.AppendLine($"{accessibility} sealed class {model.ProxyName} : {model.InterfaceName}");
         sb.AppendLine("{");
-        sb.AppendLine($"    private static readonly ActivitySource _activitySource = new(\"{model.ActivitySourceName}\");");
-        sb.AppendLine($"    private static readonly Meter _meter = new(\"{model.ActivitySourceName}\");");
+        sb.AppendLine($"    private static readonly ActivitySource _activitySource = new({Literal(model.ActivitySourceName)});");
+        sb.AppendLine($"    private static readonly Meter _meter = new({Literal(model.ActivitySourceName)});");
 
-        WriteMetricFields(sb, model);
+        var fields = MetricFieldTable.Build(model);
+        WriteMetricFields(sb, fields);
 
         sb.AppendLine();
         WriteFieldsAndConstructor(sb, model);
 
         for (var i = 0; i < model.Methods.Count; i++)
-            WriteMethod(sb, model.Methods[i], i);
+            WriteMethod(sb, model.Methods[i], i, fields);
 
         sb.AppendLine("}");
         return sb.ToString();
@@ -85,23 +87,31 @@ internal static class ProxyWriter
         sb.AppendLine("    }");
     }
 
-    private static void WriteMetricFields(StringBuilder sb, InstrumentModel model)
+    private static void WriteMetricFields(StringBuilder sb, MetricFieldTable fields)
     {
-        var emittedMetrics = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var method in model.Methods)
+        foreach (var field in fields.Fields)
         {
-            if (method.CountMetric is not null && emittedMetrics.Add(method.CountMetric))
-            {
-                var fieldName = ToFieldName(method.CountMetric);
-                sb.AppendLine($"    private static readonly Counter<long> _{fieldName} = _meter.CreateCounter<long>(\"{method.CountMetric}\");");
-            }
+            var (type, factory) = field.Kind == MetricKind.Counter
+                ? ("Counter<long>", "CreateCounter<long>")
+                : ("Histogram<double>", "CreateHistogram<double>");
 
-            if (method.HistogramMetric is not null && emittedMetrics.Add(method.HistogramMetric))
-            {
-                var fieldName = ToFieldName(method.HistogramMetric);
-                sb.AppendLine($"    private static readonly Histogram<double> _{fieldName} = _meter.CreateHistogram<double>(\"{method.HistogramMetric}\");");
-            }
+            sb.AppendLine($"    private static readonly {type} {field.FieldName} = _meter.{factory}({FactoryArguments(field)});");
         }
+    }
+
+    /// <summary>
+    /// Arguments to <c>CreateCounter</c>/<c>CreateHistogram</c>. Unit and description are named
+    /// and only passed when set, so an instrument without them emits the same call as before.
+    /// </summary>
+    private static string FactoryArguments(MetricFieldTable.Field field)
+    {
+        var args = Literal(field.Metric);
+        if (field.Unit is not null)
+            args += ", unit: " + Literal(field.Unit);
+        if (field.Description is not null)
+            args += ", description: " + Literal(field.Description);
+
+        return args;
     }
 
     /// <summary>
@@ -111,7 +121,7 @@ internal static class ProxyWriter
     private static string SpanNameField(MethodModel method, int index) =>
         $"_spanName_{method.Name}_{index}";
 
-    private static void WriteMethod(StringBuilder sb, MethodModel method, int index)
+    private static void WriteMethod(StringBuilder sb, MethodModel method, int index, MetricFieldTable fields)
     {
         sb.AppendLine();
 
@@ -125,15 +135,16 @@ internal static class ProxyWriter
         if (method.TraceName is not null)
             WriteSpanStartAndTags(sb, method, index);
 
-        if (method.HistogramMetric is not null)
+        if (method.Histogram is not null)
             sb.AppendLine("        var _sw = Stopwatch.GetTimestamp();");
 
         var needsTry = method.TraceName is not null
-                    || method.HistogramMetric is not null
-                    || method.CountMetric is not null;
+                    || method.Histogram is not null
+                    || method.Count is not null
+                    || method.ResultMetrics.Count > 0;
 
         if (needsTry)
-            WriteInstrumentedBody(sb, method, argList);
+            WriteInstrumentedBody(sb, method, argList, fields);
         else
             WritePassthroughBody(sb, method, argList);
 
@@ -149,13 +160,13 @@ internal static class ProxyWriter
         // constant one is emitted inline, so the common case stays a plain string literal.
         var spanName = method.TraceNameExpression is not null
             ? SpanNameField(method, index)
-            : $"\"{method.TraceName}\"";
+            : Literal(method.TraceName!);
         sb.AppendLine($"        using var _activity = _activitySource.StartActivity({spanName});");
 
         // Constants first: they identify which implementation is running, so they are the
         // most useful thing present if a sampler inspects tags at ActivityStarted.
         foreach (var constant in method.ConstantTags)
-            sb.AppendLine($"        _activity?.SetTag(\"{constant.TagName}\", {constant.Literal});");
+            sb.AppendLine($"        _activity?.SetTag({Literal(constant.TagName)}, {constant.Literal});");
 
         // Set immediately after the span starts so the tags are present for its whole
         // lifetime. `_activity?.` short-circuits the whole call when nothing sampled the
@@ -179,11 +190,11 @@ internal static class ProxyWriter
                 ? source + suffix
                 : source;
 
-            sb.AppendLine($"        _activity?.SetTag(\"{p.TagName}\", {access});");
+            sb.AppendLine($"        _activity?.SetTag({Literal(p.TagName)}, {access});");
         }
     }
 
-    private static void WriteInstrumentedBody(StringBuilder sb, MethodModel method, string argList)
+    private static void WriteInstrumentedBody(StringBuilder sb, MethodModel method, string argList, MetricFieldTable fields)
     {
         sb.AppendLine("        try");
         sb.AppendLine("        {");
@@ -196,32 +207,31 @@ internal static class ProxyWriter
         else
             sb.AppendLine($"            var _result = {callExpr};");
 
-        // Result tags come first so they are recorded even if a metric line below were to change.
-        // Only emitted with a span to carry them and a value to read; ZTEL004/ZTEL005 warn otherwise.
-        if (method.TraceName is not null && !method.ReturnsVoid && method.ResultTags.Count > 0)
-            WriteResultTags(sb, method);
+        // Tags and result-driven instruments read the result, so they come first and share one
+        // null-state copy. [Count] and [Histogram] follow, guarded when they have a When.
+        if (!method.ReturnsVoid)
+            WriteResultReads(sb, method, fields);
 
-        if (method.CountMetric is not null)
-        {
-            var fieldName = ToFieldName(method.CountMetric);
-            sb.AppendLine($"            _{fieldName}.Add(1);");
-        }
+        if (method.Count is { } count)
+            WriteGuarded(sb, method, count.GuardExpression, $"{fields.FieldFor(count)}.Add(1);");
 
-        if (method.HistogramMetric is not null)
+        if (method.Histogram is { } histogram)
         {
-            var fieldName = ToFieldName(method.HistogramMetric);
-            sb.AppendLine($"            _{fieldName}.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);");
+            WriteGuarded(
+                sb, method, histogram.GuardExpression,
+                $"{fields.FieldFor(histogram)}.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);");
         }
 
         if (!method.ReturnsVoid)
             sb.AppendLine("            return _result;");
 
         sb.AppendLine("        }");
-        WriteCatchBlock(sb, method);
+        WriteCatchBlock(sb, method, fields);
     }
 
     /// <summary>
-    /// Emits the result-derived tags.
+    /// Emits everything that reads the result: the result-derived tags, when there is a span to
+    /// carry them, then the result-driven instruments in attribute order.
     /// </summary>
     /// <remarks>
     /// Member access goes through a copy of the result rather than the result itself. Roslyn
@@ -230,70 +240,130 @@ internal static class ProxyWriter
     /// consumer with nullable warnings enabled. Testing the copy keeps the returned value's
     /// null-state intact while still guaranteeing instrumentation cannot throw on a null result.
     /// </remarks>
-    private static void WriteResultTags(StringBuilder sb, MethodModel method)
+    private static void WriteResultReads(StringBuilder sb, MethodModel method, MetricFieldTable fields)
     {
-        // A guard reads from the same local as the member access, so it needs the copy too —
-        // a tag that is guarded but records the whole result still null-tests _result otherwise.
+        // Tags need a span to carry them; ZTEL004 reports a result tag without one.
+        IReadOnlyList<ResultTagModel> tags = method.TraceName is not null
+            ? method.ResultTags
+            : Array.Empty<ResultTagModel>();
+
+        // Every read that null-tests the result goes through the copy: a member access, a guard,
+        // or a metric value, which is always read through the root. A guarded tag that records
+        // the whole result still null-tests _result in its guard, so it needs the copy too.
         var needsCopy = method.ResultCanBeNull
-                     && method.ResultTags.Any(t => !string.IsNullOrEmpty(t.Member) || t.GuardExpression is not null);
+            && (tags.Any(t => !string.IsNullOrEmpty(t.Member) || t.GuardExpression is not null)
+                || method.ResultMetrics.Count > 0
+                || method.Count?.GuardExpression is not null
+                || method.Histogram?.GuardExpression is not null);
 
         if (needsCopy)
             sb.AppendLine("            var _tagged = _result;");
 
-        foreach (var tag in method.ResultTags)
-        {
-            string access;
-            if (string.IsNullOrEmpty(tag.Member))
-            {
-                // No member access, so no null test and no effect on _result's null-state.
-                access = "_result";
-            }
-            else if (tag.AccessSuffix is { } suffix)
-            {
-                // The operator for every segment was chosen from the resolved types, so a null
-                // anywhere along the path yields a null tag instead of throwing. Read from the
-                // copy when the root can be null, to keep _result's null-state intact.
-                access = (method.ResultCanBeNull ? "_tagged" : "_result") + suffix;
-            }
-            else
-            {
-                // Path did not resolve — almost always a typo. Emit it as written so the
-                // compiler reports the unknown member rather than the generator guessing.
-                access = method.ResultCanBeNull
-                    ? $"_tagged?.{tag.Member}"
-                    : $"_result.{tag.Member}";
-            }
+        var root = method.ResultCanBeNull ? "_tagged" : "_result";
 
-            if (tag.GuardExpression is { } guard)
-            {
-                // The guard has to prevent the member being read at all, which a null-conditional
-                // cannot: `?.` protects against a null result, not against a result whose value is
-                // unset — reading Value on a failed Result is meaningless at best and throws at
-                // worst.
-                var root = method.ResultCanBeNull ? "_tagged" : "_result";
-                sb.AppendLine($"            if ({root}{guard})");
-                sb.AppendLine($"                _activity?.SetTag(\"{tag.TagName}\", {access});");
-            }
-            else
-            {
-                sb.AppendLine($"            _activity?.SetTag(\"{tag.TagName}\", {access});");
-            }
+        foreach (var tag in tags)
+            WriteResultTag(sb, tag, root);
+
+        for (var i = 0; i < method.ResultMetrics.Count; i++)
+            WriteResultMetric(sb, method.ResultMetrics[i], i, root, fields);
+    }
+
+    private static void WriteResultTag(StringBuilder sb, ResultTagModel tag, string root)
+    {
+        // No member records the result itself: no member access, so no null test and no
+        // effect on _result's null-state. Otherwise the generator resolved the path, choosing
+        // the operator for every segment, and reported ZTEL007 instead where it could not.
+        var access = string.IsNullOrEmpty(tag.Member) ? "_result" : root + tag.AccessSuffix;
+
+        if (tag.GuardExpression is { } guard)
+        {
+            // The guard has to prevent the member being read at all, which a null-conditional
+            // cannot: `?.` protects against a null result, not against a result whose value is
+            // unset. Reading Value on a failed Result is meaningless at best and throws at worst.
+            sb.AppendLine($"            if ({root}{guard})");
+            sb.AppendLine($"                _activity?.SetTag({Literal(tag.TagName)}, {access});");
+        }
+        else
+        {
+            sb.AppendLine($"            _activity?.SetTag({Literal(tag.TagName)}, {access});");
         }
     }
 
-    private static void WriteCatchBlock(StringBuilder sb, MethodModel method)
+    /// <summary>
+    /// Emits one <c>[CountFromResult]</c> or <c>[HistogramFromResult]</c>. <paramref name="index"/>
+    /// numbers its pattern local, so each read on a method binds a distinct name.
+    /// </summary>
+    private static void WriteResultMetric(StringBuilder sb, MetricModel metric, int index, string root, MetricFieldTable fields)
     {
-        sb.AppendLine("        catch (Exception _ex)");
+        var access = root + metric.ValueAccess;
+        var guard = metric.GuardExpression is { } g ? root + g : null;
+
+        // A value that can be null is bound by a pattern: a null is skipped, and the local is
+        // non-nullable, so it converts to long or double without a cast. The guard comes first
+        // and short-circuits, so the member is not read at all when the guard is false.
+        string? condition;
+        string value;
+        if (metric.ValueCanBeNull)
+        {
+            var local = "_read" + index.ToString(CultureInfo.InvariantCulture);
+            var test = $"{access} is {{ }} {local}";
+            condition = guard is null ? test : $"{guard} && {test}";
+            value = local;
+        }
+        else
+        {
+            condition = guard;
+            value = access;
+        }
+
+        if (metric.ValueIsDecimal)
+            value = "(double)" + value;
+
+        var call = metric.Kind == MetricKind.Counter
+            ? $"{fields.FieldFor(metric)}.Add({value});"
+            : $"{fields.FieldFor(metric)}.Record({value});";
+
+        if (condition is null)
+        {
+            sb.AppendLine($"            {call}");
+        }
+        else
+        {
+            sb.AppendLine($"            if ({condition})");
+            sb.AppendLine($"                {call}");
+        }
+    }
+
+    /// <summary>Emits <paramref name="statement"/>, under the guard when there is one.</summary>
+    private static void WriteGuarded(StringBuilder sb, MethodModel method, string? guard, string statement)
+    {
+        if (guard is null)
+        {
+            sb.AppendLine($"            {statement}");
+            return;
+        }
+
+        var root = method.ResultCanBeNull ? "_tagged" : "_result";
+        sb.AppendLine($"            if ({root}{guard})");
+        sb.AppendLine($"                {statement}");
+    }
+
+    private static void WriteCatchBlock(StringBuilder sb, MethodModel method, MetricFieldTable fields)
+    {
+        // Only the span reads the exception. Declaring the variable otherwise raises CS0168 in
+        // the generated file, and that fails every consumer building with TreatWarningsAsErrors.
+        sb.AppendLine(method.TraceName is not null
+            ? "        catch (Exception _ex)"
+            : "        catch (Exception)");
         sb.AppendLine("        {");
 
         if (method.TraceName is not null)
             sb.AppendLine("            _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);");
 
-        if (method.HistogramMetric is not null)
-        {
-            var fieldName = ToFieldName(method.HistogramMetric);
-            sb.AppendLine($"            _{fieldName}.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);");
-        }
+        // A guarded histogram records only when its guard holds, and a throw leaves no result to
+        // evaluate it against. An unguarded one records on both paths, as it always has.
+        if (method.Histogram is { GuardExpression: null } histogram)
+            sb.AppendLine($"            {fields.FieldFor(histogram)}.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);");
 
         sb.AppendLine("            throw;");
         sb.AppendLine("        }");
@@ -307,6 +377,10 @@ internal static class ProxyWriter
         sb.AppendLine($"        {returnKeyword}{callExpr};");
     }
 
-    private static string ToFieldName(string metric) =>
-        metric.Replace('.', '_').Replace('-', '_');
+    /// <summary>
+    /// A name as a C# string literal, escaped the way the language writes it. A quote or a
+    /// backslash in a metric, span or tag name would otherwise emit code that does not compile.
+    /// </summary>
+    private static string Literal(string value) =>
+        Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(value, quote: true);
 }

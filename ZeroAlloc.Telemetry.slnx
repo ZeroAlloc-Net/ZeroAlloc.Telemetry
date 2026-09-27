@@ -12,5 +12,6 @@
   <Folder Name="/tests/">
     <Project Path="tests/ZeroAlloc.Telemetry.Tests/ZeroAlloc.Telemetry.Tests.csproj" />
     <Project Path="tests/ZeroAlloc.Telemetry.Generator.Tests/ZeroAlloc.Telemetry.Generator.Tests.csproj" />
+    <Project Path="tests/ZeroAlloc.Telemetry.Generated.Tests/ZeroAlloc.Telemetry.Generated.Tests.csproj" />
   </Folder>
 </Solution>

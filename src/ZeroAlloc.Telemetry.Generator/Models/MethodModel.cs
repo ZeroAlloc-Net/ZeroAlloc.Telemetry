@@ -2,7 +2,7 @@ namespace ZeroAlloc.Telemetry.Generator.Models;
 
 /// <param name="ResultCanBeNull">
 /// Whether the value the tag reads from can be null — a reference type or <c>Nullable&lt;T&gt;</c>,
-/// after unwrapping <c>Task&lt;T&gt;</c>/<c>ValueTask&lt;T&gt;</c>. Drives whether member access on
+/// after unwrapping the awaited type of <c>Task&lt;T&gt;</c>, <c>ValueTask&lt;T&gt;</c> or a task-like type. Drives whether member access on
 /// the result is emitted as <c>?.</c> or <c>.</c>; <c>?.</c> on a non-nullable value type does not
 /// compile.
 /// </param>
@@ -12,6 +12,12 @@ namespace ZeroAlloc.Telemetry.Generator.Models;
 /// Null when the name is a constant, which is the common case. The proxy evaluates this once in
 /// its constructor and caches the result, so the per-call path never composes a string.
 /// </param>
+/// <param name="Count"><c>[Count]</c> on the method, or null.</param>
+/// <param name="Histogram"><c>[Histogram]</c> on the method, or null.</param>
+/// <param name="ResultMetrics">
+/// <c>[CountFromResult]</c> and <c>[HistogramFromResult]</c> uses, in attribute order. Only the
+/// ones that resolved and type-checked; the rest were reported and are not emitted.
+/// </param>
 internal sealed record MethodModel(
     string Name,
     string ReturnType,
@@ -19,10 +25,11 @@ internal sealed record MethodModel(
     bool ReturnsVoid,
     IReadOnlyList<ParameterModel> Parameters,
     string? TraceName,
-    string? CountMetric,
-    string? HistogramMetric,
+    MetricModel? Count,
+    MetricModel? Histogram,
     IReadOnlyList<ResultTagModel> ResultTags,
     bool ResultCanBeNull,
     IReadOnlyList<ConstantTagModel> ConstantTags,
+    IReadOnlyList<MetricModel> ResultMetrics,
     string? TraceNameExpression = null
 );

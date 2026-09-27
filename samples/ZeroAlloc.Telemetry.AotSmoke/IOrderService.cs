@@ -11,4 +11,7 @@ public interface IOrderService
     [Count("orders.created")]
     [Histogram("order.create_ms")]
     ValueTask<int> CreateAsync(string customerId, CancellationToken ct);
+
+    [CountFromResult("orders.lines", "Lines", Unit = "{line}")]
+    ValueTask<OrderReceipt> ReceiptAsync(string customerId, CancellationToken ct);
 }

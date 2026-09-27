@@ -7,7 +7,8 @@ namespace ZeroAlloc.Telemetry.Generator.Models;
 /// <param name="AccessSuffix">
 /// The member access as it should be emitted, with the operator for each segment already chosen
 /// from the resolved types — e.g. <c>?.Value?.Count</c> or <c>.Length</c>. Null when there is no
-/// member, or when the path could not be resolved against the result type.
+/// member, or on a method with no result. A path that does not resolve never reaches the model:
+/// the generator reports ZTEL007 and drops the tag.
 /// <para>
 /// Pre-resolving matters because the operator cannot be decided from the path text alone:
 /// <c>?.</c> is required wherever the preceding value may be null, and is a compile error

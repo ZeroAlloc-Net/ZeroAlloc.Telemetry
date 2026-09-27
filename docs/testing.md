@@ -138,7 +138,7 @@ _histogramMeasurements
     .Should().ContainSingle(m => m.Name == "order.get_ms" && m.Value >= 0);
 ```
 
-Histograms record on both success and exception — verify both paths if the guarantee matters.
+Histograms record on both success and exception, unless `When` is set: a guarded histogram records only successful calls whose guard is true. Verify both paths if the guarantee matters.
 
 ## Combining ActivityListener and MeterListener
 

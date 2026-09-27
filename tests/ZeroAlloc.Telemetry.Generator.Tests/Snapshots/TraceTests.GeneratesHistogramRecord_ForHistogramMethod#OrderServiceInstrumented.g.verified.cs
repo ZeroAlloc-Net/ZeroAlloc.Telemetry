@@ -25,7 +25,7 @@ internal sealed class OrderServiceInstrumented : IOrderService
             _order_duration_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
             return _result;
         }
-        catch (Exception _ex)
+        catch (Exception)
         {
             _order_duration_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
             throw;

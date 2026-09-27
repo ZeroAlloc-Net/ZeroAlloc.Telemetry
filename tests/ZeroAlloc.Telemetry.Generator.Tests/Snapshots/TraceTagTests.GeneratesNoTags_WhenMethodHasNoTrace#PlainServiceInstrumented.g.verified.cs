@@ -24,7 +24,7 @@ internal sealed class PlainServiceInstrumented : IPlainService
             _plain_calls.Add(1);
             return _result;
         }
-        catch (Exception _ex)
+        catch (Exception)
         {
             throw;
         }

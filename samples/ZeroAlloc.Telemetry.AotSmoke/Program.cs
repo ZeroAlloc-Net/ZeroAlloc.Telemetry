@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.Metrics;
 using System.Threading;
 using System.Threading.Tasks;
 using ZeroAlloc.Telemetry.AotSmoke;
@@ -21,6 +22,24 @@ for (var i = 0; i < 3; i++)
     _ = await proxy.CreateAsync("cust", CancellationToken.None).ConfigureAwait(false);
 }
 if (impl.CallCount != 4) return Fail($"After 4 total invocations, CallCount expected 4, got {impl.CallCount}");
+
+// A result-driven counter: the value is read from the returned receipt, not a constant 1.
+long lines = 0;
+using var listener = new MeterListener();
+listener.InstrumentPublished = (instrument, l) =>
+{
+    if (string.Equals(instrument.Meter.Name, "ZeroAlloc.Telemetry.AotSmoke", StringComparison.Ordinal)
+        && string.Equals(instrument.Name, "orders.lines", StringComparison.Ordinal))
+    {
+        l.EnableMeasurementEvents(instrument);
+    }
+};
+listener.SetMeasurementEventCallback<long>((_, value, _, _) => lines += value);
+listener.Start();
+
+var receipt = await proxy.ReceiptAsync("cust-1", CancellationToken.None).ConfigureAwait(false);
+if (receipt.Lines != 3) return Fail($"ReceiptAsync expected 3 lines, got {receipt.Lines}");
+if (lines != 3) return Fail($"orders.lines expected 3, got {lines}");
 
 Console.WriteLine("AOT smoke: PASS");
 return 0;
