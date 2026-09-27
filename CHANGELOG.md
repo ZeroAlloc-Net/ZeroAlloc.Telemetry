@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.7.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.6.4...v1.7.0) (2026-09-27)
+
+
+### Features
+
+* **generator:** add When, Unit and Description to Count and Histogram ([9aa8bca](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/9aa8bca73c2c0808eb72d8aca86b2782cfe742cc))
+* **generator:** record metrics from the return value with CountFromResult and HistogramFromResult ([9aa8bca](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/9aa8bca73c2c0808eb72d8aca86b2782cfe742cc))
+* **generator:** report bad member paths and non-bool When guards as ZTEL007 and ZTEL008 ([9aa8bca](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/9aa8bca73c2c0808eb72d8aca86b2782cfe742cc))
+* **generator:** report ZTEL003 for TraceTagFromResult and TraceTagConstant outside Instrument types ([d6692b1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/d6692b1e2b412ae2cb2910fc85066c3b543f4e57))
+* **generator:** warn with ZTEL010 when a TraceTag member path does not resolve, and emit no tag ([d6692b1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/d6692b1e2b412ae2cb2910fc85066c3b543f4e57))
+
+
+### Bug Fixes
+
+* **core:** use constructor arguments in the InstrumentAttribute example ([9aa8bca](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/9aa8bca73c2c0808eb72d8aca86b2782cfe742cc))
+* **generator:** declare the catch variable only when the span reads it ([9aa8bca](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/9aa8bca73c2c0808eb72d8aca86b2782cfe742cc))
+* **generator:** detect Task, ValueTask and task-like returns by symbol instead of by name ([9aa8bca](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/9aa8bca73c2c0808eb72d8aca86b2782cfe742cc))
+* **generator:** escape activity source, span, metric and tag names in generated string literals ([9aa8bca](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/9aa8bca73c2c0808eb72d8aca86b2782cfe742cc))
+* **generator:** keep null-safe access after a Value segment on a nullable value type ([9aa8bca](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/9aa8bca73c2c0808eb72d8aca86b2782cfe742cc))
+* **generator:** key metric fields by instrument kind and emit valid, distinct identifiers ([9aa8bca](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/9aa8bca73c2c0808eb72d8aca86b2782cfe742cc))
+
+
+### Performance
+
+* make generator models value-equatable so incremental caching hits ([#155](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/155)) ([77f6b7e](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/77f6b7e6f76b8c1caa146aacace3b4329627e777)), closes [#151](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/151)
+
 ## [1.6.4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.6.3...v1.6.4) (2026-09-26)
 
 
