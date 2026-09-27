@@ -25,7 +25,6 @@ public class SpanTagBehaviorTests
             CancellationToken ct);
     }
 
-#pragma warning disable EPC12, MA0004
     private sealed class SearchServiceInstrumented : ISearchService
     {
         private static readonly ActivitySource _activitySource = new("TagTestSource");
@@ -54,9 +53,6 @@ public class SpanTagBehaviorTests
             }
         }
     }
-    // MA0004 stays disabled for the rest of the file: the pragma above the namespace covers the
-    // test methods too, and restoring it here would re-enable it for them.
-#pragma warning restore EPC12
 
     private sealed class FakeSearch : ISearchService
     {

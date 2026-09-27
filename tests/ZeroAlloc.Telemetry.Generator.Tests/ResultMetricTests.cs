@@ -142,7 +142,6 @@ public class ResultMetricTests
 
     private static string RunGeneratorSource(string source)
     {
-        // Plain loop rather than LINQ: EPS06 flags Select over ImmutableArray as a hidden copy.
         var sb = new System.Text.StringBuilder();
         foreach (var tree in RunGenerator(source).GetRunResult().GeneratedTrees)
             sb.AppendLine(tree.ToString());

@@ -6,7 +6,7 @@
     <Optimize>true</Optimize>
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
-    <NoWarn>$(NoWarn);MA0048;EPC12</NoWarn>
+    <NoWarn>$(NoWarn);MA0048</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

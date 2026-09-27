@@ -28,7 +28,6 @@ public class SpanNamePerImplementationBehaviorTests
     /// Mirrors the generated proxy exactly: the name is composed once in the constructor from
     /// the wrapped instance's type, and the call path only reads the field.
     /// </summary>
-#pragma warning disable EPC12, MA0004
     private sealed class VectorStoreInstrumented : IVectorStore
     {
         private static readonly ActivitySource _activitySource = new("SpanNameTestSource");
@@ -58,7 +57,6 @@ public class SpanNamePerImplementationBehaviorTests
             }
         }
     }
-#pragma warning restore EPC12, MA0004
 
     private sealed class QdrantVectorStore : IVectorStore
     {
