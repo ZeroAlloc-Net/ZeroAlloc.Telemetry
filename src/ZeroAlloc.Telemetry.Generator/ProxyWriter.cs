@@ -243,9 +243,9 @@ internal static class ProxyWriter
     private static void WriteResultReads(StringBuilder sb, MethodModel method, MetricFieldTable fields)
     {
         // Tags need a span to carry them; ZTEL004 reports a result tag without one.
-        IReadOnlyList<ResultTagModel> tags = method.TraceName is not null
+        var tags = method.TraceName is not null
             ? method.ResultTags
-            : Array.Empty<ResultTagModel>();
+            : EquatableArray<ResultTagModel>.Empty;
 
         // Every read that null-tests the result goes through the copy: a member access, a guard,
         // or a metric value, which is always read through the root. A guarded tag that records
