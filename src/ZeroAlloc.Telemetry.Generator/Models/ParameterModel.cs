@@ -7,8 +7,9 @@ namespace ZeroAlloc.Telemetry.Generator.Models;
 /// </param>
 /// <param name="TagAccessSuffix">
 /// The member access as it should be emitted, with the operator for each segment already chosen
-/// from the resolved types — e.g. <c>?.DocumentId?.Value</c> or <c>.Length</c>. Empty records the
-/// argument itself; null when the path could not be resolved against the parameter type.
+/// from the resolved types — e.g. <c>?.DocumentId?.Value</c> or <c>.Length</c>. Null or empty
+/// records the argument itself. A path that does not resolve has no model at all: it is reported as
+/// ZTEL010 and <paramref name="TagName"/> is null, so nothing is tagged.
 /// </param>
 /// <param name="TagNeedsCopy">
 /// Whether the tag must read from a copy of the argument rather than the argument itself.

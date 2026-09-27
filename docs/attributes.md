@@ -443,6 +443,8 @@ Every step is null-safe where the value can be null, so a null part-way along re
 
 The copy exists for a specific reason: the tagged argument is still forwarded to the wrapped call, and null-testing it directly would leave it maybe-null for the rest of the method — CS8604 in any consumer with nullable warnings enabled.
 
+Paths follow the rules in [Member paths and When](#member-paths-and-when), except that they start at the parameter rather than the return value. A segment that names no readable, accessible instance property or field is **ZTEL010**, a warning reported at the argument. No tag is emitted for that parameter, so a typo such as `[TraceTag("batch.size", "Cuont")]` records nothing rather than the whole list under `batch.size`.
+
 Without `[Trace]` there is no span to carry the tag, so the generator reports **ZTEL004** rather than silently dropping it.
 
 ---

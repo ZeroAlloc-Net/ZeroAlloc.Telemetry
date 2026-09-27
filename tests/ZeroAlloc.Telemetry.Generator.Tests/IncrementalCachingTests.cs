@@ -19,7 +19,8 @@ public class IncrementalCachingTests
     /// <summary>
     /// Exercises every model field: parameters with tags, result tags with a guard, constant
     /// tags, plain and result-driven metrics, a templated span name, and diagnostics from both
-    /// the instrument pipeline and the orphan-attribute pipeline.
+    /// the instrument pipeline, including a dropped parameter tag, and the orphan-attribute
+    /// pipeline.
     /// </summary>
     private const string InterfaceSource = """
         using ZeroAlloc.Telemetry;
@@ -48,7 +49,7 @@ public class IncrementalCachingTests
 
             [Trace("order.{Type}.get")]
             [TraceTagFromResult("missing", "Nope")]
-            Task<Receipt> GetAsync(string id);
+            Task<Receipt> GetAsync([TraceTag("order.id.length", "Lenght")] string id);
 
             [TraceTag("x")]
             void Untraced();
@@ -58,6 +59,9 @@ public class IncrementalCachingTests
         {
             [Trace("orphan")]
             public void Run() { }
+
+            [TraceTagConstant("channel", "web")]
+            public void Tagged() { }
         }
         """;
 
