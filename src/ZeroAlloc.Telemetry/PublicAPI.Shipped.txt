@@ -1,10 +1,42 @@
 #nullable enable
 ZeroAlloc.Telemetry.CountAttribute
 ZeroAlloc.Telemetry.CountAttribute.CountAttribute(string! metric) -> void
+ZeroAlloc.Telemetry.CountAttribute.Description.get -> string?
+ZeroAlloc.Telemetry.CountAttribute.Description.set -> void
 ZeroAlloc.Telemetry.CountAttribute.Metric.get -> string!
+ZeroAlloc.Telemetry.CountAttribute.Unit.get -> string?
+ZeroAlloc.Telemetry.CountAttribute.Unit.set -> void
+ZeroAlloc.Telemetry.CountAttribute.When.get -> string?
+ZeroAlloc.Telemetry.CountAttribute.When.set -> void
+ZeroAlloc.Telemetry.CountFromResultAttribute
+ZeroAlloc.Telemetry.CountFromResultAttribute.CountFromResultAttribute(string! metric, string! member) -> void
+ZeroAlloc.Telemetry.CountFromResultAttribute.Description.get -> string?
+ZeroAlloc.Telemetry.CountFromResultAttribute.Description.set -> void
+ZeroAlloc.Telemetry.CountFromResultAttribute.Member.get -> string!
+ZeroAlloc.Telemetry.CountFromResultAttribute.Metric.get -> string!
+ZeroAlloc.Telemetry.CountFromResultAttribute.Unit.get -> string?
+ZeroAlloc.Telemetry.CountFromResultAttribute.Unit.set -> void
+ZeroAlloc.Telemetry.CountFromResultAttribute.When.get -> string?
+ZeroAlloc.Telemetry.CountFromResultAttribute.When.set -> void
 ZeroAlloc.Telemetry.HistogramAttribute
+ZeroAlloc.Telemetry.HistogramAttribute.Description.get -> string?
+ZeroAlloc.Telemetry.HistogramAttribute.Description.set -> void
 ZeroAlloc.Telemetry.HistogramAttribute.HistogramAttribute(string! metric) -> void
 ZeroAlloc.Telemetry.HistogramAttribute.Metric.get -> string!
+ZeroAlloc.Telemetry.HistogramAttribute.Unit.get -> string?
+ZeroAlloc.Telemetry.HistogramAttribute.Unit.set -> void
+ZeroAlloc.Telemetry.HistogramAttribute.When.get -> string?
+ZeroAlloc.Telemetry.HistogramAttribute.When.set -> void
+ZeroAlloc.Telemetry.HistogramFromResultAttribute
+ZeroAlloc.Telemetry.HistogramFromResultAttribute.Description.get -> string?
+ZeroAlloc.Telemetry.HistogramFromResultAttribute.Description.set -> void
+ZeroAlloc.Telemetry.HistogramFromResultAttribute.HistogramFromResultAttribute(string! metric, string! member) -> void
+ZeroAlloc.Telemetry.HistogramFromResultAttribute.Member.get -> string!
+ZeroAlloc.Telemetry.HistogramFromResultAttribute.Metric.get -> string!
+ZeroAlloc.Telemetry.HistogramFromResultAttribute.Unit.get -> string?
+ZeroAlloc.Telemetry.HistogramFromResultAttribute.Unit.set -> void
+ZeroAlloc.Telemetry.HistogramFromResultAttribute.When.get -> string?
+ZeroAlloc.Telemetry.HistogramFromResultAttribute.When.set -> void
 ZeroAlloc.Telemetry.InstrumentAttribute
 ZeroAlloc.Telemetry.InstrumentAttribute.ActivitySource.get -> string!
 ZeroAlloc.Telemetry.InstrumentAttribute.InstrumentAttribute(string! activitySource) -> void
