@@ -34,6 +34,13 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         SymbolDisplayFormat.FullyQualifiedFormat.AddMiscellaneousOptions(
             SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
 
+    /// <summary>Names of the pipeline steps, so tests can read their run reasons.</summary>
+    internal static class TrackingNames
+    {
+        public const string Instruments = "Instruments";
+        public const string OrphanDiagnostics = "OrphanDiagnostics";
+    }
+
     // EPS06 fires on every Where/Select in an incremental pipeline as of Roslyn
     // 4.14: IncrementalValuesProvider<T> grew from one instance field to two
     // (8 -> 16 bytes), crossing ErrorProne's large-struct threshold. It stayed a
@@ -60,14 +67,15 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 predicate: static (node, _) => node is TypeDeclarationSyntax,
                 transform: static (ctx, _) => Parse(ctx))
             .Where(static r => r is not null)
-            .Select(static (r, _) => r!.Value);
+            .Select(static (r, _) => r!.Value)
+            .WithTrackingName(TrackingNames.Instruments);
 
         // Report diagnostics collected during parse, then emit code only when
         // the target is valid.
         context.RegisterSourceOutput(results, static (ctx, result) =>
         {
             foreach (var diag in result.Diagnostics)
-                ctx.ReportDiagnostic(diag);
+                ctx.ReportDiagnostic(diag.ToDiagnostic());
 
             if (result.Model is { } model)
             {
@@ -104,7 +112,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 predicate: static (node, _) => node is MethodDeclarationSyntax,
                 transform: (ctx, _) =>
                 {
-                    if (ctx.TargetSymbol is not IMethodSymbol method) return (Diagnostic?)null;
+                    if (ctx.TargetSymbol is not IMethodSymbol method) return (DiagnosticInfo?)null;
                     var containing = method.ContainingType;
                     if (containing is null) return null;
                     foreach (var a in containing.GetAttributes())
@@ -113,15 +121,16 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                             return null; // Container has [Instrument] — proxy is generated.
                     }
                     var loc = method.Locations.FirstOrDefault() ?? Location.None;
-                    return Diagnostic.Create(
+                    return DiagnosticInfo.Create(
                         InstrumentDiagnostics.MethodAttributeWithoutInstrument,
                         loc,
                         shortName, containing.Name, method.Name);
                 })
             .Where(static d => d is not null)
-            .Select(static (d, _) => d!);
+            .Select(static (d, _) => d!)
+            .WithTrackingName(TrackingNames.OrphanDiagnostics);
 
-        context.RegisterSourceOutput(orphans, static (ctx, diag) => ctx.ReportDiagnostic(diag));
+        context.RegisterSourceOutput(orphans, static (ctx, diag) => ctx.ReportDiagnostic(diag.ToDiagnostic()));
     }
 
     private static ParseResult? Parse(GeneratorAttributeSyntaxContext ctx)
@@ -133,17 +142,17 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             ?? target.Locations.FirstOrDefault()
             ?? Location.None;
 
-        var diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
+        var diagnostics = ImmutableArray.CreateBuilder<DiagnosticInfo>();
 
         // ZTEL001: the generator emits a proxy CLASS implementing the target.
         // That only makes sense when the target is an interface.
         if (target.TypeKind != TypeKind.Interface)
         {
-            diagnostics.Add(Diagnostic.Create(
+            diagnostics.Add(DiagnosticInfo.Create(
                 InstrumentDiagnostics.InstrumentOnNonInterface,
                 attrLocation,
                 target.ToDisplayString()));
-            return new ParseResult(null, diagnostics.ToImmutable());
+            return new ParseResult(null, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutable()));
         }
 
         // ActivitySource is the first positional constructor argument.
@@ -154,11 +163,11 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         // ZTEL002: empty ActivitySource leaves subscribers with nothing to match against.
         if (string.IsNullOrWhiteSpace(activitySource))
         {
-            diagnostics.Add(Diagnostic.Create(
+            diagnostics.Add(DiagnosticInfo.Create(
                 InstrumentDiagnostics.EmptyActivitySource,
                 attrLocation,
                 target.ToDisplayString()));
-            return new ParseResult(null, diagnostics.ToImmutable());
+            return new ParseResult(null, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutable()));
         }
 
         // PublicProxy is a named argument; absent means the default (internal proxy).
@@ -178,15 +187,15 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
 
         return new ParseResult(
             new InstrumentModel(ns, ifaceName, proxyName, activitySource, methods, publicProxy),
-            diagnostics.ToImmutable());
+            new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutable()));
     }
 
-    private static List<MethodModel> BuildMethods(
+    private static EquatableArray<MethodModel> BuildMethods(
         INamedTypeSymbol target,
         Compilation compilation,
-        ImmutableArray<Diagnostic>.Builder diagnostics)
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
-        var methods = new List<MethodModel>();
+        var methods = ImmutableArray.CreateBuilder<MethodModel>();
         foreach (var member in target.GetMembers().OfType<IMethodSymbol>())
         {
             var traceName   = GetAttributeFirstArg(member, TraceAttributeFqn);
@@ -212,17 +221,17 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 returnType,
                 isAsync,
                 returnsVoid,
-                parameters,
+                ToEquatable(parameters),
                 traceName,
                 count,
                 histogram,
-                resultTags,
+                ToEquatable(resultTags),
                 ResultCanBeNull(member),
-                constantTags,
-                resultMetrics,
+                ToEquatable(constantTags),
+                ToEquatable(resultMetrics),
                 BuildTraceNameExpression(traceName)));
         }
-        return methods;
+        return new EquatableArray<MethodModel>(methods.ToImmutable());
     }
 
     /// <summary>The only token recognised inside a <c>[Trace]</c> span name.</summary>
@@ -279,7 +288,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
     /// trouble is a literal brace sitting in a dashboard weeks later.
     /// </summary>
     private static void ReportUnknownSpanNameTokens(
-        ImmutableArray<Diagnostic>.Builder diagnostics,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics,
         INamedTypeSymbol target,
         IMethodSymbol member,
         string? traceName)
@@ -298,7 +307,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             var token = traceName.Substring(open, close - open + 1);
             if (!string.Equals(token, ImplTypeToken, StringComparison.Ordinal))
             {
-                diagnostics.Add(Diagnostic.Create(
+                diagnostics.Add(DiagnosticInfo.Create(
                     InstrumentDiagnostics.UnknownSpanNameToken,
                     member.Locations.FirstOrDefault() ?? target.Locations.FirstOrDefault(),
                     token,
@@ -323,7 +332,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
     /// telemetry simply never appears and the gap is only noticed downstream.
     /// </summary>
     private static void ReportTagDiagnostics(
-        ImmutableArray<Diagnostic>.Builder diagnostics,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics,
         INamedTypeSymbol target,
         IMethodSymbol member,
         IReadOnlyList<ParameterModel> parameters,
@@ -339,21 +348,21 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             var hasParamTag = parameters.Any(p => p.TagName is not null);
             if (hasParamTag)
             {
-                diagnostics.Add(Diagnostic.Create(
+                diagnostics.Add(DiagnosticInfo.Create(
                     InstrumentDiagnostics.TagWithoutTrace,
                     location, "TraceTag", target.ToDisplayString(), member.Name));
             }
 
             if (resultTags.Count > 0)
             {
-                diagnostics.Add(Diagnostic.Create(
+                diagnostics.Add(DiagnosticInfo.Create(
                     InstrumentDiagnostics.TagWithoutTrace,
                     location, "TraceTagFromResult", target.ToDisplayString(), member.Name));
             }
 
             if (constantTags.Count > 0)
             {
-                diagnostics.Add(Diagnostic.Create(
+                diagnostics.Add(DiagnosticInfo.Create(
                     InstrumentDiagnostics.TagWithoutTrace,
                     location, "TraceTagConstant", target.ToDisplayString(), member.Name));
             }
@@ -362,7 +371,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         // Reported independently of [Trace]: the attribute is wrong on a void method either way.
         if (returnsVoid && resultTags.Count > 0)
         {
-            diagnostics.Add(Diagnostic.Create(
+            diagnostics.Add(DiagnosticInfo.Create(
                 InstrumentDiagnostics.ResultReadOnVoidMethod,
                 location, "TraceTagFromResult", target.ToDisplayString(), member.Name));
         }
@@ -430,7 +439,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         ITypeSymbol resultType,
         bool returnsVoid,
         bool untraced,
-        ImmutableArray<Diagnostic>.Builder diagnostics)
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         List<ResultTagModel>? tags = null;
         foreach (var attr in method.GetAttributes())
@@ -551,7 +560,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         IMethodSymbol method,
         ITypeSymbol resultType,
         string? when,
-        ImmutableArray<Diagnostic>.Builder diagnostics,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics,
         out string? guard)
     {
         guard = null;
@@ -570,7 +579,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         // run time, and the comparison below makes a null or false value skip the read.
         if (!PathResolver.IsBoolean(path.FinalType!) && !PathResolver.IsDynamic(path.FinalType!))
         {
-            diagnostics.Add(Diagnostic.Create(
+            diagnostics.Add(DiagnosticInfo.Create(
                 InstrumentDiagnostics.WhenNotBoolean, location, when, path.FinalType!.ToDisplayString()));
             return false;
         }
@@ -579,10 +588,10 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         return true;
     }
 
-    private static Diagnostic PathNotFound(Location location, string path, PathResolver.Resolution resolution) =>
+    private static DiagnosticInfo PathNotFound(Location location, string path, PathResolver.Resolution resolution) =>
         string.IsNullOrEmpty(resolution.MissingSegment)
-            ? Diagnostic.Create(InstrumentDiagnostics.MemberPathEmptySegment, location, path)
-            : Diagnostic.Create(
+            ? DiagnosticInfo.Create(InstrumentDiagnostics.MemberPathEmptySegment, location, path)
+            : DiagnosticInfo.Create(
                 InstrumentDiagnostics.MemberPathNotFound,
                 location,
                 resolution.MissingSegment,
@@ -658,7 +667,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         MetricKind kind,
         ITypeSymbol resultType,
         bool returnsVoid,
-        ImmutableArray<Diagnostic>.Builder diagnostics)
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         var attr = FindAttribute(method, attributeFqn);
         if (attr is null || attr.ConstructorArguments.Length == 0 || attr.ConstructorArguments[0].Value is not string metric)
@@ -672,7 +681,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             // calls the guard was written to exclude, so the instrument records nothing.
             if (returnsVoid)
             {
-                diagnostics.Add(Diagnostic.Create(
+                diagnostics.Add(DiagnosticInfo.Create(
                     InstrumentDiagnostics.ResultReadOnVoidMethod,
                     MethodLocation(method),
                     $"{shortName}(When = {Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(when!, quote: true)})",
@@ -717,7 +726,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         IMethodSymbol method,
         ITypeSymbol resultType,
         bool returnsVoid,
-        ImmutableArray<Diagnostic>.Builder diagnostics)
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         List<MetricModel>? metrics = null;
         foreach (var attr in method.GetAttributes())
@@ -746,7 +755,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             // misleading ZTEL007 to the ZTEL005 that already explains the problem.
             if (returnsVoid)
             {
-                diagnostics.Add(Diagnostic.Create(
+                diagnostics.Add(DiagnosticInfo.Create(
                     InstrumentDiagnostics.ResultReadOnVoidMethod,
                     MethodLocation(method), shortName, target.ToDisplayString(), method.Name));
                 continue;
@@ -771,7 +780,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         string shortName,
         string metric,
         ITypeSymbol resultType,
-        ImmutableArray<Diagnostic>.Builder diagnostics)
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         var member = attr.ConstructorArguments[1].Value as string ?? string.Empty;
         var memberLocation = AttributeLocations.Positional(attr, 1, "member", MethodLocation(method));
@@ -784,7 +793,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         }
         else if (!Fits(kind, path.FinalType!))
         {
-            diagnostics.Add(Diagnostic.Create(
+            diagnostics.Add(DiagnosticInfo.Create(
                 InstrumentDiagnostics.MemberDoesNotFitInstrument,
                 memberLocation,
                 shortName,
@@ -838,6 +847,10 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 or SpecialType.System_Double or SpecialType.System_Decimal;
     }
 
+    private static EquatableArray<T> ToEquatable<T>(T[] items)
+        where T : IEquatable<T> =>
+        new(ImmutableArray.Create(items));
+
     private static AttributeData? FindAttribute(IMethodSymbol method, string attributeFqn)
     {
         foreach (var attr in method.GetAttributes())
@@ -849,5 +862,5 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         return null;
     }
 
-    private readonly record struct ParseResult(InstrumentModel? Model, ImmutableArray<Diagnostic> Diagnostics);
+    private readonly record struct ParseResult(InstrumentModel? Model, EquatableArray<DiagnosticInfo> Diagnostics);
 }

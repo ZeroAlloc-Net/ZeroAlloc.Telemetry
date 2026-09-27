@@ -23,13 +23,13 @@ internal sealed record MethodModel(
     string ReturnType,
     bool IsAsync,
     bool ReturnsVoid,
-    IReadOnlyList<ParameterModel> Parameters,
+    EquatableArray<ParameterModel> Parameters,
     string? TraceName,
     MetricModel? Count,
     MetricModel? Histogram,
-    IReadOnlyList<ResultTagModel> ResultTags,
+    EquatableArray<ResultTagModel> ResultTags,
     bool ResultCanBeNull,
-    IReadOnlyList<ConstantTagModel> ConstantTags,
-    IReadOnlyList<MetricModel> ResultMetrics,
+    EquatableArray<ConstantTagModel> ConstantTags,
+    EquatableArray<MetricModel> ResultMetrics,
     string? TraceNameExpression = null
 );

@@ -5,6 +5,6 @@ internal sealed record InstrumentModel(
     string InterfaceName,
     string ProxyName,
     string ActivitySourceName,
-    IReadOnlyList<MethodModel> Methods,
+    EquatableArray<MethodModel> Methods,
     bool PublicProxy = false
 );
