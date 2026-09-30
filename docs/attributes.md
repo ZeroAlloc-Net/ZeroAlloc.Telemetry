@@ -366,9 +366,66 @@ if (_tagged?.IsSuccess == true && _tagged?.Value?.Cost is { } _read1)
 
 ---
 
+## [MetricTagFromResult]
+
+```csharp
+[AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
+public sealed class MetricTagFromResultAttribute : Attribute
+{
+    public string Name { get; }
+    public string Member { get; }
+    public string? When { get; set; }
+    public string? Metric { get; set; }
+    public MetricTagFromResultAttribute(string name, string member);
+}
+```
+
+**Placement:** Method. Does not need `[Trace]`. May be applied more than once; the tags combine.
+
+**Effect:** Adds the value of `member` as a tag, a dimension, on the metrics the method records. For dimensions known only once the call returns, such as the versioned model id a service answered with.
+
+```csharp
+[Count("llm.requests", When = "IsSuccess")]
+[CountFromResult("llm.tokens.input", "Value.Usage.InputTokens", When = "IsSuccess", Unit = "{token}")]
+[HistogramFromResult("llm.cost", "Value.Cost", When = "IsSuccess", Unit = "USD")]
+[MetricTagFromResult("gen_ai.response.model", "Value.Model", When = "IsSuccess")]
+[MetricTagFromResult("llm.cache.hit", "Value.CacheHit", When = "IsSuccess", Metric = "llm.cost")]
+ValueTask<Result<ChatResponse, ChatError>> CompleteAsync(ChatRequest request, CancellationToken ct);
+```
+
+```csharp
+// Generated for llm.cost, for a Result that is a struct and a ChatResponse that is a class:
+if (_llm_cost.Enabled && _result.IsSuccess && _result.Value?.Cost is { } _read1)
+{
+    var _metricTags1 = new TagList();
+    if (_result.IsSuccess && _result.Value?.Model is { } _metricTag1_0)
+        _metricTags1.Add("gen_ai.response.model", _metricTag1_0);
+    if (_result.IsSuccess && _result.Value?.CacheHit is { } _metricTag1_1)
+        _metricTags1.Add("llm.cache.hit", _metricTag1_1);
+    _llm_cost.Record((double)_read1, in _metricTags1);
+}
+```
+
+- **Which metrics.** Without `Metric`, the tag goes on every metric the method records: `[Count]`, `[Histogram]`, `[CountFromResult]` and `[HistogramFromResult]`. `Metric = "name"` restricts it to the instruments of that one metric name.
+- **Only when someone is listening.** The tag list is built inside a check of the instrument's `Enabled`, which comes first. With no listener, the proxy neither reads the member nor boxes its value, so the call stays allocation-free. A disabled instrument drops every measurement anyway, so skipping the call loses nothing.
+- **Tag values box** once per enabled instrument they are added to, since a tag value is an `object`. Strings do not box.
+- **Null.** A null value, or a null anywhere along the path, adds no tag. The measurement is still recorded, as `Activity.SetTag` records a span without a null tag.
+- **`When`.** When the guard is false, the member is not read and no tag is added; the measurement is still recorded if its own guard holds. Guard the tag as well as the metric when the member lives on one branch of a `Result`, as `Value.Model` does.
+- **A call that throws** leaves no result to read. An unguarded `[Histogram]` still records on that path, without result tags.
+- **Any member type** works. Exporters handle strings, booleans and numbers natively; prefer those over types that are formatted with `ToString()`.
+- **An empty member** tags the return value itself.
+
+Diagnostics:
+
+- A `Metric` that names no metric the method records, or a method that records no metric at all, is **ZTEL011**, a warning. The tag would be added to nothing.
+- The same tag name added to one metric by two `[MetricTagFromResult]` is **ZTEL012**, an error, reported on the later one. A measurement carries one value per tag name. The same name restricted to two different metrics is fine.
+- A bad path or `When` is **ZTEL007** or **ZTEL008**, and a method with no return value is **ZTEL005**, as for the other result attributes.
+
+---
+
 ## Member paths and When
 
-`[TraceTagFromResult]`, `[CountFromResult]`, `[HistogramFromResult]` and every `When` share one path resolver.
+`[TraceTagFromResult]`, `[CountFromResult]`, `[HistogramFromResult]`, `[MetricTagFromResult]` and every `When` share one path resolver.
 
 - **Paths start at the awaited return value.** For `Task<Result<T, E>>` that is the `Result`, so the success value is reached through `Value`, as in `Value.Usage.InputTokens`. For a task-like type marked `[AsyncMethodBuilder]`, such as `PooledTask<T>`, it is what `GetAwaiter().GetResult()` returns.
 - **Each segment** names a property or field of the type reached so far, including members inherited from base types and interfaces.
@@ -378,7 +435,7 @@ if (_tagged?.IsSuccess == true && _tagged?.Value?.Cost is { } _read1)
 - **A segment that names no readable, accessible instance property or field** is **ZTEL007**. It is reported at the argument, naming the segment and the type it was looked up on. A `When` that resolves to anything other than `bool` or `bool?` is **ZTEL008**. Both are errors, and neither attribute is emitted, so the diagnostic is the only error.
 - **On a method with no return value** (`void`, `Task`, `ValueTask`, or a task-like type with no result), the result-reading attributes and `When` on `[Count]`/`[Histogram]` report **ZTEL005** and record nothing.
 
-**Where the reads happen.** After the inner call, inside the same `try`, the result tags come first, then the result-driven instruments, then `[Count]` and `[Histogram]`. When the result can be null, all of them read one copy, `_tagged`. Null-testing `_result` itself would leave it maybe-null for the `return _result;` that follows, and that raises CS8603 in consumers with nullable warnings on.
+**Where the reads happen.** After the inner call, inside the same `try`, the result tags come first, then the result-driven instruments, then `[Count]` and `[Histogram]`, each with its metric tags. When the result can be null, all of them read one copy, `_tagged`. Null-testing `_result` itself would leave it maybe-null for the `return _result;` that follows, and that raises CS8603 in consumers with nullable warnings on.
 
 ---
 

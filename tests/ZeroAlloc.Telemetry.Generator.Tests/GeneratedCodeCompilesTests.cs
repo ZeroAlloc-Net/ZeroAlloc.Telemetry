@@ -357,6 +357,97 @@ public class GeneratedCodeCompilesTests
             "Generated code did not compile:" + Environment.NewLine + string.Join(Environment.NewLine, errors));
     }
 
+    // [MetricTagFromResult] on every instrument kind and result shape: a nullable class result
+    // read through _tagged, a struct result read through _result, Nullable<T>, a plain value, a
+    // task-like type, a dynamic tag, a sync method, and metric names that would collide with the
+    // tag locals.
+    private const string MetricTagProbeSource = """
+            using ZeroAlloc.Telemetry;
+            using System;
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Pooled;
+
+            public sealed class Reply
+            {
+                public string? Model { get; set; }
+                public int Shard { get; set; }
+                public int? MaybeShard { get; set; }
+                public long Input { get; set; }
+                public bool Cached { get; set; }
+            }
+
+            public sealed class ClassResult
+            {
+                public bool IsSuccess { get; }
+                public bool? MaybeOk { get; }
+                public Reply? Value { get; }
+            }
+
+            public readonly struct StructResult
+            {
+                private readonly Reply? _value;
+                public bool IsSuccess { get; }
+                public Reply Value => IsSuccess ? _value! : throw new InvalidOperationException();
+            }
+
+            public readonly struct Extent { public int Width { get; } }
+
+            [Instrument("MyApp.MetricTags")]
+            public interface IMetricTagProbe
+            {
+                [Trace("probe.class")]
+                [TraceTagFromResult("t.model", "Value.Model", When = "IsSuccess")]
+                [Count("c.calls")]
+                [Histogram("h.ms")]
+                [CountFromResult("c.input", "Value.Input", When = "IsSuccess")]
+                [HistogramFromResult("h.shard", "Value.Shard", When = "MaybeOk")]
+                [MetricTagFromResult("model", "Value.Model", When = "IsSuccess")]
+                [MetricTagFromResult("shard", "Value.Shard")]
+                [MetricTagFromResult("maybe.shard", "Value.MaybeShard", When = "MaybeOk")]
+                [MetricTagFromResult("cached", "Value.Cached", Metric = "c.input")]
+                [MetricTagFromResult("ok", "MaybeOk", Metric = "h.ms")]
+                ClassResult Class();
+
+                [Count("s.calls", When = "IsSuccess")]
+                [Histogram("s.ms", When = "IsSuccess")]
+                [MetricTagFromResult("model", "Value.Model", When = "IsSuccess")]
+                [MetricTagFromResult("shard", "Value.Shard", When = "IsSuccess")]
+                ValueTask<StructResult> StructAsync(CancellationToken ct);
+
+                [HistogramFromResult("n.width", "Value.Width")]
+                [MetricTagFromResult("width", "Value.Width")]
+                Task<Extent?> NullableStructAsync(CancellationToken ct);
+
+                [CountFromResult("p.value", "")]
+                [MetricTagFromResult("value", "")]
+                Task<int> PlainAsync(CancellationToken ct);
+
+                [Count("pooled.calls")]
+                [MetricTagFromResult("pooled.shard", "Shard")]
+                PooledTask<Reply?> PooledAsync();
+
+                [Count("dyn.calls")]
+                [MetricTagFromResult("dyn.kind", "Kind")]
+                Task<dynamic> DynamicAsync();
+
+                [Count("metricTags0")]
+                [Histogram("metricTag0_0")]
+                [MetricTagFromResult("collide", "Shard")]
+                Reply Collide();
+            }
+        """ + TaskLikeTypes.Declarations;
+
+    [Fact]
+    public void MetricTagProbe_Compiles()
+    {
+        var errors = CompileWithGenerator(MetricTagProbeSource);
+
+        Assert.True(
+            errors.Length == 0,
+            "Generated code did not compile:" + Environment.NewLine + string.Join(Environment.NewLine, errors));
+    }
+
     private static string[] CompileWithGenerator(string source)
     {
         var (generatorDiagnostics, output) = GeneratorCompilation.Run(source);

@@ -18,7 +18,8 @@ namespace ZeroAlloc.Telemetry.Generator;
 /// <para>
 /// A metric name can also collide with the proxy's own names. <c>meter</c> would redeclare
 /// <c>_meter</c>, and <c>result</c> would be shadowed inside every method by the <c>_result</c>
-/// local. Those are moved to a <c>_metric_</c> prefix before deduplication.
+/// local, and <c>metricTags0</c> by the tag list of a <c>[MetricTagFromResult]</c>. Those are
+/// moved to a <c>_metric_</c> prefix before deduplication.
 /// </para>
 /// </remarks>
 internal sealed class MetricFieldTable
@@ -131,6 +132,7 @@ internal sealed class MetricFieldTable
         ReservedNames.Contains(name)
         || name.StartsWith("_spanName_", StringComparison.Ordinal)
         || name.StartsWith("_tag_", StringComparison.Ordinal)
+        || name.StartsWith("_metricTag", StringComparison.Ordinal)
         || IsReadLocal(name);
 
     /// <summary><c>_read0</c>, <c>_read1</c> …: the pattern locals holding a non-null metric value.</summary>

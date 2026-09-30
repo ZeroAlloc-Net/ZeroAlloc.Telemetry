@@ -13,5 +13,6 @@ public interface IOrderService
     ValueTask<int> CreateAsync(string customerId, CancellationToken ct);
 
     [CountFromResult("orders.lines", "Lines", Unit = "{line}")]
+    [MetricTagFromResult("order.region", "Region")]
     ValueTask<OrderReceipt> ReceiptAsync(string customerId, CancellationToken ct);
 }

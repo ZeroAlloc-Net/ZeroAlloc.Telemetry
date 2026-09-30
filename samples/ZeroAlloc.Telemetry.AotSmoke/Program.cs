@@ -23,8 +23,10 @@ for (var i = 0; i < 3; i++)
 }
 if (impl.CallCount != 4) return Fail($"After 4 total invocations, CallCount expected 4, got {impl.CallCount}");
 
-// A result-driven counter: the value is read from the returned receipt, not a constant 1.
+// A result-driven counter: the value is read from the returned receipt, not a constant 1, and
+// [MetricTagFromResult] adds the receipt's region as a tag.
 long lines = 0;
+object? region = null;
 using var listener = new MeterListener();
 listener.InstrumentPublished = (instrument, l) =>
 {
@@ -34,12 +36,21 @@ listener.InstrumentPublished = (instrument, l) =>
         l.EnableMeasurementEvents(instrument);
     }
 };
-listener.SetMeasurementEventCallback<long>((_, value, _, _) => lines += value);
+listener.SetMeasurementEventCallback<long>((_, value, tags, _) =>
+{
+    lines += value;
+    foreach (ref readonly var tag in tags)
+    {
+        if (string.Equals(tag.Key, "order.region", StringComparison.Ordinal))
+            region = tag.Value;
+    }
+});
 listener.Start();
 
 var receipt = await proxy.ReceiptAsync("cust-1", CancellationToken.None).ConfigureAwait(false);
 if (receipt.Lines != 3) return Fail($"ReceiptAsync expected 3 lines, got {receipt.Lines}");
 if (lines != 3) return Fail($"orders.lines expected 3, got {lines}");
+if (!Equals(region, "eu-west")) return Fail($"order.region tag expected eu-west, got {region ?? "none"}");
 
 Console.WriteLine("AOT smoke: PASS");
 return 0;

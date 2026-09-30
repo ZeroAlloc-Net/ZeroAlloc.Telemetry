@@ -190,6 +190,31 @@ public async Task<Result<TokenUsage, LlmError>> CompleteAsync(string prompt, Can
 
 The catch only declares the exception variable when a `[Trace]` span reads it.
 
+### Metric tags from the result
+
+Input:
+```csharp
+[CountFromResult("llm.tokens.input", "Value.Input", When = "IsSuccess")]
+[MetricTagFromResult("gen_ai.response.model", "Value.Model", When = "IsSuccess")]
+Task<Result<TokenUsage, LlmError>> CompleteAsync(string prompt, CancellationToken ct);
+```
+
+Output, inside the same `try`:
+```csharp
+var _result = await _inner.CompleteAsync(prompt, ct);
+var _tagged = _result;
+if (_llm_tokens_input.Enabled && _tagged?.IsSuccess == true && _tagged?.Value?.Input is { } _read0)
+{
+    var _metricTags0 = new TagList();
+    if (_tagged?.IsSuccess == true && _tagged?.Value?.Model is { } _metricTag0_0)
+        _metricTags0.Add("gen_ai.response.model", _metricTag0_0);
+    _llm_tokens_input.Add(_read0, in _metricTags0);
+}
+return _result;
+```
+
+Each tagged measurement builds its own `TagList`, behind the instrument's `Enabled`. A measurement with no tag that applies to it is emitted exactly as before.
+
 ## Field Name Derivation
 
 A field name is `_` plus the metric name, with every character that is not a letter, digit or underscore replaced by `_`:
@@ -217,14 +242,16 @@ Names that would still collide are made distinct with a numeric suffix, in the o
 |---|---|---|
 | ZTEL001 | Error | `[Instrument]` is on a class, struct or record instead of an interface |
 | ZTEL002 | Error | `[Instrument]` has an empty or whitespace name |
-| ZTEL003 | Warning | `[Trace]`, `[Count]`, `[Histogram]`, `[CountFromResult]`, `[HistogramFromResult]`, `[TraceTagFromResult]` or `[TraceTagConstant]` is on a method of a type without `[Instrument]`, so no proxy is generated |
+| ZTEL003 | Warning | `[Trace]`, `[Count]`, `[Histogram]`, `[CountFromResult]`, `[HistogramFromResult]`, `[MetricTagFromResult]`, `[TraceTagFromResult]` or `[TraceTagConstant]` is on a method of a type without `[Instrument]`, so no proxy is generated |
 | ZTEL004 | Warning | `[TraceTag]`, `[TraceTagFromResult]` or `[TraceTagConstant]` is on a method without `[Trace]` |
-| ZTEL005 | Warning | `[TraceTagFromResult]`, `[CountFromResult]`, `[HistogramFromResult]`, or `When` on `[Count]`/`[Histogram]`, is on a method returning `void`, `Task`, `ValueTask`, or a task-like type with no result. The message names the attribute; nothing is recorded |
+| ZTEL005 | Warning | `[TraceTagFromResult]`, `[CountFromResult]`, `[HistogramFromResult]`, `[MetricTagFromResult]`, or `When` on `[Count]`/`[Histogram]`, is on a method returning `void`, `Task`, `ValueTask`, or a task-like type with no result. The message names the attribute; nothing is recorded |
 | ZTEL006 | Warning | A `[Trace]` name contains a `{token}` other than `{type}` |
 | ZTEL007 | Error | A segment of a member path or `When` names no readable, accessible instance property or field of the type reached so far. Reported at the argument, naming the segment and the type |
 | ZTEL008 | Error | `When` resolves to a member that is not `bool` or `bool?` |
 | ZTEL009 | Error | `[CountFromResult]`'s member does not convert implicitly to `long`, or `[HistogramFromResult]`'s member is not numeric. A member reached through `dynamic` cannot be checked, so it is reported too |
 | ZTEL010 | Warning | A segment of a `[TraceTag(name, member)]` path names no readable, accessible instance property or field of the type reached so far, starting from the parameter. Reported at the argument; no tag is emitted for that parameter |
+| ZTEL011 | Warning | A `[MetricTagFromResult]` is added to no metric: its `Metric` names no metric the method declares, reported at `Metric`, or the method declares no metric at all, reported at the tag name. A metric dropped for its own error still counts as declared |
+| ZTEL012 | Error | Two `[MetricTagFromResult]` add the same tag name to one metric. Reported at the later one's tag name, which is not emitted |
 
 ZTEL007 and ZTEL008 mostly replace what used to be a compile error inside the generated proxy. Two cases compiled on 1.6.4 and are now errors:
 

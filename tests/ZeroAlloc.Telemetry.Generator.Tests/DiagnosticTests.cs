@@ -121,6 +121,7 @@ public class DiagnosticTests
     [Theory]
     [InlineData("[CountFromResult(\"x\", \"Length\")]", "CountFromResult")]
     [InlineData("[HistogramFromResult(\"x\", \"Length\")]", "HistogramFromResult")]
+    [InlineData("[MetricTagFromResult(\"x\", \"Length\")]", "MetricTagFromResult")]
     public void ZTEL003_ResultMetricOnMethodWithoutInstrumentContainer_ProducesWarning(string attribute, string shortName)
     {
         var diagnostics = RunAndCollectDiagnostics($$"""
@@ -382,6 +383,8 @@ public class DiagnosticTests
     [InlineData("[HistogramFromResult(\"m\", \"Total\", When = \"Totl\")]")]
     [InlineData("[Count(\"m\", When = \"Totl\")]")]
     [InlineData("[Histogram(\"m\", When = \"Totl\")]")]
+    [InlineData("[Count(\"m\")] [MetricTagFromResult(\"t\", \"Totl\")]")]
+    [InlineData("[Count(\"m\")] [MetricTagFromResult(\"t\", \"Total\", When = \"Totl\")]")]
     public void ZTEL007_UnresolvedSegment_IsReportedAtTheArgument(string attributes)
     {
         var source = TotalsSource(attributes);
@@ -451,6 +454,7 @@ public class DiagnosticTests
     [InlineData("TraceTagFromResult")]
     [InlineData("CountFromResult")]
     [InlineData("HistogramFromResult")]
+    [InlineData("MetricTagFromResult")]
     public void ZTEL007_AndZTEL008_AreBothReported_WhenPathAndGuardAreBothWrong(string attribute)
     {
         var source = TotalsSource($"[{attribute}(\"t\", \"Totl\", When = \"Count\")]");
@@ -501,6 +505,7 @@ public class DiagnosticTests
     [InlineData("[HistogramFromResult(\"m\", \"Total\", When = \"Count\")]")]
     [InlineData("[Count(\"m\", When = \"Count\")]")]
     [InlineData("[Histogram(\"m\", When = \"Count\")]")]
+    [InlineData("[Count(\"m\")] [MetricTagFromResult(\"t\", \"Total\", When = \"Count\")]")]
     public void ZTEL008_NonBooleanWhen_ProducesError(string attributes)
     {
         var source = TotalsSource(attributes);
@@ -659,6 +664,7 @@ public class DiagnosticTests
                 [HistogramFromResult("b", "Count")]
                 [Count("c", When = "IsSuccess")]
                 [Histogram("d", When = "IsSuccess")]
+                [MetricTagFromResult("e", "Count")]
                 Task RunAsync();
             }
             """;
@@ -683,10 +689,11 @@ public class DiagnosticTests
             "[Histogram(When = \"IsSuccess\")]" + tail,
             "[CountFromResult]" + tail,
             "[HistogramFromResult]" + tail,
+            "[MetricTagFromResult]" + tail,
         });
 
         // Nothing is resolved against Task, so no path or type errors follow.
-        Assert.DoesNotContain(diagnostics, d => d.Id is "ZTEL007" or "ZTEL008" or "ZTEL009");
+        Assert.DoesNotContain(diagnostics, d => d.Id is "ZTEL007" or "ZTEL008" or "ZTEL009" or "ZTEL011" or "ZTEL012");
         AssertNoOutputErrors(source);
     }
 
@@ -737,6 +744,111 @@ public class DiagnosticTests
             """);
 
         Assert.Contains(diagnostics, d => string.Equals(d.Id, "ZTEL004", StringComparison.Ordinal) && d.Severity == DiagnosticSeverity.Warning);
+    }
+
+    [Fact]
+    public void ZTEL011_MetricNamingNoRecordedMetric_IsWarningAtTheArgument()
+    {
+        var source = TotalsSource("""
+            [Count("totals.calls")]
+            [CountFromResult("totals.sum", "Total")]
+            [MetricTagFromResult("t", "Count", Metric = "totals.sum.typo")]
+            """);
+        var diagnostics = RunAndCollectDiagnostics(source);
+
+        var d = Single(diagnostics, "ZTEL011");
+        Assert.Equal(DiagnosticSeverity.Warning, d.Severity);
+        Assert.Equal("\"totals.sum.typo\"", LocationText(d));
+        Assert.Equal(
+            "[MetricTagFromResult(\"t\")] on 'ITotals.GetAsync' records nothing — Metric = 'totals.sum.typo' names no metric the method records. Name one of its [Count], [Histogram], [CountFromResult] or [HistogramFromResult] metrics, or remove Metric to tag them all.",
+            d.GetMessage(CultureInfo.InvariantCulture));
+        AssertNoOutputErrors(source);
+    }
+
+    [Fact]
+    public void ZTEL011_MethodRecordingNoMetric_IsWarningAtTheTagName()
+    {
+        var source = TotalsSource("""[MetricTagFromResult("t", "Count")]""");
+        var diagnostics = RunAndCollectDiagnostics(source);
+
+        var d = Single(diagnostics, "ZTEL011");
+        Assert.Equal(DiagnosticSeverity.Warning, d.Severity);
+        Assert.Equal("\"t\"", LocationText(d));
+        Assert.Equal(
+            "[MetricTagFromResult(\"t\")] on 'ITotals.GetAsync' records nothing — the method records no metric to carry the tag. Add [Count], [Histogram], [CountFromResult] or [HistogramFromResult], or remove the tag.",
+            d.GetMessage(CultureInfo.InvariantCulture));
+        AssertNoOutputErrors(source);
+    }
+
+    /// <summary>
+    /// A metric that is declared but not emitted, here because of ZTEL009, is still recorded as
+    /// far as the tag is concerned: the metric's own error explains the problem, and a second
+    /// diagnostic on the tag would point away from it.
+    /// </summary>
+    [Fact]
+    public void ZTEL011_MetricDroppedByItsOwnError_IsNotReported()
+    {
+        var source = TotalsSource("""
+            [CountFromResult("totals.bad", "MaybeOk")]
+            [MetricTagFromResult("t", "Count", Metric = "totals.bad")]
+            """);
+        var diagnostics = RunAndCollectDiagnostics(source);
+
+        Assert.Equal(["ZTEL009"], diagnostics.Select(x => x.Id).ToArray());
+        AssertNoOutputErrors(source);
+    }
+
+    [Theory]
+    [InlineData("", "")]
+    [InlineData("", ", Metric = \"totals.calls\"")]
+    [InlineData(", Metric = \"totals.calls\"", "")]
+    [InlineData(", Metric = \"totals.calls\"", ", Metric = \"totals.calls\"")]
+    public void ZTEL012_DuplicateTagNameOnOneMetric_IsErrorAtTheLaterTag(string first, string second)
+    {
+        var source = TotalsSource($$"""
+            [Count("totals.calls")]
+            [Histogram("totals.ms")]
+            [MetricTagFromResult("t", "Count"{{first}})]
+            [MetricTagFromResult("t", "Total"{{second}})]
+            """);
+        var diagnostics = RunAndCollectDiagnostics(source);
+
+        var d = Single(diagnostics, "ZTEL012");
+        Assert.Equal(DiagnosticSeverity.Error, d.Severity);
+        Assert.Equal("\"t\"", LocationText(d));
+        Assert.Equal(d.Location.SourceSpan.Start, source.IndexOf("\"t\", \"Total\"", StringComparison.Ordinal));
+        Assert.Equal(
+            "The tag 't' is already added to 'totals.calls' by another [MetricTagFromResult] on 'ITotals.GetAsync'. A measurement carries one value per tag name, so remove or rename one of them.",
+            d.GetMessage(CultureInfo.InvariantCulture));
+        AssertNoOutputErrors(source);
+    }
+
+    [Fact]
+    public void ZTEL012_SameTagNameOnDifferentMetrics_IsAllowed()
+    {
+        var source = TotalsSource("""
+            [Count("totals.calls")]
+            [Histogram("totals.ms")]
+            [MetricTagFromResult("t", "Count", Metric = "totals.calls")]
+            [MetricTagFromResult("t", "Total", Metric = "totals.ms")]
+            """);
+
+        Assert.Empty(RunAndCollectDiagnostics(source));
+        AssertNoOutputErrors(source);
+    }
+
+    [Fact]
+    public void MetricTags_OnRecordedMetrics_ReportNothing()
+    {
+        var source = TotalsSource("""
+            [Count("totals.calls")]
+            [HistogramFromResult("totals.sum", "Total", When = "MaybeOk")]
+            [MetricTagFromResult("a", "Count")]
+            [MetricTagFromResult("b", "Total", When = "MaybeOk", Metric = "totals.sum")]
+            """);
+
+        Assert.Empty(RunAndCollectDiagnostics(source));
+        AssertNoOutputErrors(source);
     }
 
     /// <summary>The one diagnostic with <paramref name="id"/>; fails listing every diagnostic otherwise.</summary>

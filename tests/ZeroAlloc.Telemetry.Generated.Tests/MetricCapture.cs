@@ -7,7 +7,7 @@ public sealed class MetricCapture : IDisposable
 {
     private readonly MeterListener _listener = new();
     private readonly Lock _gate = new();
-    private readonly List<KeyValuePair<string, double>> _measurements = [];
+    private readonly List<Measurement> _measurements = [];
     private readonly Dictionary<string, Instrument> _instruments = new(StringComparer.Ordinal);
 
     public MetricCapture(string meterName)
@@ -22,8 +22,8 @@ public sealed class MetricCapture : IDisposable
 
             listener.EnableMeasurementEvents(instrument);
         };
-        _listener.SetMeasurementEventCallback<long>((instrument, value, _, _) => Add(instrument.Name, value));
-        _listener.SetMeasurementEventCallback<double>((instrument, value, _, _) => Add(instrument.Name, value));
+        _listener.SetMeasurementEventCallback<long>((instrument, value, tags, _) => Add(instrument.Name, value, tags));
+        _listener.SetMeasurementEventCallback<double>((instrument, value, tags, _) => Add(instrument.Name, value, tags));
         _listener.Start();
     }
 
@@ -32,8 +32,20 @@ public sealed class MetricCapture : IDisposable
         lock (_gate)
         {
             return _measurements
-                .Where(m => string.Equals(m.Key, instrument, StringComparison.Ordinal))
+                .Where(m => string.Equals(m.Instrument, instrument, StringComparison.Ordinal))
                 .Select(m => m.Value)
+                .ToList();
+        }
+    }
+
+    /// <summary>The tags of each measurement of <paramref name="instrument"/>, in recording order.</summary>
+    public IReadOnlyList<IReadOnlyDictionary<string, object?>> TagsOf(string instrument)
+    {
+        lock (_gate)
+        {
+            return _measurements
+                .Where(m => string.Equals(m.Instrument, instrument, StringComparison.Ordinal))
+                .Select(m => m.Tags)
                 .ToList();
         }
     }
@@ -46,9 +58,16 @@ public sealed class MetricCapture : IDisposable
 
     public void Dispose() => _listener.Dispose();
 
-    private void Add(string instrument, double value)
+    private void Add(string instrument, double value, ReadOnlySpan<KeyValuePair<string, object?>> tags)
     {
+        // The span is only valid during the callback, so the tags are copied out.
+        var copy = new Dictionary<string, object?>(StringComparer.Ordinal);
+        foreach (ref readonly var tag in tags)
+            copy.Add(tag.Key, tag.Value);
+
         lock (_gate)
-            _measurements.Add(new KeyValuePair<string, double>(instrument, value));
+            _measurements.Add(new Measurement(instrument, value, copy));
     }
+
+    private sealed record Measurement(string Instrument, double Value, IReadOnlyDictionary<string, object?> Tags);
 }
