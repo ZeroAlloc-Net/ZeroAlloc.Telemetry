@@ -39,6 +39,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
     {
         public const string Instruments = "Instruments";
         public const string OrphanDiagnostics = "OrphanDiagnostics";
+        public const string ProxyCollisions = "ProxyCollisions";
     }
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -55,14 +56,32 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             .Select(static (r, _) => r!.Value)
             .WithTrackingName(TrackingNames.Instruments);
 
-        // Report diagnostics collected during parse, then emit code only when
-        // the target is valid.
-        context.RegisterSourceOutput(results, static (ctx, result) =>
+        // ZTEL015 and ZTEL016 - the one check that needs every proxy at once. Only the hint names
+        // that must not be added reach the per-interface outputs, so an edit that leaves them
+        // equal keeps every other proxy's output cached.
+        var collisions = results
+            .Select(static (r, _) => r.File)
+            .Where(static f => f is not null)
+            .Select(static (f, _) => f!)
+            .Collect()
+            .Select(static (files, _) => ProxyCollisions.Find(files))
+            .WithTrackingName(TrackingNames.ProxyCollisions);
+
+        context.RegisterSourceOutput(collisions, static (ctx, found) =>
         {
+            foreach (var diag in found.Diagnostics)
+                ctx.ReportDiagnostic(diag.ToDiagnostic());
+        });
+
+        // Report diagnostics collected during parse, then emit code only when
+        // the target is valid and its proxy collides with no earlier one.
+        context.RegisterSourceOutput(results.Combine(collisions), static (ctx, pair) =>
+        {
+            var (result, found) = pair;
             foreach (var diag in result.Diagnostics)
                 ctx.ReportDiagnostic(diag.ToDiagnostic());
 
-            if (result.Model is { } model)
+            if (result.Model is { } model && !found.Skips(model.HintName))
             {
                 ctx.AddSource(model.HintName, ProxyWriter.Write(model));
             }
@@ -132,7 +151,15 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 InstrumentDiagnostics.InstrumentOnNonInterface,
                 attrLocation,
                 target.ToDisplayString()));
-            return new ParseResult(null, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutable()));
+            return new ParseResult(null, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutable()), null);
+        }
+
+        // ZTEL014, ZTEL017 and ZTEL013: the proxy is emitted in a file of its own, next to the
+        // interface, so it can only be generated when that file can see and reopen what it needs.
+        if (Ungeneratable(target) is { } blocked)
+        {
+            diagnostics.Add(blocked);
+            return new ParseResult(null, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutable()), null);
         }
 
         // ActivitySource is the first positional constructor argument.
@@ -147,7 +174,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 InstrumentDiagnostics.EmptyActivitySource,
                 attrLocation,
                 target.ToDisplayString()));
-            return new ParseResult(null, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutable()));
+            return new ParseResult(null, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutable()), null);
         }
 
         // PublicProxy is a named argument; absent means the default (internal proxy).
@@ -159,15 +186,107 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         }
 
         var methods = BuildMethods(target, ctx.SemanticModel.Compilation, diagnostics);
+        var model = BuildModel(target, activitySource, methods, publicProxy);
+
+        return new ParseResult(
+            model,
+            new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutable()),
+            ProxyFileFor(target, model));
+    }
+
+    private static InstrumentModel BuildModel(
+        INamedTypeSymbol target, string activitySource, EquatableArray<MethodModel> methods, bool publicProxy)
+    {
         var ns        = target.ContainingNamespace.IsGlobalNamespace ? null : target.ContainingNamespace.ToDisplayString();
         var ifaceName = target.Name;
         var proxyName = (ifaceName.StartsWith("I", StringComparison.Ordinal) && ifaceName.Length > 1)
                         ? ifaceName.Substring(1) + "Instrumented"
                         : ifaceName + "Instrumented";
 
-        return new ParseResult(
-            new InstrumentModel(HintNames.ForInterface(target), ns, ifaceName, proxyName, activitySource, methods, publicProxy),
-            new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutable()));
+        // A generic interface gets a generic proxy, and a nested one a proxy next to it.
+        var typeParameters = TypeDeclarations.TypeParameterList(target);
+        return new InstrumentModel(
+            HintNames.ForInterface(target),
+            ns,
+            TypeDeclarations.Identifier(ifaceName) + typeParameters,
+            proxyName,
+            activitySource,
+            methods,
+            publicProxy,
+            typeParameters,
+            TypeDeclarations.ConstraintClauses(target, TypeFormat),
+            TypeDeclarations.ContainingDeclarations(target));
+    }
+
+    /// <summary>
+    /// The diagnostic that stops a proxy from being generated at all, or null. Reported on the
+    /// interface's name.
+    /// </summary>
+    private static DiagnosticInfo? Ungeneratable(INamedTypeSymbol target)
+    {
+        var location = target.Locations.FirstOrDefault(static l => l.IsInSource);
+
+        if (TypeDeclarations.FileLocalType(target) is { } fileLocal)
+        {
+            return DiagnosticInfo.Create(
+                InstrumentDiagnostics.FileLocal, location, target.ToDisplayString(), fileLocal.ToDisplayString());
+        }
+
+        if (TypeDeclarations.VariantContainingInterface(target) is { } variant)
+        {
+            return DiagnosticInfo.Create(
+                InstrumentDiagnostics.VariantContainingInterface, location, target.ToDisplayString(), variant.ToDisplayString());
+        }
+
+        if (TypeDeclarations.FirstNonPartialContainingType(target) is { } notPartial)
+        {
+            return DiagnosticInfo.Create(
+                InstrumentDiagnostics.ContainingTypeNotPartial, location, target.ToDisplayString(), notPartial.ToDisplayString());
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The proxy as the collision check sees it: its file name, and its name next to the
+    /// interface, as in <c>App.Outer+FooInstrumented`1</c>.
+    /// </summary>
+    private static ProxyFile? ProxyFileFor(INamedTypeSymbol target, InstrumentModel model)
+    {
+        var proxyName = model.ProxyName;
+        var typeParameters = model.TypeParameters;
+        if (LocationInfo.From(target.Locations.FirstOrDefault(static l => l.IsInSource)) is not { } location)
+            return null;
+
+        var arity = target.Arity > 0
+            ? "`" + target.Arity.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            : string.Empty;
+        string key;
+        string display;
+        if (target.ContainingType is { } containing)
+        {
+            key = MetadataName(containing) + "+" + proxyName + arity;
+            display = containing.ToDisplayString() + "." + proxyName + typeParameters;
+        }
+        else
+        {
+            var ns = target.ContainingNamespace.IsGlobalNamespace
+                ? string.Empty
+                : target.ContainingNamespace.ToDisplayString() + ".";
+            key = ns + proxyName + arity;
+            display = ns + proxyName + typeParameters;
+        }
+
+        return new ProxyFile(model.HintName, key, display, target.ToDisplayString(), location);
+    }
+
+    private static string MetadataName(INamedTypeSymbol type)
+    {
+        if (type.ContainingType is { } outer) return MetadataName(outer) + "+" + type.MetadataName;
+        var ns = type.ContainingNamespace.IsGlobalNamespace
+            ? string.Empty
+            : type.ContainingNamespace.ToDisplayString() + ".";
+        return ns + type.MetadataName;
     }
 
     private static EquatableArray<MethodModel> BuildMethods(
@@ -1041,5 +1160,6 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         return null;
     }
 
-    private readonly record struct ParseResult(InstrumentModel? Model, EquatableArray<DiagnosticInfo> Diagnostics);
+    /// <param name="File">The proxy as the collision check sees it; null when none is generated.</param>
+    private readonly record struct ParseResult(InstrumentModel? Model, EquatableArray<DiagnosticInfo> Diagnostics, ProxyFile? File);
 }

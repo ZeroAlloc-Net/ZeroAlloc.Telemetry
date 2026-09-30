@@ -21,7 +21,8 @@ internal static class HintNames
     /// interfaces <c>IOrders</c> and <c>Orders</c> would otherwise share a file name. Nesting is
     /// written with <c>+</c> rather than a dot, so a type nested in <c>App.Outer</c> and a type at
     /// the top of namespace <c>App.Outer</c> never share a name. Roslyn compares hint names
-    /// ignoring case, so interfaces whose names differ only in case still collide.
+    /// ignoring case, so interfaces whose names differ only in case would collide. The later one
+    /// gets no proxy and ZTEL015; see <see cref="ProxyCollisions"/>.
     /// </remarks>
     public static string ForInterface(INamedTypeSymbol type)
     {

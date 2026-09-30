@@ -15,6 +15,7 @@ public class IncrementalCachingTests
     // The generator's WithTrackingName values.
     private const string InstrumentsStep = "Instruments";
     private const string OrphanDiagnosticsStep = "OrphanDiagnostics";
+    private const string ProxyCollisionsStep = "ProxyCollisions";
 
     /// <summary>
     /// Exercises every model field: parameters with tags, result tags with a guard, constant
@@ -150,6 +151,7 @@ public class IncrementalCachingTests
 
         Assert.True(result.TrackedSteps.ContainsKey(InstrumentsStep));
         Assert.True(result.TrackedSteps.ContainsKey(OrphanDiagnosticsStep));
+        Assert.True(result.TrackedSteps.ContainsKey(ProxyCollisionsStep));
         Assert.NotEmpty(result.TrackedOutputSteps);
     }
 
@@ -180,6 +182,7 @@ public class IncrementalCachingTests
         {
             InstrumentsStep,
             OrphanDiagnosticsStep,
+            ProxyCollisionsStep,
         };
 
         var failures = new List<string>();

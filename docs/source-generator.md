@@ -24,7 +24,25 @@ The generated class name is the interface name with the leading `I` stripped (if
 | `IPaymentGateway` | `PaymentGatewayInstrumented` |
 | `OrderRepository` (no `I`) | `OrderRepositoryInstrumented` |
 
-The generated class is `internal sealed` and placed in the same namespace as the interface.
+The generated class is `internal sealed`, or `public sealed` with `PublicProxy = true`, and is placed next to the interface: in the same namespace, or for a nested interface in the same containing type.
+
+### Nested and generic interfaces
+
+A nested interface's proxy is emitted inside partial declarations of the interface's containing types, outermost first, so `Orders.IStore` gets `Orders.StoreInstrumented`. Every containing type must therefore be `partial`; otherwise the generator reports **ZTEL013** and emits no proxy for that interface.
+
+```csharp
+public partial class Orders
+{
+    [Instrument("MyApp.Orders")]
+    public interface IStore { Order? Find(OrderId id); }
+}
+
+// new Orders.StoreInstrumented(inner)
+```
+
+A generic interface gets a generic proxy with the same type parameters, and the proxy repeats the interface's constraints: `IRepository<TKey, TValue> where TKey : notnull` gets `RepositoryInstrumented<TKey, TValue> where TKey : notnull`. Variance is not repeated, since a class cannot declare it. Each closed proxy type, such as `RepositoryInstrumented<int, Order>`, has its own static `ActivitySource` and `Meter`, all with the name from `[Instrument]`, so listeners see them as one source.
+
+Two interfaces that would get the same proxy, such as `IStore` and `Store` in one namespace, or whose files would differ only in case, such as `IStore` and `Istore`, are reported with **ZTEL016** or **ZTEL015** on the one declared later, by file path and then position. Only that interface gets no proxy; every other proxy is generated.
 
 ## Generated Class Layout
 
@@ -232,7 +250,9 @@ Names that would still collide are made distinct with a numeric suffix, in the o
 
 - `interface` targets only — `class` is not supported
 - `ref` and `out` parameters are not supported
-- Generic interface methods are not supported
+- Generic interface methods are not supported. Generic interfaces are; see [Nested and generic interfaces](#nested-and-generic-interfaces)
+- A `file` interface, or an interface nested in a `file` type, gets no proxy: **ZTEL014**
+- An interface nested in an interface with an `in` or `out` type parameter gets no proxy, because C# does not allow a class there: **ZTEL017**
 - Sync methods are supported (no `async`/`await` wrapper needed)
 - A method is proxied with `async`/`await` when it returns `Task`, `Task<T>`, `ValueTask`, `ValueTask<T>`, or a task-like type marked `[AsyncMethodBuilder]`, such as PooledAwait's `PooledTask<T>`. For a task-like type, result reads start from what `GetAwaiter().GetResult()` returns
 
@@ -252,6 +272,11 @@ Names that would still collide are made distinct with a numeric suffix, in the o
 | ZTEL010 | Warning | A segment of a `[TraceTag(name, member)]` path names no readable, accessible instance property or field of the type reached so far, starting from the parameter. Reported at the argument; no tag is emitted for that parameter |
 | ZTEL011 | Warning | A `[MetricTagFromResult]` is added to no metric: its `Metric` names no metric the method declares, reported at `Metric`, or the method declares no metric at all, reported at the tag name. A metric dropped for its own error still counts as declared |
 | ZTEL012 | Error | Two `[MetricTagFromResult]` add the same tag name to one metric. Reported at the later one's tag name, which is not emitted |
+| ZTEL013 | Warning | A nested interface's containing type is not `partial`, so the proxy cannot be emitted next to it. Reported at the interface's name, naming the outermost containing type that is not `partial`; no proxy is generated |
+| ZTEL014 | Error | The interface, or a type it is nested in, is `file`, so the proxy's file cannot see it. No proxy is generated |
+| ZTEL015 | Error | The interface's file name differs only in case from an earlier interface's, such as `App.IStore` and `App.Istore`. Roslyn compares file names ignoring case. Reported at the later interface, which gets no proxy |
+| ZTEL016 | Error | The interface's proxy has the same name as an earlier interface's proxy, such as `IStore` and `Store`, which both get `StoreInstrumented`. Reported at the later interface, which gets no proxy |
+| ZTEL017 | Error | The interface is nested in an interface with an `in` or `out` type parameter, where C# does not allow a class. No proxy is generated |
 
 ZTEL007 and ZTEL008 mostly replace what used to be a compile error inside the generated proxy. Two cases compiled on 1.6.4 and are now errors:
 
@@ -259,6 +284,8 @@ ZTEL007 and ZTEL008 mostly replace what used to be a compile error inside the ge
 - a path through an extension property, which the resolver does not look up, which is **ZTEL007**.
 
 In both cases, expose a `bool` or an instance member on the result type. A path through `dynamic` still compiles; see [Member paths and When](attributes.md#member-paths-and-when).
+
+ZTEL013 to ZTEL017 replace what used to be a compile error inside the generated proxy, or for ZTEL015 a CS8785 that dropped every proxy in the project. ZTEL013 is a warning, so under `TreatWarningsAsErrors` it fails the build; make every containing type `partial`. Proxy names are unchanged, so a `PublicProxy` keeps its public name.
 
 ZTEL010 is the parameter-side counterpart of ZTEL007, and a warning rather than an error. Before it existed, a `[TraceTag]` path that did not resolve compiled and tagged the whole argument, so an error would break builds that work today. The generator now emits no tag for that parameter, so the warning is the only signal and the span never carries the argument under a name that promises one of its members. Without `[Trace]` the path is not checked, since ZTEL004 already reports that the tag records nothing.
 

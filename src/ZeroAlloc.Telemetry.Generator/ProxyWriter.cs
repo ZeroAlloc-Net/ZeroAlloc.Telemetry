@@ -30,8 +30,19 @@ internal static class ProxyWriter
             sb.AppendLine();
         }
 
+        // A nested interface's proxy is emitted next to it, inside partial declarations of its
+        // containing types, so it can name the interface as the interface's siblings do.
+        foreach (var containing in model.ContainingTypes)
+        {
+            sb.AppendLine(containing);
+            sb.AppendLine("{");
+        }
+
         var accessibility = model.PublicProxy ? "public" : "internal";
-        sb.AppendLine($"{accessibility} sealed class {model.ProxyName} : {model.InterfaceName}");
+        sb.AppendLine($"{accessibility} sealed class {model.ProxyName}{model.TypeParameters} : {model.InterfaceName}");
+        // The proxy is a new type, so a generic one repeats the interface's constraints.
+        foreach (var clause in model.ConstraintClauses)
+            sb.AppendLine($"    {clause}");
         sb.AppendLine("{");
         sb.AppendLine($"    private static readonly ActivitySource _activitySource = new({Literal(model.ActivitySourceName)});");
         sb.AppendLine($"    private static readonly Meter _meter = new({Literal(model.ActivitySourceName)});");
@@ -46,6 +57,8 @@ internal static class ProxyWriter
             WriteMethod(sb, model.Methods[i], i, fields);
 
         sb.AppendLine("}");
+        for (var i = 0; i < model.ContainingTypes.Count; i++)
+            sb.AppendLine("}");
         return sb.ToString();
     }
 
