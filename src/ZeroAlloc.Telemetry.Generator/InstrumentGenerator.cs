@@ -64,11 +64,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
 
             if (result.Model is { } model)
             {
-                var source   = ProxyWriter.Write(model);
-                var hintName = model.Namespace is null
-                    ? $"{model.ProxyName}.g.cs"
-                    : $"{model.Namespace}_{model.ProxyName}.g.cs";
-                ctx.AddSource(hintName, source);
+                ctx.AddSource(model.HintName, ProxyWriter.Write(model));
             }
         });
 
@@ -170,7 +166,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                         : ifaceName + "Instrumented";
 
         return new ParseResult(
-            new InstrumentModel(ns, ifaceName, proxyName, activitySource, methods, publicProxy),
+            new InstrumentModel(HintNames.ForInterface(target), ns, ifaceName, proxyName, activitySource, methods, publicProxy),
             new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutable()));
     }
 
