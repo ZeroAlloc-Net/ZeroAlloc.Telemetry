@@ -104,8 +104,9 @@ Full methodology: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAll
 | `[Histogram("metric")]` | `Histogram<double>.Record(ms)` | Every call including on exception, unless `When` is set |
 | `[CountFromResult("metric", "Member")]` | `Counter<long>.Add(value)` | After a successful call, when the member is not null |
 | `[HistogramFromResult("metric", "Member")]` | `Histogram<double>.Record(value)` | After a successful call, when the member is not null |
+| `[MetricTagFromResult("tag", "Member")]` | A tag on the method's metrics | With each measurement, when a listener has enabled the instrument |
 
-**Metrics from the result.** `[CountFromResult]` and `[HistogramFromResult]` record a value carried by the return value, such as tokens consumed or a confidence score. `When = "IsSuccess"` on any metric records it only when the result says the call succeeded, so a failed `Result<T, E>` is no longer counted as a success. `Unit` and `Description` pass through to the instrument.
+**Metrics from the result.** `[CountFromResult]` and `[HistogramFromResult]` record a value carried by the return value, such as tokens consumed or a confidence score. `When = "IsSuccess"` on any metric records it only when the result says the call succeeded, so a failed `Result<T, E>` is no longer counted as a success. `Unit` and `Description` pass through to the instrument. `[MetricTagFromResult]` adds a dimension read from the result, such as the versioned model id, to every metric the method records, or with `Metric = "name"` to one. The tags are only built when a listener has enabled the instrument, so an unobserved call still allocates nothing.
 
 ## Packages
 

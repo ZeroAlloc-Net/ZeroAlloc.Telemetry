@@ -18,6 +18,10 @@ namespace ZeroAlloc.Telemetry.Generator.Models;
 /// <c>[CountFromResult]</c> and <c>[HistogramFromResult]</c> uses, in attribute order. Only the
 /// ones that resolved and type-checked; the rest were reported and are not emitted.
 /// </param>
+/// <param name="MetricTags">
+/// <c>[MetricTagFromResult]</c> uses, in attribute order. Only the ones that resolved and apply
+/// to a metric the method declares; the rest were reported and are not emitted.
+/// </param>
 internal sealed record MethodModel(
     string Name,
     string ReturnType,
@@ -31,5 +35,6 @@ internal sealed record MethodModel(
     bool ResultCanBeNull,
     EquatableArray<ConstantTagModel> ConstantTags,
     EquatableArray<MetricModel> ResultMetrics,
+    EquatableArray<MetricTagModel> MetricTags,
     string? TraceNameExpression = null
 );

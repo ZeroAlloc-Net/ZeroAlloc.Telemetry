@@ -208,18 +208,25 @@ internal static class ProxyWriter
             sb.AppendLine($"            var _result = {callExpr};");
 
         // Tags and result-driven instruments read the result, so they come first and share one
-        // null-state copy. [Count] and [Histogram] follow, guarded when they have a When.
+        // null-state copy. [Count] and [Histogram] follow, guarded when they have a When. Each
+        // tagged measurement numbers its tag list, so every local on the method is distinct.
+        var tagLists = 0;
         if (!method.ReturnsVoid)
-            WriteResultReads(sb, method, fields);
+            WriteResultReads(sb, method, fields, ref tagLists);
+
+        var root = method.ResultCanBeNull ? "_tagged" : "_result";
 
         if (method.Count is { } count)
-            WriteGuarded(sb, method, count.GuardExpression, $"{fields.FieldFor(count)}.Add(1);");
+        {
+            WriteMeasurement(
+                sb, method, count, fields, Guard(root, count.GuardExpression), "1", root, ref tagLists);
+        }
 
         if (method.Histogram is { } histogram)
         {
-            WriteGuarded(
-                sb, method, histogram.GuardExpression,
-                $"{fields.FieldFor(histogram)}.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);");
+            WriteMeasurement(
+                sb, method, histogram, fields, Guard(root, histogram.GuardExpression),
+                "Stopwatch.GetElapsedTime(_sw).TotalMilliseconds", root, ref tagLists);
         }
 
         if (!method.ReturnsVoid)
@@ -240,7 +247,7 @@ internal static class ProxyWriter
     /// consumer with nullable warnings enabled. Testing the copy keeps the returned value's
     /// null-state intact while still guaranteeing instrumentation cannot throw on a null result.
     /// </remarks>
-    private static void WriteResultReads(StringBuilder sb, MethodModel method, MetricFieldTable fields)
+    private static void WriteResultReads(StringBuilder sb, MethodModel method, MetricFieldTable fields, ref int tagLists)
     {
         // Tags need a span to carry them; ZTEL004 reports a result tag without one.
         var tags = method.TraceName is not null
@@ -253,6 +260,7 @@ internal static class ProxyWriter
         var needsCopy = method.ResultCanBeNull
             && (tags.Any(t => !string.IsNullOrEmpty(t.Member) || t.GuardExpression is not null)
                 || method.ResultMetrics.Count > 0
+                || method.MetricTags.Count > 0
                 || method.Count?.GuardExpression is not null
                 || method.Histogram?.GuardExpression is not null);
 
@@ -265,7 +273,7 @@ internal static class ProxyWriter
             WriteResultTag(sb, tag, root);
 
         for (var i = 0; i < method.ResultMetrics.Count; i++)
-            WriteResultMetric(sb, method.ResultMetrics[i], i, root, fields);
+            WriteResultMetric(sb, method, method.ResultMetrics[i], i, root, fields, ref tagLists);
     }
 
     private static void WriteResultTag(StringBuilder sb, ResultTagModel tag, string root)
@@ -293,7 +301,8 @@ internal static class ProxyWriter
     /// Emits one <c>[CountFromResult]</c> or <c>[HistogramFromResult]</c>. <paramref name="index"/>
     /// numbers its pattern local, so each read on a method binds a distinct name.
     /// </summary>
-    private static void WriteResultMetric(StringBuilder sb, MetricModel metric, int index, string root, MetricFieldTable fields)
+    private static void WriteResultMetric(
+        StringBuilder sb, MethodModel method, MetricModel metric, int index, string root, MetricFieldTable fields, ref int tagLists)
     {
         var access = root + metric.ValueAccess;
         var guard = metric.GuardExpression is { } g ? root + g : null;
@@ -319,33 +328,114 @@ internal static class ProxyWriter
         if (metric.ValueIsDecimal)
             value = "(double)" + value;
 
-        var call = metric.Kind == MetricKind.Counter
-            ? $"{fields.FieldFor(metric)}.Add({value});"
-            : $"{fields.FieldFor(metric)}.Record({value});";
-
-        if (condition is null)
-        {
-            sb.AppendLine($"            {call}");
-        }
-        else
-        {
-            sb.AppendLine($"            if ({condition})");
-            sb.AppendLine($"                {call}");
-        }
+        WriteMeasurement(sb, method, metric, fields, condition, value, root, ref tagLists);
     }
 
-    /// <summary>Emits <paramref name="statement"/>, under the guard when there is one.</summary>
-    private static void WriteGuarded(StringBuilder sb, MethodModel method, string? guard, string statement)
+    /// <summary>The guard appended to the result root, or null when there is none.</summary>
+    private static string? Guard(string root, string? guardExpression) =>
+        guardExpression is null ? null : root + guardExpression;
+
+    /// <summary>
+    /// Emits one <c>Add</c> or <c>Record</c> of <paramref name="value"/>, under
+    /// <paramref name="condition"/> when there is one, with the <c>[MetricTagFromResult]</c> tags
+    /// that apply to the metric.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// With tags, the measurement is behind the instrument's <c>Enabled</c>, checked first. With
+    /// no listener the call is skipped before the tag list is built, a member is read or a value
+    /// is boxed, so the no-listener path stays allocation-free. Nothing that would have been
+    /// recorded is lost: a disabled instrument drops every measurement anyway.
+    /// </para>
+    /// <para>
+    /// Without tags the emitted code is exactly what it was before tags existed.
+    /// </para>
+    /// </remarks>
+    private static void WriteMeasurement(
+        StringBuilder sb,
+        MethodModel method,
+        MetricModel metric,
+        MetricFieldTable fields,
+        string? condition,
+        string value,
+        string root,
+        ref int tagLists)
     {
-        if (guard is null)
+        var field = fields.FieldFor(metric);
+        var operation = metric.Kind == MetricKind.Counter ? "Add" : "Record";
+
+        List<MetricTagModel>? tags = null;
+        foreach (var tag in method.MetricTags)
         {
-            sb.AppendLine($"            {statement}");
+            if (tag.AppliesTo(metric))
+                (tags ??= new List<MetricTagModel>()).Add(tag);
+        }
+
+        if (tags is null)
+        {
+            var call = $"{field}.{operation}({value});";
+            if (condition is null)
+            {
+                sb.AppendLine($"            {call}");
+            }
+            else
+            {
+                sb.AppendLine($"            if ({condition})");
+                sb.AppendLine($"                {call}");
+            }
+
             return;
         }
 
-        var root = method.ResultCanBeNull ? "_tagged" : "_result";
-        sb.AppendLine($"            if ({root}{guard})");
-        sb.AppendLine($"                {statement}");
+        var index = (tagLists++).ToString(CultureInfo.InvariantCulture);
+        var list = "_metricTags" + index;
+        var enabled = field + ".Enabled";
+
+        sb.AppendLine($"            if ({(condition is null ? enabled : enabled + " && " + condition)})");
+        sb.AppendLine("            {");
+        sb.AppendLine($"                var {list} = new TagList();");
+
+        for (var k = 0; k < tags.Count; k++)
+            WriteMetricTag(sb, tags[k], list, $"_metricTag{index}_{k.ToString(CultureInfo.InvariantCulture)}", root);
+
+        sb.AppendLine($"                {field}.{operation}({value}, in {list});");
+        sb.AppendLine("            }");
+    }
+
+    /// <summary>
+    /// Adds one tag to <paramref name="list"/>. The guard comes first and short-circuits, so the
+    /// member is not read when it is false. A null value is bound away by the pattern and adds no
+    /// tag, as <c>Activity.SetTag</c> adds none for a null.
+    /// </summary>
+    private static void WriteMetricTag(StringBuilder sb, MetricTagModel tag, string list, string local, string root)
+    {
+        var access = root + tag.Access;
+        var guard = Guard(root, tag.GuardExpression);
+
+        string? condition;
+        string value;
+        if (tag.ValueCanBeNull)
+        {
+            var test = $"{access} is {{ }} {local}";
+            condition = guard is null ? test : $"{guard} && {test}";
+            value = local;
+        }
+        else
+        {
+            condition = guard;
+            value = access;
+        }
+
+        var add = $"{list}.Add({Literal(tag.TagName)}, {value});";
+        if (condition is null)
+        {
+            sb.AppendLine($"                {add}");
+        }
+        else
+        {
+            sb.AppendLine($"                if ({condition})");
+            sb.AppendLine($"                    {add}");
+        }
     }
 
     private static void WriteCatchBlock(StringBuilder sb, MethodModel method, MetricFieldTable fields)

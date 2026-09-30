@@ -18,6 +18,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
     private const string TraceTagConstantAttrFqn   = "ZeroAlloc.Telemetry.TraceTagConstantAttribute";
     private const string CountFromResultAttrFqn     = "ZeroAlloc.Telemetry.CountFromResultAttribute";
     private const string HistogramFromResultAttrFqn = "ZeroAlloc.Telemetry.HistogramFromResultAttribute";
+    private const string MetricTagFromResultAttrFqn = "ZeroAlloc.Telemetry.MetricTagFromResultAttribute";
 
     /// <summary>
     /// Fully-qualified names that keep nullable reference type annotations.
@@ -79,6 +80,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         RegisterMethodAttributeDiagnostic(context, HistogramAttributeFqn, "Histogram");
         RegisterMethodAttributeDiagnostic(context, CountFromResultAttrFqn, "CountFromResult");
         RegisterMethodAttributeDiagnostic(context, HistogramFromResultAttrFqn, "HistogramFromResult");
+        RegisterMethodAttributeDiagnostic(context, MetricTagFromResultAttrFqn, "MetricTagFromResult");
         RegisterMethodAttributeDiagnostic(context, TraceTagFromResultAttrFqn, "TraceTagFromResult");
         RegisterMethodAttributeDiagnostic(context, TraceTagConstantAttrFqn, "TraceTagConstant");
     }
@@ -194,6 +196,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             var count         = BuildPlainMetric(compilation, target, member, CountAttributeFqn, "Count", MetricKind.Counter, resultType, returnsVoid, diagnostics);
             var histogram     = BuildPlainMetric(compilation, target, member, HistogramAttributeFqn, "Histogram", MetricKind.Histogram, resultType, returnsVoid, diagnostics);
             var resultMetrics = BuildResultMetrics(compilation, target, member, resultType, returnsVoid, diagnostics);
+            var metricTags    = BuildMetricTags(compilation, target, member, resultType, returnsVoid, diagnostics);
 
             ReportTagDiagnostics(diagnostics, target, member, parameters, resultTags, constantTags, traceName, returnsVoid);
             ReportUnknownSpanNameTokens(diagnostics, target, member, traceName);
@@ -211,6 +214,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 ResultCanBeNull(member),
                 ToEquatable(constantTags),
                 ToEquatable(resultMetrics),
+                ToEquatable(metricTags),
                 BuildTraceNameExpression(traceName)));
         }
         return new EquatableArray<MethodModel>(methods.ToImmutable());
@@ -862,6 +866,168 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         return convertsToLong
             || special is SpecialType.System_UInt64 or SpecialType.System_Single
                 or SpecialType.System_Double or SpecialType.System_Decimal;
+    }
+
+    /// <summary>
+    /// The metric names the method declares, in the order the writer emits them: <c>[Count]</c>,
+    /// <c>[Histogram]</c>, then the result metrics in attribute order. Declared, not emitted: a
+    /// metric dropped for its own error still counts, so the tag does not add a second diagnostic
+    /// pointing away from the real one.
+    /// </summary>
+    private static string[] DeclaredMetrics(IMethodSymbol method)
+    {
+        var names = new List<string>();
+        foreach (var fqn in new[] { CountAttributeFqn, HistogramAttributeFqn })
+        {
+            if (FindAttribute(method, fqn) is { ConstructorArguments.Length: > 0 } attr
+                && attr.ConstructorArguments[0].Value is string name)
+            {
+                names.Add(name);
+            }
+        }
+
+        foreach (var attr in method.GetAttributes())
+        {
+            if ((IsAttribute(attr, CountFromResultAttrFqn) || IsAttribute(attr, HistogramFromResultAttrFqn))
+                && attr.ConstructorArguments.Length > 0
+                && attr.ConstructorArguments[0].Value is string name)
+            {
+                names.Add(name);
+            }
+        }
+
+        return names.ToArray();
+    }
+
+    /// <summary>
+    /// Builds <c>[MetricTagFromResult]</c> in attribute order. One that cannot be emitted, or that
+    /// no declared metric would carry, is reported and left out.
+    /// </summary>
+    /// <remarks>
+    /// The path and guard are resolved even for a tag reported as ZTEL011 or ZTEL012, so one build
+    /// reports every error on the attribute.
+    /// </remarks>
+    private static MetricTagModel[] BuildMetricTags(
+        Compilation compilation,
+        INamedTypeSymbol target,
+        IMethodSymbol method,
+        ITypeSymbol resultType,
+        bool returnsVoid,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
+    {
+        List<MetricTagModel>? tags = null;
+        string[]? declared = null;
+        HashSet<(string Metric, string Tag)>? taken = null;
+
+        foreach (var attr in method.GetAttributes())
+        {
+            if (!IsAttribute(attr, MetricTagFromResultAttrFqn))
+                continue;
+
+            if (attr.ConstructorArguments.Length < 2 || attr.ConstructorArguments[0].Value is not string name || name.Length == 0)
+                continue;
+
+            // No result, so nothing to resolve: see BuildResultMetrics.
+            if (returnsVoid)
+            {
+                diagnostics.Add(DiagnosticInfo.Create(
+                    InstrumentDiagnostics.ResultReadOnVoidMethod,
+                    MethodLocation(method), "MetricTagFromResult", target.ToDisplayString(), method.Name));
+                continue;
+            }
+
+            declared ??= DeclaredMetrics(method);
+            var filter = GetNamedString(attr, "Metric");
+            var applies = ApplicableMetrics(attr, target, method, name, filter, declared, diagnostics);
+            var unique = IsUniqueOnItsMetrics(attr, target, method, name, applies, taken ??= new(), diagnostics);
+
+            var member = attr.ConstructorArguments[1].Value as string ?? string.Empty;
+            var path = PathResolver.Resolve(compilation, resultType, member);
+            if (!path.Resolved)
+            {
+                diagnostics.Add(PathNotFound(
+                    AttributeLocations.Positional(attr, 1, "member", MethodLocation(method)), member, path));
+            }
+
+            var guardOk = TryBuildGuard(
+                compilation, attr, method, resultType, GetNamedString(attr, "When"), diagnostics, out var guard);
+
+            if (applies.Length == 0 || !unique || !path.Resolved || !guardOk)
+                continue;
+
+            (tags ??= new List<MetricTagModel>()).Add(
+                new MetricTagModel(name, filter, path.Access!, path.CanBeNull, guard));
+        }
+
+        return tags?.ToArray() ?? [];
+    }
+
+    /// <summary>
+    /// The declared metrics the tag goes on. Empty, having reported ZTEL011, when the method
+    /// declares none or <paramref name="filter"/> names none of them.
+    /// </summary>
+    private static string[] ApplicableMetrics(
+        AttributeData attr,
+        INamedTypeSymbol target,
+        IMethodSymbol method,
+        string name,
+        string? filter,
+        string[] declared,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
+    {
+        var tagText = Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(name, quote: true);
+
+        if (declared.Length == 0)
+        {
+            diagnostics.Add(DiagnosticInfo.Create(
+                InstrumentDiagnostics.MetricTagWithoutMetric,
+                AttributeLocations.Positional(attr, 0, "name", MethodLocation(method)),
+                tagText, target.ToDisplayString(), method.Name));
+            return [];
+        }
+
+        if (filter is null)
+            return declared;
+
+        if (declared.Contains(filter, StringComparer.Ordinal))
+            return [filter];
+
+        diagnostics.Add(DiagnosticInfo.Create(
+            InstrumentDiagnostics.MetricTagUnknownMetric,
+            AttributeLocations.Named(attr, "Metric", MethodLocation(method)),
+            tagText, target.ToDisplayString(), method.Name, filter));
+        return [];
+    }
+
+    /// <summary>
+    /// Claims the tag name on each of <paramref name="metrics"/>. False, having reported ZTEL012
+    /// for the first metric already carrying the name, when an earlier tag holds one of them.
+    /// </summary>
+    private static bool IsUniqueOnItsMetrics(
+        AttributeData attr,
+        INamedTypeSymbol target,
+        IMethodSymbol method,
+        string name,
+        string[] metrics,
+        HashSet<(string Metric, string Tag)> taken,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
+    {
+        foreach (var metric in metrics)
+        {
+            if (!taken.Contains((metric, name)))
+                continue;
+
+            diagnostics.Add(DiagnosticInfo.Create(
+                InstrumentDiagnostics.DuplicateMetricTag,
+                AttributeLocations.Positional(attr, 0, "name", MethodLocation(method)),
+                name, metric, target.ToDisplayString(), method.Name));
+            return false;
+        }
+
+        foreach (var metric in metrics)
+            taken.Add((metric, name));
+
+        return true;
     }
 
     private static EquatableArray<T> ToEquatable<T>(T[] items)

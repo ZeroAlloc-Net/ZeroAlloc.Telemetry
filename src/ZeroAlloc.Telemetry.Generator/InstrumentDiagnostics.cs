@@ -111,4 +111,37 @@ internal static class InstrumentDiagnostics
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
+
+    /// <summary>
+    /// A <c>[MetricTagFromResult]</c> whose <c>Metric</c> names no metric the method declares. A
+    /// warning, like the other rules for an attribute that records nothing: ZTEL004 and ZTEL005.
+    /// </summary>
+    public static readonly DiagnosticDescriptor MetricTagUnknownMetric = new(
+        id: "ZTEL011",
+        title: "[MetricTagFromResult] is added to no metric",
+        messageFormat: "[MetricTagFromResult({0})] on '{1}.{2}' records nothing — Metric = '{3}' names no metric the method records. Name one of its [Count], [Histogram], [CountFromResult] or [HistogramFromResult] metrics, or remove Metric to tag them all.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    /// <summary>ZTEL011 for a method that declares no metric at all.</summary>
+    public static readonly DiagnosticDescriptor MetricTagWithoutMetric = new(
+        id: "ZTEL011",
+        title: "[MetricTagFromResult] is added to no metric",
+        messageFormat: "[MetricTagFromResult({0})] on '{1}.{2}' records nothing — the method records no metric to carry the tag. Add [Count], [Histogram], [CountFromResult] or [HistogramFromResult], or remove the tag.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    /// Two <c>[MetricTagFromResult]</c> with one tag name on one metric. An error: the measurement
+    /// could carry only one of the values, and which one would be up to the exporter.
+    /// </summary>
+    public static readonly DiagnosticDescriptor DuplicateMetricTag = new(
+        id: "ZTEL012",
+        title: "Duplicate [MetricTagFromResult] tag name",
+        messageFormat: "The tag '{0}' is already added to '{1}' by another [MetricTagFromResult] on '{2}.{3}'. A measurement carries one value per tag name, so remove or rename one of them.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }
