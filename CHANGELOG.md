@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.8.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.7.0...v1.8.0) (2026-09-30)
+
+
+### Features
+
+* add [MetricTagFromResult] to tag metrics with values read from the result ([#164](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/164)) ([a2b193d](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/a2b193d72569da3d068a9e882b0e26a0e1a6899a)), closes [#150](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/150)
+
+
+### Bug Fixes
+
+* generate proxies for nested and generic instrumented interfaces ([#166](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/166)) ([987f929](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/987f929cfbb764bdb49a4c75900503781e408fe4))
+* name generated files after the instrumented interface's full name ([#163](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/163)) ([b930747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/b930747d26a50071860122eeeef2671aec7aa0cb)), closes [#161](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/161)
+
 ## [1.7.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.6.4...v1.7.0) (2026-09-27)
 
 
