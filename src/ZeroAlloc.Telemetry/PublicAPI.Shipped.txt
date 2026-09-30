@@ -42,6 +42,14 @@ ZeroAlloc.Telemetry.InstrumentAttribute.ActivitySource.get -> string!
 ZeroAlloc.Telemetry.InstrumentAttribute.InstrumentAttribute(string! activitySource) -> void
 ZeroAlloc.Telemetry.InstrumentAttribute.PublicProxy.get -> bool
 ZeroAlloc.Telemetry.InstrumentAttribute.PublicProxy.set -> void
+ZeroAlloc.Telemetry.MetricTagFromResultAttribute
+ZeroAlloc.Telemetry.MetricTagFromResultAttribute.Member.get -> string!
+ZeroAlloc.Telemetry.MetricTagFromResultAttribute.Metric.get -> string?
+ZeroAlloc.Telemetry.MetricTagFromResultAttribute.Metric.set -> void
+ZeroAlloc.Telemetry.MetricTagFromResultAttribute.MetricTagFromResultAttribute(string! name, string! member) -> void
+ZeroAlloc.Telemetry.MetricTagFromResultAttribute.Name.get -> string!
+ZeroAlloc.Telemetry.MetricTagFromResultAttribute.When.get -> string?
+ZeroAlloc.Telemetry.MetricTagFromResultAttribute.When.set -> void
 ZeroAlloc.Telemetry.TraceAttribute
 ZeroAlloc.Telemetry.TraceAttribute.Name.get -> string!
 ZeroAlloc.Telemetry.TraceAttribute.TraceAttribute(string! name) -> void
