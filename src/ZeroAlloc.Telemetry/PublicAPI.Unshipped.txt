@@ -1,9 +1,1 @@
 #nullable enable
-ZeroAlloc.Telemetry.MetricTagFromResultAttribute
-ZeroAlloc.Telemetry.MetricTagFromResultAttribute.Member.get -> string!
-ZeroAlloc.Telemetry.MetricTagFromResultAttribute.Metric.get -> string?
-ZeroAlloc.Telemetry.MetricTagFromResultAttribute.Metric.set -> void
-ZeroAlloc.Telemetry.MetricTagFromResultAttribute.MetricTagFromResultAttribute(string! name, string! member) -> void
-ZeroAlloc.Telemetry.MetricTagFromResultAttribute.Name.get -> string!
-ZeroAlloc.Telemetry.MetricTagFromResultAttribute.When.get -> string?
-ZeroAlloc.Telemetry.MetricTagFromResultAttribute.When.set -> void
