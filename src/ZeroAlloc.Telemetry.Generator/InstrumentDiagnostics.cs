@@ -144,4 +144,61 @@ internal static class InstrumentDiagnostics
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    /// <summary>
+    /// A nested interface's proxy is emitted inside partial declarations of its containing types,
+    /// so each of them must be partial.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ContainingTypeNotPartial = new(
+        id: "ZTEL013",
+        title: "Instrumented interface inside a containing type that is not partial",
+        messageFormat: "Instrumented interface '{0}' gets no proxy because its containing type '{1}' is not partial",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    /// <summary>A file-local interface is visible only in its own file, not in the proxy's.</summary>
+    public static readonly DiagnosticDescriptor FileLocal = new(
+        id: "ZTEL014",
+        title: "File-local instrumented interface",
+        messageFormat: "Instrumented interface '{0}' gets no proxy because '{1}' is file-local",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    /// Roslyn compares hint names ignoring case, so interfaces whose names differ only in case
+    /// would need the same file.
+    /// </summary>
+    public static readonly DiagnosticDescriptor NameDiffersOnlyInCase = new(
+        id: "ZTEL015",
+        title: "Instrumented interface name differs only in case from another",
+        messageFormat: "Instrumented interface '{0}' gets no proxy because its file name '{1}' differs only in case from that of '{2}'",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    /// The proxy is named after the interface without a leading I, so <c>IFoo</c> and <c>Foo</c>
+    /// would both get <c>FooInstrumented</c>.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ProxyNameCollision = new(
+        id: "ZTEL016",
+        title: "Instrumented interfaces share a proxy name",
+        messageFormat: "Instrumented interface '{0}' gets no proxy because its proxy '{1}' has the same name as the proxy of '{2}'",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    /// C# does not allow a class inside an interface with an in or out type parameter, CS8427, so
+    /// the proxy cannot be emitted next to an interface nested in one.
+    /// </summary>
+    public static readonly DiagnosticDescriptor VariantContainingInterface = new(
+        id: "ZTEL017",
+        title: "Instrumented interface inside a variant interface",
+        messageFormat: "Instrumented interface '{0}' gets no proxy because its containing interface '{1}' has a variant type parameter, and a class cannot be declared in it",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }

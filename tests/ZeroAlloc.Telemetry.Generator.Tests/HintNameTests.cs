@@ -61,18 +61,19 @@ public class HintNameTests
     [Fact]
     public void ContainingTypesAndArityArePartOfTheName()
     {
-        // Nested and generic interfaces are not supported by the proxy itself yet, but their
-        // files must not collide: a collision drops every other proxy in the project.
-        var result = Run("""
+        // Nested and generic interfaces must not collide on their files: a collision drops every
+        // other proxy in the project. Their proxies compile; see NestedAndGenericInterfaceTests.
+        const string source = """
             using ZeroAlloc.Telemetry;
             namespace App
             {
-                public class O1 { [Instrument("a")] public interface IFoo { void Run(); } }
-                public class O2<T> { [Instrument("a")] public interface IFoo { void Run(); } }
+                public partial class O1 { [Instrument("a")] public interface IFoo { void Run(); } }
+                public partial class O2<T> { [Instrument("a")] public interface IFoo { void Run(); } }
                 [Instrument("a")] public interface IFoo<T> { void Run(); }
                 [Instrument("a")] public interface IBar { void Run(); }
             }
-            """);
+            """;
+        var result = Run(source);
 
         result.Diagnostics.Should().BeEmpty();
         result.Results[0].GeneratedSources.Select(s => s.HintName).Should().BeEquivalentTo(
@@ -80,6 +81,7 @@ public class HintNameTests
             "App.O2`1+IFoo.Instrumented.g.cs",
             "App.IFoo`1.Instrumented.g.cs",
             "App.IBar.Instrumented.g.cs");
+        GeneratorCompilation.OutputErrors(source).Should().BeEmpty();
     }
 
     [Theory]
