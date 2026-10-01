@@ -317,7 +317,8 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             var metricTags    = BuildMetricTags(compilation, target, member, resultType, returnsVoid, diagnostics);
 
             ReportTagDiagnostics(diagnostics, target, member, parameters, resultTags, constantTags, traceName, returnsVoid);
-            ReportUnknownSpanNameTokens(diagnostics, target, member, traceName);
+            var spanName = ParseSpanName(compilation, target, member, traceName, diagnostics);
+            var trace = BuildTraceOptions(compilation, target, member, resultType, returnsVoid, spanName, diagnostics);
 
             methods.Add(new MethodModel(
                 member.Name,
@@ -325,7 +326,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 isAsync,
                 returnsVoid,
                 ToEquatable(parameters),
-                traceName,
+                spanName.StartName,
                 count,
                 histogram,
                 ToEquatable(resultTags),
@@ -333,9 +334,10 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 ToEquatable(constantTags),
                 ToEquatable(resultMetrics),
                 ToEquatable(metricTags),
-                BuildTraceNameExpression(traceName),
+                BuildTraceNameExpression(spanName.StartName),
                 TypeDeclarations.TypeParameterList(member.TypeParameters),
-                TypeDeclarations.ConstraintClauses(member.TypeParameters, TypeFormat)));
+                TypeDeclarations.ConstraintClauses(member.TypeParameters, TypeFormat),
+                trace));
         }
         return new EquatableArray<MethodModel>(methods.ToImmutable());
     }
@@ -389,40 +391,253 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
     }
 
     /// <summary>
-    /// Reports any <c>{...}</c> in a span name that is not <c>{type}</c>. Left undiagnosed, a
-    /// typo such as <c>{Type}</c> is not an error — it is emitted verbatim, and the first sign of
-    /// trouble is a literal brace sitting in a dashboard weeks later.
+    /// A <c>[Trace]</c> name split into the name the span starts under and, when it has parameter
+    /// tokens, the expression composing its full display name.
     /// </summary>
-    private static void ReportUnknownSpanNameTokens(
-        ImmutableArray<DiagnosticInfo>.Builder diagnostics,
+    private readonly record struct SpanName(string? StartName, string? DisplayName, EquatableArray<string> Copies);
+
+    /// <summary>
+    /// Parses the tokens of a <c>[Trace]</c> name. <c>{type}</c> stays in the start name, which
+    /// the constructor resolves. <c>{parameter}</c> and <c>{parameter.Member}</c> are left out of
+    /// the start name and go into a display name, set only on a sampled span, so an unsampled call
+    /// builds no string. Anything else is reported as ZTEL006 and kept verbatim.
+    /// </summary>
+    /// <remarks>
+    /// The start name is what is left with the parameter tokens removed, its whitespace collapsed,
+    /// or the method name when nothing is left: <c>"{operation} {model}"</c> starts as the method
+    /// name and is displayed as <c>"chat gpt-9"</c>. A name with no parameter token is returned
+    /// unchanged, so its span is emitted exactly as before.
+    /// </remarks>
+    private static SpanName ParseSpanName(
+        Compilation compilation,
         INamedTypeSymbol target,
         IMethodSymbol member,
-        string? traceName)
+        string? traceName,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
-        if (traceName is null) return;
+        if (traceName is null)
+            return new SpanName(null, null, default);
 
+        var start = new StringBuilder();
+        var display = new StringBuilder();
+        var copies = ImmutableArray.CreateBuilder<string>();
+        var hasParameterToken = false;
         var i = 0;
         while (i < traceName.Length)
         {
             var open = traceName.IndexOf('{', i);
-            if (open < 0) break;
+            var close = open < 0 ? -1 : traceName.IndexOf('}', open + 1);
+            if (close < 0)
+            {
+                AppendLiteral(start, display, traceName.Substring(i));
+                break;
+            }
 
-            var close = traceName.IndexOf('}', open + 1);
-            if (close < 0) break;
-
+            AppendLiteral(start, display, traceName.Substring(i, open - i));
             var token = traceName.Substring(open, close - open + 1);
-            if (!string.Equals(token, ImplTypeToken, StringComparison.Ordinal))
+            i = close + 1;
+
+            if (string.Equals(token, ImplTypeToken, StringComparison.Ordinal))
+            {
+                start.Append(token);
+                display.Append("{_inner.GetType().Name}");
+                continue;
+            }
+
+            if (AppendParameterToken(compilation, target, member, token, display, copies, diagnostics))
+            {
+                hasParameterToken = true;
+            }
+            else
             {
                 diagnostics.Add(DiagnosticInfo.Create(
                     InstrumentDiagnostics.UnknownSpanNameToken,
                     member.Locations.FirstOrDefault() ?? target.Locations.FirstOrDefault(),
-                    token,
-                    target.Name,
-                    member.Name));
+                    token, target.Name, member.Name));
+                AppendLiteral(start, display, token);
+            }
+        }
+
+        if (!hasParameterToken)
+            return new SpanName(traceName, null, default);
+
+        var startName = string.Join(" ", start.ToString().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return new SpanName(
+            startName.Length == 0 ? member.Name : startName,
+            "string.Create(global::System.Globalization.CultureInfo.InvariantCulture, $\"" + display + "\")",
+            new EquatableArray<string>(copies.ToImmutable()));
+    }
+
+    /// <summary>
+    /// Literal text goes into the start name as is, and into the display name as a string literal
+    /// in a hole, which needs no escaping of braces or quotes inside the interpolated string.
+    /// </summary>
+    private static void AppendLiteral(StringBuilder start, StringBuilder display, string text)
+    {
+        if (text.Length == 0)
+            return;
+
+        start.Append(text);
+        display.Append('{').Append(Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(text, quote: true)).Append('}');
+    }
+
+    /// <summary>
+    /// Appends a <c>{parameter}</c> or <c>{parameter.Member}</c> token to the display name. False
+    /// when the token names no parameter. A path that does not resolve is reported as ZTEL022 and
+    /// left out, but is still a parameter token, so it is not kept in the start name either.
+    /// </summary>
+    private static bool AppendParameterToken(
+        Compilation compilation,
+        INamedTypeSymbol target,
+        IMethodSymbol member,
+        string token,
+        StringBuilder display,
+        ImmutableArray<string>.Builder copies,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
+    {
+        var content = token.Substring(1, token.Length - 2);
+        var dot = content.IndexOf('.');
+        var parameter = FindParameter(member, dot < 0 ? content : content.Substring(0, dot));
+        if (parameter is null)
+            return false;
+
+        var path = PathResolver.Resolve(compilation, parameter.Type, dot < 0 ? string.Empty : content.Substring(dot + 1));
+        if (path.Resolved)
+        {
+            AppendParameterValue(display, copies, parameter, path.Access!);
+        }
+        else
+        {
+            diagnostics.Add(DiagnosticInfo.Create(
+                InstrumentDiagnostics.SpanNameTokenPathNotFound,
+                member.Locations.FirstOrDefault() ?? target.Locations.FirstOrDefault(),
+                path.MissingSegment, token, target.Name, member.Name, path.MissingOn?.ToDisplayString()));
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// A parameter token's hole in the display name. The argument is read through a copy when the
+    /// access null-tests it, as <c>[TraceTag]</c> does: it is forwarded to the inner call, and
+    /// testing it would leave it maybe-null there.
+    /// </summary>
+    private static void AppendParameterValue(
+        StringBuilder display, ImmutableArray<string>.Builder copies, IParameterSymbol parameter, string access)
+    {
+        var root = TypeDeclarations.Identifier(parameter.Name);
+        if (access.StartsWith("?.", StringComparison.Ordinal))
+        {
+            var copy = "_nameArg" + copies.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            copies.Add($"var {copy} = {root};");
+            root = copy;
+        }
+
+        display.Append('{').Append(root).Append(access).Append('}');
+    }
+
+    private static IParameterSymbol? FindParameter(IMethodSymbol method, string name)
+    {
+        foreach (var parameter in method.Parameters)
+        {
+            if (string.Equals(parameter.Name, name, StringComparison.Ordinal))
+                return parameter;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Reads what <c>[Trace]</c> asks for beyond a plain span: its kind, the error status from the
+    /// result, the display name and the tags at start. Null when it asks for none of them.
+    /// </summary>
+    private static TraceOptions? BuildTraceOptions(
+        Compilation compilation,
+        INamedTypeSymbol target,
+        IMethodSymbol method,
+        ITypeSymbol resultType,
+        bool returnsVoid,
+        SpanName spanName,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
+    {
+        if (FindAttribute(method, TraceAttributeFqn) is not { } attr)
+            return null;
+
+        var kind = TraceKind(attr);
+        var tagsAtStart = GetNamedBool(attr, "TagsAtStart");
+        var errorWhen = GetNamedString(attr, "ErrorWhen");
+        var errorDescription = GetNamedString(attr, "ErrorDescription");
+
+        string? guard = null;
+        string? description = null;
+        if (!string.IsNullOrWhiteSpace(errorWhen) && returnsVoid)
+        {
+            diagnostics.Add(DiagnosticInfo.Create(
+                InstrumentDiagnostics.ResultReadOnVoidMethod,
+                MethodLocation(method),
+                $"Trace(ErrorWhen = {Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(errorWhen!, quote: true)})",
+                target.ToDisplayString(),
+                method.Name));
+        }
+        else if (!string.IsNullOrWhiteSpace(errorWhen)
+            && TryBuildGuard(compilation, attr, method, resultType, errorWhen, diagnostics, out guard, "ErrorWhen"))
+        {
+            description = ErrorDescriptionAccess(compilation, attr, method, resultType, errorDescription, diagnostics);
+        }
+
+        if (kind is null && guard is null && spanName.DisplayName is null && !tagsAtStart)
+            return null;
+
+        return new TraceOptions(kind, guard, description, spanName.DisplayName, spanName.Copies, tagsAtStart);
+    }
+
+    /// <summary>The span kind as an expression, or null for the default <c>Internal</c>.</summary>
+    private static string? TraceKind(AttributeData attr)
+    {
+        foreach (var named in attr.NamedArguments)
+        {
+            if (!string.Equals(named.Key, "Kind", StringComparison.Ordinal) || named.Value.Value is not int value || value == 0)
+                continue;
+
+            foreach (var field in named.Value.Type!.GetMembers().OfType<IFieldSymbol>())
+            {
+                if (field.HasConstantValue && field.ConstantValue is int constant && constant == value)
+                    return "ActivityKind." + field.Name;
             }
 
-            i = close + 1;
+            return "(ActivityKind)" + value.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The <c>ErrorDescription</c> access, converted to a string, or null when there is none or it
+    /// does not resolve, having reported ZTEL007.
+    /// </summary>
+    private static string? ErrorDescriptionAccess(
+        Compilation compilation,
+        AttributeData attr,
+        IMethodSymbol method,
+        ITypeSymbol resultType,
+        string? errorDescription,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
+    {
+        if (string.IsNullOrWhiteSpace(errorDescription))
+            return null;
+
+        var path = PathResolver.Resolve(compilation, resultType, errorDescription!);
+        if (!path.Resolved)
+        {
+            diagnostics.Add(PathNotFound(
+                AttributeLocations.Named(attr, "ErrorDescription", MethodLocation(method)), errorDescription!, path));
+            return null;
+        }
+
+        if (path.FinalType!.SpecialType == SpecialType.System_String)
+            return path.Access;
+
+        return path.Access + (PathResolver.CanBeNull(path.FinalType) ? "?.ToString()" : ".ToString()");
     }
 
     /// <summary>
@@ -507,6 +722,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
 
             string? accessSuffix = null;
             var needsCopy = false;
+            var canBeNull = PathResolver.CanBeNull(ps[i].Type);
 
             if (tagName is not null && !untraced && !string.IsNullOrEmpty(member))
             {
@@ -514,6 +730,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 if (path.Resolved)
                 {
                     accessSuffix = path.Access;
+                    canBeNull = path.CanBeNull;
 
                     // A copy is only needed when the emitted access actually null-tests the
                     // argument; a plain `.Member` on a non-nullable value leaves its state alone.
@@ -533,7 +750,8 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 ps[i].Name,
                 tagName,
                 accessSuffix,
-                needsCopy);
+                needsCopy,
+                canBeNull);
         }
 
         return result;
@@ -690,13 +908,14 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         ITypeSymbol resultType,
         string? when,
         ImmutableArray<DiagnosticInfo>.Builder diagnostics,
-        out string? guard)
+        out string? guard,
+        string propertyName = "When")
     {
         guard = null;
         if (string.IsNullOrWhiteSpace(when))
             return true;
 
-        var location = AttributeLocations.Named(attr, "When", MethodLocation(method));
+        var location = AttributeLocations.Named(attr, propertyName, MethodLocation(method));
         var path = PathResolver.Resolve(compilation, resultType, when!);
         if (!path.Resolved)
         {
@@ -709,7 +928,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         if (!PathResolver.IsBoolean(path.FinalType!) && !PathResolver.IsDynamic(path.FinalType!))
         {
             diagnostics.Add(DiagnosticInfo.Create(
-                InstrumentDiagnostics.WhenNotBoolean, location, when, path.FinalType!.ToDisplayString()));
+                InstrumentDiagnostics.WhenNotBoolean, location, when, path.FinalType!.ToDisplayString(), propertyName));
             return false;
         }
 
