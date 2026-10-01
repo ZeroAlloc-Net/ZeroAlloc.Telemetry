@@ -36,7 +36,7 @@ internal sealed class OrderRepositoryInstrumented : IOrderRepository
         using var _activity = _activitySource.StartActivity("orders.get_by_id");
         try
         {
-            var _result = await _inner.GetByIdAsync(id, ct);
+            var _result = await _inner.GetByIdAsync(id, ct).ConfigureAwait(false);
             return _result;
         }
         catch (Exception _ex)
@@ -48,7 +48,7 @@ internal sealed class OrderRepositoryInstrumented : IOrderRepository
 
     private static async global::System.Threading.Tasks.Task<global::OrderRow?> _fault_GetByIdAsync_0(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }
@@ -74,7 +74,7 @@ internal sealed class OrderRepositoryInstrumented : IOrderRepository
         using var _activity = _activitySource.StartActivity("orders.find");
         try
         {
-            var _result = await _inner.FindAsync(filter, ct);
+            var _result = await _inner.FindAsync(filter, ct).ConfigureAwait(false);
             return _result;
         }
         catch (Exception _ex)
@@ -86,7 +86,7 @@ internal sealed class OrderRepositoryInstrumented : IOrderRepository
 
     private static async global::System.Threading.Tasks.Task<global::OrderRow> _fault_FindAsync_1(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }
@@ -112,7 +112,7 @@ internal sealed class OrderRepositoryInstrumented : IOrderRepository
         using var _activity = _activitySource.StartActivity("orders.search");
         try
         {
-            var _result = await _inner.SearchAsync(term, tenant, ct);
+            var _result = await _inner.SearchAsync(term, tenant, ct).ConfigureAwait(false);
             return _result;
         }
         catch (Exception _ex)
@@ -124,7 +124,7 @@ internal sealed class OrderRepositoryInstrumented : IOrderRepository
 
     private static async global::System.Threading.Tasks.Task<global::OrderRow?> _fault_SearchAsync_2(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }

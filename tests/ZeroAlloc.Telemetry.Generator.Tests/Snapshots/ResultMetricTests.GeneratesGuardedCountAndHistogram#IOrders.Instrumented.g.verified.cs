@@ -39,7 +39,7 @@ internal sealed class OrdersInstrumented : IOrders
         var _sw = Stopwatch.GetTimestamp();
         try
         {
-            var _result = await _inner.AcceptAsync(orderId, ct);
+            var _result = await _inner.AcceptAsync(orderId, ct).ConfigureAwait(false);
             var _tagged = _result;
             if (_tagged?.IsSuccess == true)
                 _orders_accepted.Add(1);
@@ -56,7 +56,7 @@ internal sealed class OrdersInstrumented : IOrders
 
     private static async global::System.Threading.Tasks.Task<global::Result<string, global::OrderError>> _fault_AcceptAsync_0(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }

@@ -42,7 +42,7 @@ internal sealed class ChatInstrumented : IChat
         }
         try
         {
-            var _result = await _inner.ChatAsync(operation, model, ct);
+            var _result = await _inner.ChatAsync(operation, model, ct).ConfigureAwait(false);
             _activity?.SetTag("gen_ai.response.model", _result.ResponseModel);
             if (_activity is not null && _result.IsFailure)
                 _activity.SetStatus(ActivityStatusCode.Error, _result.Error?.Message);
@@ -57,7 +57,7 @@ internal sealed class ChatInstrumented : IChat
 
     private static async global::System.Threading.Tasks.ValueTask<global::ChatResult> _fault_ChatAsync_0(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }

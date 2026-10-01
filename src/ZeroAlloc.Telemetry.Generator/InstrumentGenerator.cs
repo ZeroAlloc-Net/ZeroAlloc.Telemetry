@@ -75,23 +75,33 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 ctx.ReportDiagnostic(diag.ToDiagnostic());
         });
 
+        // The assembly's informational version, the default version of every source and meter. A
+        // string, so an edit that leaves it alone keeps every proxy's output cached.
+        var assemblyVersion = context.CompilationProvider
+            .Select(static (compilation, _) => InformationalVersion(compilation));
+
         // Report diagnostics collected during parse, then emit code only when
         // the target is valid and its proxy collides with no earlier one.
-        context.RegisterSourceOutput(results.Combine(collisions), static (ctx, pair) =>
+        context.RegisterSourceOutput(results.Combine(collisions).Combine(assemblyVersion), static (ctx, pair) =>
         {
-            var (result, found) = pair;
+            var ((result, found), version) = pair;
             foreach (var diag in result.Diagnostics)
                 ctx.ReportDiagnostic(diag.ToDiagnostic());
 
             if (result.Model is { } model && !found.Skips(model.HintName))
             {
-                ctx.AddSource(model.HintName, ProxyWriter.Write(model));
+                ctx.AddSource(model.HintName, ProxyWriter.Write(model, model.Version ?? version));
             }
         });
 
         // ZTEL003: method-level metric, trace and tag attributes on a method whose containing type
         // lacks [Instrument] are silently ignored. Scan every method carrying any of them and
         // check the enclosing type.
+        RegisterOrphanDiagnostics(context);
+    }
+
+    private static void RegisterOrphanDiagnostics(IncrementalGeneratorInitializationContext context)
+    {
         RegisterMethodAttributeDiagnostic(context, TraceAttributeFqn, "Trace");
         RegisterMethodAttributeDiagnostic(context, CountAttributeFqn, "Count");
         RegisterMethodAttributeDiagnostic(context, HistogramAttributeFqn, "Histogram");
@@ -101,6 +111,25 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         RegisterMethodAttributeDiagnostic(context, MetricTagConstantAttrFqn, "MetricTagConstant");
         RegisterMethodAttributeDiagnostic(context, TraceTagFromResultAttrFqn, "TraceTagFromResult");
         RegisterMethodAttributeDiagnostic(context, TraceTagConstantAttrFqn, "TraceTagConstant");
+    }
+
+    /// <summary>
+    /// The compilation's <c>AssemblyInformationalVersionAttribute</c> value, or null when it has
+    /// none. The .NET SDK sets it from the project's <c>Version</c>.
+    /// </summary>
+    private static string? InformationalVersion(Compilation compilation)
+    {
+        foreach (var attr in compilation.Assembly.GetAttributes())
+        {
+            if (string.Equals(attr.AttributeClass?.ToDisplayString(), "System.Reflection.AssemblyInformationalVersionAttribute", StringComparison.Ordinal)
+                && attr.ConstructorArguments.Length == 1
+                && attr.ConstructorArguments[0].Value is string { Length: > 0 } version)
+            {
+                return version;
+            }
+        }
+
+        return null;
     }
 
     private static void RegisterMethodAttributeDiagnostic(
@@ -180,16 +209,12 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             return new ParseResult(null, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutable()), null);
         }
 
-        // PublicProxy is a named argument; absent means the default (internal proxy).
-        var publicProxy = false;
-        foreach (var named in instrumentAttr.NamedArguments)
-        {
-            if (string.Equals(named.Key, "PublicProxy", StringComparison.Ordinal))
-                publicProxy = named.Value.Value is true;
-        }
+        // Named arguments; absent means the default: an internal proxy, the assembly's version.
+        var publicProxy = GetNamedBool(instrumentAttr, "PublicProxy");
+        var version = GetNamedString(instrumentAttr, "Version");
 
         var methods = BuildMethods(target, ctx.SemanticModel.Compilation, diagnostics);
-        var model = BuildModel(target, activitySource, methods, publicProxy);
+        var model = BuildModel(target, activitySource, methods, publicProxy) with { Version = version };
 
         return new ParseResult(
             model,
@@ -304,6 +329,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
 
             var returnType  = member.ReturnType.ToDisplayString(TypeFormat);
             var isAsync     = TaskShapes.IsAwaitable(member.ReturnType);
+            var configurable = isAsync && TaskShapes.HasConfigureAwait(member.ReturnType);
             var returnsVoid = member.ReturnsVoid || TaskShapes.IsVoidAwaitable(member.ReturnType);
 
             var parameters = BuildParameters(compilation, member, traceName is null, diagnostics);
@@ -337,7 +363,8 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 BuildTraceNameExpression(spanName.StartName),
                 TypeDeclarations.TypeParameterList(member.TypeParameters),
                 TypeDeclarations.ConstraintClauses(member.TypeParameters, TypeFormat),
-                trace));
+                trace,
+                configurable));
         }
         return new EquatableArray<MethodModel>(methods.ToImmutable());
     }

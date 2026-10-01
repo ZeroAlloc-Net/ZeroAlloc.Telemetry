@@ -36,7 +36,7 @@ internal sealed class VectorStoreInstrumented : IVectorStore
         using var _activity = _activitySource.StartActivity("vectorstore.search");
         try
         {
-            var _result = await _inner.SearchAsync(collection, ct);
+            var _result = await _inner.SearchAsync(collection, ct).ConfigureAwait(false);
             var _tagged = _result;
             _activity?.SetTag("vectorstore.result.count", _tagged?.Count);
             return _result;
@@ -50,7 +50,7 @@ internal sealed class VectorStoreInstrumented : IVectorStore
 
     private static async global::System.Threading.Tasks.Task<global::System.Collections.Generic.IReadOnlyList<string>> _fault_SearchAsync_0(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }

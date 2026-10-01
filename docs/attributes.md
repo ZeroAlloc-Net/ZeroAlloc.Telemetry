@@ -16,6 +16,7 @@ public sealed class InstrumentAttribute : Attribute
 {
     public string ActivitySource { get; }
     public bool PublicProxy { get; set; }
+    public string? Version { get; set; }
     public InstrumentAttribute(string activitySource);
 }
 ```
@@ -45,6 +46,18 @@ public interface ISharedService { ... }
 ```
 
 It is opt-in because it widens the declaring assembly's public API surface.
+
+**`Version`:** The version given to the `ActivitySource` and the `Meter`, so a backend can tell
+instrumentation versions apart. By default it is the declaring assembly's informational version,
+which the .NET SDK sets from the project's `Version`, read when the proxy is generated:
+
+```csharp
+[Instrument("MyApp.Payments")]                     // new("MyApp.Payments", "1.4.0+5f2c1e9")
+[Instrument("MyApp.Payments", Version = "2.0.0")]  // new("MyApp.Payments", "2.0.0")
+[Instrument("MyApp.Payments", Version = "")]       // new("MyApp.Payments"), no version
+```
+
+An assembly without an informational version gets no version, as before.
 
 ---
 
@@ -340,7 +353,7 @@ private static readonly Histogram<double> _payment_charge_ms =
 var _sw = Stopwatch.GetTimestamp();
 try
 {
-    var _result = await _inner.ChargeAsync(request, ct);
+    var _result = await _inner.ChargeAsync(request, ct).ConfigureAwait(false);
     _payment_charge_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
     return _result;
 }
@@ -384,7 +397,7 @@ Task<Result<string, OrderError>> AcceptAsync(string orderId, CancellationToken c
 // Generated:
 try
 {
-    var _result = await _inner.AcceptAsync(orderId, ct);
+    var _result = await _inner.AcceptAsync(orderId, ct).ConfigureAwait(false);
     var _tagged = _result;
     if (_tagged?.IsSuccess == true)
         _orders_accept_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
@@ -428,7 +441,7 @@ ValueTask<Result<ChatResponse, ChatError>> CompleteAsync(ChatRequest request, Ca
 
 ```csharp
 // Generated, for a Result that is a struct and a ChatResponse and Usage that are classes:
-var _result = await _inner.CompleteAsync(request, ct);
+var _result = await _inner.CompleteAsync(request, ct).ConfigureAwait(false);
 if (_result.IsSuccess && _result.Value?.Usage?.InputTokens is { } _read0)
     _llm_tokens_input.Add(_read0);
 if (_result.IsSuccess && _result.Value?.Usage?.OutputTokens is { } _read1)

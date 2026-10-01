@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Reflection;
 using System.Diagnostics.Metrics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -96,9 +97,17 @@ if (!Equals(customer, "cust-7") || !Equals(operation, "quote"))
 // tags the sampler sees.
 Activity? decided = null;
 var samplerSawCustomer = false;
+string? sourceVersion = null;
 using var spanListener = new ActivityListener
 {
-    ShouldListenTo = source => string.Equals(source.Name, "ZeroAlloc.Telemetry.AotSmoke", StringComparison.Ordinal),
+    ShouldListenTo = source =>
+    {
+        if (!string.Equals(source.Name, "ZeroAlloc.Telemetry.AotSmoke", StringComparison.Ordinal))
+            return false;
+
+        sourceVersion = source.Version;
+        return true;
+    },
     Sample = (ref ActivityCreationOptions<ActivityContext> options) =>
     {
         if (options.Tags is { } tags)
@@ -128,6 +137,12 @@ if (!string.Equals(decided.DisplayName, "decide cust-9", StringComparison.Ordina
 if (decided.Status != ActivityStatusCode.Error || !string.Equals(decided.StatusDescription, "out of stock", StringComparison.Ordinal))
     return Fail($"decide span status expected Error 'out of stock', got {decided.Status} '{decided.StatusDescription}'");
 if (!samplerSawCustomer) return Fail("the sampler did not see the order.customer tag");
+
+// The source carries the assembly's informational version (#172).
+var assemblyVersion = typeof(OrderService).Assembly
+    .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+if (string.IsNullOrEmpty(sourceVersion) || !string.Equals(sourceVersion, assemblyVersion, StringComparison.Ordinal))
+    return Fail($"ActivitySource version expected '{assemblyVersion}', got '{sourceVersion}'");
 
 // A generic method, instantiated over a value type and a reference type.
 var echoedInt = await proxy.EchoAsync(7).ConfigureAwait(false);

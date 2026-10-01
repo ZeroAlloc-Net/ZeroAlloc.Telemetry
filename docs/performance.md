@@ -54,7 +54,7 @@ One allocation per type at startup. Zero per call.
 var activity = _source.StartActivity("order.create");
 try
 {
-    return await _inner.CreateOrderAsync(request, ct);
+    return await _inner.CreateOrderAsync(request, ct).ConfigureAwait(false);
 }
 finally
 {

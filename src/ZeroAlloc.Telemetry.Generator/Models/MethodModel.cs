@@ -27,6 +27,10 @@ namespace ZeroAlloc.Telemetry.Generator.Models;
 /// </param>
 /// <param name="ConstraintClauses">The <c>where</c> clauses the proxy method repeats from the interface method.</param>
 /// <param name="Trace">What <c>[Trace]</c> asks for beyond a plain span, or null for nothing more.</param>
+/// <param name="ConfigureAwait">
+/// Whether the awaited inner call has <c>ConfigureAwait(bool)</c>: <c>Task</c> and <c>ValueTask</c>
+/// do, and a task-like type may.
+/// </param>
 internal sealed record MethodModel(
     string Name,
     string ReturnType,
@@ -44,5 +48,6 @@ internal sealed record MethodModel(
     string? TraceNameExpression = null,
     string TypeParameters = "",
     EquatableArray<string> ConstraintClauses = default,
-    TraceOptions? Trace = null
+    TraceOptions? Trace = null,
+    bool ConfigureAwait = false
 );

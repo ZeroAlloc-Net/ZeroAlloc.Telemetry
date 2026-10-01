@@ -26,3 +26,5 @@ ZeroAlloc.Telemetry.TraceAttribute.Kind.get -> System.Diagnostics.ActivityKind
 ZeroAlloc.Telemetry.TraceAttribute.Kind.set -> void
 ZeroAlloc.Telemetry.TraceAttribute.TagsAtStart.get -> bool
 ZeroAlloc.Telemetry.TraceAttribute.TagsAtStart.set -> void
+ZeroAlloc.Telemetry.InstrumentAttribute.Version.get -> string?
+ZeroAlloc.Telemetry.InstrumentAttribute.Version.set -> void

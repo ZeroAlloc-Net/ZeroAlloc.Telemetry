@@ -39,7 +39,7 @@ internal sealed class PlainInstrumented : IPlain
     {
         try
         {
-            var _result = await _inner.QuoteAsync(ct);
+            var _result = await _inner.QuoteAsync(ct).ConfigureAwait(false);
             if (_result.Priced)
                 _quote_cost.Record((double)_result.Cost);
             return _result;
@@ -52,7 +52,7 @@ internal sealed class PlainInstrumented : IPlain
 
     private static async global::System.Threading.Tasks.ValueTask<global::Quote> _fault_QuoteAsync_0(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }
@@ -77,7 +77,7 @@ internal sealed class PlainInstrumented : IPlain
     {
         try
         {
-            var _result = await _inner.SearchAsync(ct);
+            var _result = await _inner.SearchAsync(ct).ConfigureAwait(false);
             var _tagged = _result;
             if (_tagged?.Hits is { } _read0)
                 _search_hits.Record(_read0);
@@ -91,7 +91,7 @@ internal sealed class PlainInstrumented : IPlain
 
     private static async global::System.Threading.Tasks.Task<global::SearchPage> _fault_SearchAsync_1(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }
@@ -116,7 +116,7 @@ internal sealed class PlainInstrumented : IPlain
     {
         try
         {
-            var _result = await _inner.BatchAsync(ct);
+            var _result = await _inner.BatchAsync(ct).ConfigureAwait(false);
             _batch_items.Add(_result);
             return _result;
         }
@@ -128,7 +128,7 @@ internal sealed class PlainInstrumented : IPlain
 
     private static async global::System.Threading.Tasks.Task<int> _fault_BatchAsync_2(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }
@@ -153,7 +153,7 @@ internal sealed class PlainInstrumented : IPlain
     {
         try
         {
-            var _result = await _inner.MaybeAsync(ct);
+            var _result = await _inner.MaybeAsync(ct).ConfigureAwait(false);
             var _tagged = _result;
             if (_tagged is { } _read0)
                 _maybe_items.Add(_read0);
@@ -167,7 +167,7 @@ internal sealed class PlainInstrumented : IPlain
 
     private static async global::System.Threading.Tasks.Task<int?> _fault_MaybeAsync_3(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }

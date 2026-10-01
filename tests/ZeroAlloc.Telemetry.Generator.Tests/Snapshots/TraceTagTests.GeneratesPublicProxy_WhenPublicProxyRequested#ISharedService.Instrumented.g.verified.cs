@@ -36,7 +36,7 @@ public sealed class SharedServiceInstrumented : ISharedService
         using var _activity = _activitySource.StartActivity("shared.run");
         try
         {
-            await _inner.RunAsync(ct);
+            await _inner.RunAsync(ct).ConfigureAwait(false);
         }
         catch (Exception _ex)
         {
@@ -47,7 +47,7 @@ public sealed class SharedServiceInstrumented : ISharedService
 
     private static async global::System.Threading.Tasks.ValueTask _fault_RunAsync_0(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
     }
 }

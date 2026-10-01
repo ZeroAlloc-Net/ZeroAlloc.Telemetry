@@ -40,6 +40,19 @@ public sealed class InstrumentAttribute : Attribute
     /// </remarks>
     public bool PublicProxy { get; set; }
 
+    /// <summary>
+    /// The version given to the <see cref="System.Diagnostics.ActivitySource"/> and the
+    /// <see cref="System.Diagnostics.Metrics.Meter"/>, so a backend can tell instrumentation
+    /// versions apart. Null, the default, uses the declaring assembly's informational version, and
+    /// no version when it has none. An empty string gives no version.
+    /// </summary>
+    /// <remarks>
+    /// The default is read when the proxy is generated, from the assembly's
+    /// <c>AssemblyInformationalVersionAttribute</c>, which the .NET SDK sets from the project's
+    /// <c>Version</c>. It costs nothing at run time.
+    /// </remarks>
+    public string? Version { get; set; }
+
     /// <summary>Marks the interface for instrumentation against the named activity source.</summary>
     /// <param name="activitySource">The activity source name, typically the service or module name.</param>
     public InstrumentAttribute(string activitySource) => ActivitySource = activitySource;

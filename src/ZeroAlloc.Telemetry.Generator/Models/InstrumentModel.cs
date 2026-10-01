@@ -10,6 +10,10 @@ namespace ZeroAlloc.Telemetry.Generator.Models;
 /// <param name="ProxyName">The proxy's simple name, without type parameters.</param>
 /// <param name="TypeParameters">The proxy's type parameter list, such as <c>&lt;T&gt;</c>, or empty.</param>
 /// <param name="ConstraintClauses">The <c>where</c> clauses the proxy repeats from the interface.</param>
+/// <param name="Version">
+/// The <c>Version</c> set on <c>[Instrument]</c>, or null when it is not set and the assembly's
+/// informational version applies.
+/// </param>
 /// <param name="ContainingTypes">
 /// The partial declarations of the interface's containing types, outermost first, which the
 /// proxy is emitted inside; empty for a top-level interface.
@@ -24,5 +28,6 @@ internal sealed record InstrumentModel(
     bool PublicProxy,
     string TypeParameters,
     EquatableArray<string> ConstraintClauses,
-    EquatableArray<string> ContainingTypes
+    EquatableArray<string> ContainingTypes,
+    string? Version = null
 );

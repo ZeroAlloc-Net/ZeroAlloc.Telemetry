@@ -46,7 +46,7 @@ internal sealed class StoreInstrumented : IStore
         using var _activity = _activitySource.StartActivity(_spanName_SaveAsync_0);
         try
         {
-            await _inner.SaveAsync(key);
+            await _inner.SaveAsync(key).ConfigureAwait(false);
         }
         catch (Exception _ex)
         {
@@ -57,7 +57,7 @@ internal sealed class StoreInstrumented : IStore
 
     private static async global::System.Threading.Tasks.Task _fault_SaveAsync_0(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
     }
 
@@ -82,7 +82,7 @@ internal sealed class StoreInstrumented : IStore
         using var _activity = _activitySource.StartActivity(_spanName_SaveAsync_1);
         try
         {
-            await _inner.SaveAsync(key, ttl);
+            await _inner.SaveAsync(key, ttl).ConfigureAwait(false);
         }
         catch (Exception _ex)
         {
@@ -93,7 +93,7 @@ internal sealed class StoreInstrumented : IStore
 
     private static async global::System.Threading.Tasks.Task _fault_SaveAsync_1(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
     }
 
@@ -118,7 +118,7 @@ internal sealed class StoreInstrumented : IStore
         using var _activity = _activitySource.StartActivity("store.constant");
         try
         {
-            await _inner.PurgeAsync();
+            await _inner.PurgeAsync().ConfigureAwait(false);
         }
         catch (Exception _ex)
         {
@@ -129,7 +129,7 @@ internal sealed class StoreInstrumented : IStore
 
     private static async global::System.Threading.Tasks.Task _fault_PurgeAsync_2(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
     }
 }
