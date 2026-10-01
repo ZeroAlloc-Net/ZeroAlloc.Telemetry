@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.9.0...v1.10.0) (2026-10-01)
+
+
+### Features
+
+* allow several [TraceTag] on one parameter ([#182](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/182)) ([27822c8](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/27822c8e5378d425ff954cdcd0925a7335b063a2)), closes [#181](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/181)
+
 ## [1.9.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.8.0...v1.9.0) (2026-10-01)
 
 
