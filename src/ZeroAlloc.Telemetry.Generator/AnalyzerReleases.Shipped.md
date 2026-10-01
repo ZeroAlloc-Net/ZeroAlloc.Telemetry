@@ -67,3 +67,11 @@ ZTEL022 | ZeroAlloc.Telemetry | Warning  | A {parameter.Member} token in a [Trac
 ZTEL023 | ZeroAlloc.Telemetry | Warning  | Instrumentation on an accessor or a ref-returning method is ignored
 ZTEL024 | ZeroAlloc.Telemetry | Warning  | A tag or name token reads a parameter value the proxy cannot read
 ZTEL025 | ZeroAlloc.Telemetry | Error    | Instrumented interface has a static abstract member
+
+## Release 1.10.0
+
+### New Rules
+
+Rule ID | Category            | Severity | Notes
+--------|---------------------|----------|-------------------------------------------------------------------------
+ZTEL026 | ZeroAlloc.Telemetry | Warning  | Two [TraceTag] or [TraceTagConstant] set one tag name on a span
