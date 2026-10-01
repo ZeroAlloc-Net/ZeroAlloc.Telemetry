@@ -9,3 +9,4 @@ ZTEL018 | ZeroAlloc.Telemetry | Warning  | [Histogram] unit is not a time unit t
 ZTEL019 | ZeroAlloc.Telemetry | Error    | Histogram bucket boundaries are not finite and strictly increasing
 ZTEL020 | ZeroAlloc.Telemetry | Error    | Histogram buckets need System.Diagnostics.DiagnosticSource 9.0
 ZTEL021 | ZeroAlloc.Telemetry | Warning  | A constant tag value is an array or a type and records nothing
+ZTEL022 | ZeroAlloc.Telemetry | Warning  | A {parameter.Member} token in a [Trace] name names no member; it is left out

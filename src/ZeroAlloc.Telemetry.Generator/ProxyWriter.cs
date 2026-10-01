@@ -54,7 +54,11 @@ internal static class ProxyWriter
         WriteFieldsAndConstructor(sb, model);
 
         for (var i = 0; i < model.Methods.Count; i++)
+        {
             WriteMethod(sb, model.Methods[i], i, fields);
+            if (HasStartTags(model.Methods[i]))
+                WriteStartTagsMethod(sb, model.Methods[i], i);
+        }
 
         if (model.Methods.Any(static m => m.ResultMetrics.Any(static r => r.Each is EachKind.Span or EachKind.Memory)))
             WriteRecordEachHelpers(sb);
@@ -332,16 +336,53 @@ internal static class ProxyWriter
         var spanName = method.TraceNameExpression is not null
             ? SpanNameField(method, index)
             : Literal(method.TraceName!);
-        sb.AppendLine($"        using var _activity = _activitySource.StartActivity({spanName});");
+        var trace = method.Trace;
+        var startTags = HasStartTags(method);
 
+        if (startTags)
+        {
+            // The tags go to StartActivity, so a sampler sees them. They are only collected when
+            // something listens; StartActivity returns null without a listener anyway.
+            sb.AppendLine("        using var _activity = _activitySource.HasListeners()");
+            sb.AppendLine($"            ? _activitySource.StartActivity({spanName}, {trace!.Kind ?? "ActivityKind.Internal"}, default(ActivityContext), {StartTagsMethodName(method, index)}{method.TypeParameters}({ArgList(method)}))");
+            sb.AppendLine("            : null;");
+        }
+        else if (trace?.Kind is { } kind)
+        {
+            sb.AppendLine($"        using var _activity = _activitySource.StartActivity({spanName}, {kind});");
+        }
+        else
+        {
+            sb.AppendLine($"        using var _activity = _activitySource.StartActivity({spanName});");
+        }
+
+        if (trace?.DisplayName is { } displayName)
+        {
+            // Composed only for a sampled span, so an unsampled call builds no string.
+            sb.AppendLine("        if (_activity is not null)");
+            sb.AppendLine("        {");
+            foreach (var copy in trace.DisplayNameCopies)
+                sb.AppendLine($"            {copy}");
+            sb.AppendLine($"            _activity.DisplayName = {displayName};");
+            sb.AppendLine("        }");
+        }
+
+        if (!startTags)
+            WriteStartedSpanTags(sb, method);
+    }
+
+    /// <summary>
+    /// Sets the constant and parameter tags on the started span. `_activity?.` short-circuits the
+    /// whole call when nothing sampled the span, so an unsampled call neither evaluates nor boxes
+    /// the argument.
+    /// </summary>
+    private static void WriteStartedSpanTags(StringBuilder sb, MethodModel method)
+    {
         // Constants first: they identify which implementation is running, so they are the
         // most useful thing present if a sampler inspects tags at ActivityStarted.
         foreach (var constant in method.ConstantTags)
             sb.AppendLine($"        _activity?.SetTag({Literal(constant.TagName)}, {constant.Literal});");
 
-        // Set immediately after the span starts so the tags are present for its whole
-        // lifetime. `_activity?.` short-circuits the whole call when nothing sampled the
-        // span, so an unsampled call neither evaluates nor boxes the argument.
         foreach (var p in method.Parameters)
         {
             if (p.TagName is null)
@@ -363,6 +404,61 @@ internal static class ProxyWriter
 
             sb.AppendLine($"        _activity?.SetTag({Literal(p.TagName)}, {access});");
         }
+    }
+
+    /// <summary>Whether the method passes tags to <c>StartActivity</c>: asked for, and there are some.</summary>
+    private static bool HasStartTags(MethodModel method) =>
+        method.Trace is { TagsAtStart: true }
+        && (method.ConstantTags.Count > 0 || method.Parameters.Any(static p => p.TagName is not null));
+
+    private static string StartTagsMethodName(MethodModel method, int index) =>
+        $"_startTags_{method.Name}_{index.ToString(CultureInfo.InvariantCulture)}";
+
+    private static string ArgList(MethodModel method) =>
+        string.Join(", ", method.Parameters.Select(p => Id(p.Name)));
+
+    /// <summary>
+    /// Collects the tags passed to <c>StartActivity</c>. A method of its own, so reading an
+    /// argument through a null-conditional does not change its null-state where it is forwarded.
+    /// A null value adds no tag, as <c>SetTag</c> adds none for a null.
+    /// </summary>
+    private static void WriteStartTagsMethod(StringBuilder sb, MethodModel method, int index)
+    {
+        sb.AppendLine();
+        var paramList = string.Join(", ", method.Parameters.Select(p => $"{p.Type} {Id(p.Name)}"));
+        sb.AppendLine($"    private static TagList {StartTagsMethodName(method, index)}{method.TypeParameters}({paramList})");
+        foreach (var clause in method.ConstraintClauses)
+            sb.AppendLine($"        {clause}");
+        sb.AppendLine("    {");
+        sb.AppendLine("        var _startTags = new TagList();");
+
+        foreach (var constant in method.ConstantTags)
+        {
+            if (!string.Equals(constant.Literal, "null", StringComparison.Ordinal))
+                sb.AppendLine($"        _startTags.Add({Literal(constant.TagName)}, {constant.Literal});");
+        }
+
+        var n = 0;
+        foreach (var p in method.Parameters)
+        {
+            if (p.TagName is null)
+                continue;
+
+            var access = Id(p.Name) + (p.TagAccessSuffix ?? string.Empty);
+            if (p.TagCanBeNull)
+            {
+                var local = "_startTag" + (n++).ToString(CultureInfo.InvariantCulture);
+                sb.AppendLine($"        if ({access} is {{ }} {local})");
+                sb.AppendLine($"            _startTags.Add({Literal(p.TagName)}, {local});");
+            }
+            else
+            {
+                sb.AppendLine($"        _startTags.Add({Literal(p.TagName)}, {access});");
+            }
+        }
+
+        sb.AppendLine("        return _startTags;");
+        sb.AppendLine("    }");
     }
 
     private static void WriteInstrumentedBody(StringBuilder sb, MethodModel method, string argList, MetricFieldTable fields)
@@ -429,11 +525,7 @@ internal static class ProxyWriter
         // or a metric value, which is always read through the root. A guarded tag that records
         // the whole result still null-tests _result in its guard, so it needs the copy too.
         var needsCopy = method.ResultCanBeNull
-            && (tags.Any(t => !string.IsNullOrEmpty(t.Member) || t.GuardExpression is not null)
-                || method.ResultMetrics.Count > 0
-                || method.MetricTags.Any(static t => t.ReadsResult)
-                || method.Count?.GuardExpression is not null
-                || method.Histogram?.GuardExpression is not null);
+            && (method.Trace?.ErrorGuard is not null || NeedsResultCopy(method, tags));
 
         if (needsCopy)
             sb.AppendLine("            var _tagged = _result;");
@@ -443,9 +535,25 @@ internal static class ProxyWriter
         foreach (var tag in tags)
             WriteResultTag(sb, tag, root);
 
+        // The status after the tags, so a span marked failed still carries what the result said.
+        if (method.Trace?.ErrorGuard is { } errorGuard)
+        {
+            var description = method.Trace.ErrorDescription is { } d ? ", " + root + d : string.Empty;
+            sb.AppendLine($"            if (_activity is not null && {root}{errorGuard})");
+            sb.AppendLine($"                _activity.SetStatus(ActivityStatusCode.Error{description});");
+        }
+
         for (var i = 0; i < method.ResultMetrics.Count; i++)
             WriteResultMetric(sb, method, method.ResultMetrics[i], i, root, fields, ref tagLists);
     }
+
+    /// <summary>Whether a tag, metric or guard reads the result through a null test.</summary>
+    private static bool NeedsResultCopy(MethodModel method, EquatableArray<ResultTagModel> tags) =>
+        tags.Any(t => !string.IsNullOrEmpty(t.Member) || t.GuardExpression is not null)
+        || method.ResultMetrics.Count > 0
+        || method.MetricTags.Any(static t => t.ReadsResult)
+        || method.Count?.GuardExpression is not null
+        || method.Histogram?.GuardExpression is not null;
 
     private static void WriteResultTag(StringBuilder sb, ResultTagModel tag, string root)
     {

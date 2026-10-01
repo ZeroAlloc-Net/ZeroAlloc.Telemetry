@@ -126,9 +126,12 @@ internal static class PathResolver
     /// <summary>Whether the type is <c>dynamic</c>, whose members are only known at run time.</summary>
     public static bool IsDynamic(ITypeSymbol type) => type.TypeKind == TypeKind.Dynamic;
 
-    /// <summary>A reference type or <c>Nullable&lt;T&gt;</c>.</summary>
+    /// <summary>
+    /// A reference type, <c>Nullable&lt;T&gt;</c>, or a type parameter not constrained to a value
+    /// type, which may be either.
+    /// </summary>
     public static bool CanBeNull(ITypeSymbol type) =>
-        type.IsReferenceType || IsNullableValueType(type);
+        type.IsReferenceType || IsNullableValueType(type) || type is ITypeParameterSymbol { IsValueType: false };
 
     /// <summary>Returns T for <c>Nullable&lt;T&gt;</c>, otherwise the type unchanged.</summary>
     public static ITypeSymbol UnwrapNullable(ITypeSymbol type) =>
@@ -154,6 +157,18 @@ internal static class PathResolver
     /// </remarks>
     private static ITypeSymbol? FindMemberType(Compilation compilation, ITypeSymbol type, string name)
     {
+        // A type parameter has the members of its constraints, as C# lookup gives it.
+        if (type is ITypeParameterSymbol parameter)
+        {
+            foreach (var constraint in parameter.ConstraintTypes)
+            {
+                if (FindMemberType(compilation, constraint, name) is { } found)
+                    return found;
+            }
+
+            return null;
+        }
+
         for (var t = type; t is not null; t = t.BaseType)
         {
             if (TryFindReadable(compilation, t, name, out var found))

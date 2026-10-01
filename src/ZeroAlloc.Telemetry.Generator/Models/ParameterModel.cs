@@ -20,9 +20,11 @@ namespace ZeroAlloc.Telemetry.Generator.Models;
 /// argument's null-state intact.
 /// </para>
 /// </param>
+/// <param name="TagCanBeNull">Whether the tagged value can be null, so a tag passed at the span's start skips it.</param>
 internal sealed record ParameterModel(
     string Type,
     string Name,
     string? TagName = null,
     string? TagAccessSuffix = null,
-    bool TagNeedsCopy = false);
+    bool TagNeedsCopy = false,
+    bool TagCanBeNull = false);

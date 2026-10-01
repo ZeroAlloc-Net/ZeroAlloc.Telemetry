@@ -290,10 +290,10 @@ Names that would still collide are made distinct with a numeric suffix, in the o
 | ZTEL002 | Error | `[Instrument]` has an empty or whitespace name |
 | ZTEL003 | Warning | `[Trace]`, `[Count]`, `[Histogram]`, `[CountFromResult]`, `[HistogramFromResult]`, `[MetricTagFromResult]`, `[MetricTagConstant]`, `[TraceTagFromResult]` or `[TraceTagConstant]` is on a method of a type without `[Instrument]`, so no proxy is generated |
 | ZTEL004 | Warning | `[TraceTag]`, `[TraceTagFromResult]` or `[TraceTagConstant]` is on a method without `[Trace]` |
-| ZTEL005 | Warning | `[TraceTagFromResult]`, `[CountFromResult]`, `[HistogramFromResult]`, `[MetricTagFromResult]`, or `When` on `[Count]`/`[Histogram]`, is on a method returning `void`, `Task`, `ValueTask`, or a task-like type with no result. The message names the attribute; nothing is recorded |
-| ZTEL006 | Warning | A `[Trace]` name contains a `{token}` other than `{type}` |
+| ZTEL005 | Warning | `[TraceTagFromResult]`, `[CountFromResult]`, `[HistogramFromResult]`, `[MetricTagFromResult]`, `When` on `[Count]`/`[Histogram]`, or `ErrorWhen` on `[Trace]`, is on a method returning `void`, `Task`, `ValueTask`, or a task-like type with no result. The message names the attribute; nothing is recorded |
+| ZTEL006 | Warning | A `[Trace]` name contains a `{token}` that is neither `{type}` nor a parameter of the method |
 | ZTEL007 | Error | A segment of a member path or `When` names no readable, accessible instance property or field of the type reached so far. Reported at the argument, naming the segment and the type |
-| ZTEL008 | Error | `When` resolves to a member that is not `bool` or `bool?` |
+| ZTEL008 | Error | `When`, or `ErrorWhen` on `[Trace]`, resolves to a member that is not `bool` or `bool?` |
 | ZTEL009 | Error | `[CountFromResult]`'s member does not convert implicitly to `long`, or `[HistogramFromResult]`'s member is not numeric. With `Each = true`, the member is not a span, memory, array or struct-enumerable of numbers, or is a span reached through a value that can be null. A member reached through `dynamic` cannot be checked, so it is reported too |
 | ZTEL010 | Warning | A segment of a `[TraceTag(name, member)]` or `[MetricTag(name, member)]` path names no readable, accessible instance property or field of the type reached so far, starting from the parameter. Reported at the argument; no tag is emitted for that parameter |
 | ZTEL011 | Warning | A `[MetricTagFromResult]`, `[MetricTag]` or `[MetricTagConstant]` is added to no metric: its `Metric` names no metric the method declares, reported at `Metric`, or the method declares no metric at all, reported at the tag name. A metric dropped for its own error still counts as declared |
@@ -307,6 +307,7 @@ Names that would still collide are made distinct with a numeric suffix, in the o
 | ZTEL019 | Error | `Buckets` on `[Histogram]` or `[HistogramFromResult]` is empty, not finite, or not strictly increasing. Reported at `Buckets`; the instrument gets no advice |
 | ZTEL020 | Error | `Buckets` is set but the compilation has no `InstrumentAdvice<T>`, which needs System.Diagnostics.DiagnosticSource 9.0. The instrument gets no advice |
 | ZTEL021 | Warning | A `[TraceTagConstant]` or `[MetricTagConstant]` value is an array or a type, which no tag can carry. Reported at the value; no tag is emitted |
+| ZTEL022 | Warning | A `{parameter.Member}` token in a `[Trace]` name names no readable member. The token is left out of the span name |
 
 ZTEL007 and ZTEL008 mostly replace what used to be a compile error inside the generated proxy. Two cases compiled on 1.6.4 and are now errors:
 

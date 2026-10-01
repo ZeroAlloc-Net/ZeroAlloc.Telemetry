@@ -18,3 +18,11 @@ ZeroAlloc.Telemetry.MetricTagConstantAttribute.Metric.set -> void
 ZeroAlloc.Telemetry.MetricTagConstantAttribute.MetricTagConstantAttribute(string! name, object? value) -> void
 ZeroAlloc.Telemetry.MetricTagConstantAttribute.Name.get -> string!
 ZeroAlloc.Telemetry.MetricTagConstantAttribute.Value.get -> object?
+ZeroAlloc.Telemetry.TraceAttribute.ErrorDescription.get -> string?
+ZeroAlloc.Telemetry.TraceAttribute.ErrorDescription.set -> void
+ZeroAlloc.Telemetry.TraceAttribute.ErrorWhen.get -> string?
+ZeroAlloc.Telemetry.TraceAttribute.ErrorWhen.set -> void
+ZeroAlloc.Telemetry.TraceAttribute.Kind.get -> System.Diagnostics.ActivityKind
+ZeroAlloc.Telemetry.TraceAttribute.Kind.set -> void
+ZeroAlloc.Telemetry.TraceAttribute.TagsAtStart.get -> bool
+ZeroAlloc.Telemetry.TraceAttribute.TagsAtStart.set -> void

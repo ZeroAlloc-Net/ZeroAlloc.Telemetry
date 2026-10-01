@@ -49,7 +49,7 @@ internal static class InstrumentDiagnostics
     public static readonly DiagnosticDescriptor UnknownSpanNameToken = new(
         id: "ZTEL006",
         title: "Unrecognised token in a [Trace] span name",
-        messageFormat: "'{0}' in the [Trace] name on '{1}.{2}' is not a recognised token and is emitted verbatim, so the span name will contain a literal brace. The only supported token is {{type}}, which substitutes the wrapped implementation's type name.",
+        messageFormat: "'{0}' in the [Trace] name on '{1}.{2}' is not a recognised token and is emitted verbatim, so the span name will contain a literal brace. The supported tokens are {{type}}, which substitutes the wrapped implementation's type name, and {{parameter}} or {{parameter.Member}} for a parameter of the method.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
@@ -77,7 +77,7 @@ internal static class InstrumentDiagnostics
     public static readonly DiagnosticDescriptor WhenNotBoolean = new(
         id: "ZTEL008",
         title: "When must name a bool member",
-        messageFormat: "When = '{0}' resolves to '{1}'. A guard must name a member of type bool or bool? on the awaited return value, such as IsSuccess.",
+        messageFormat: "{2} = '{0}' resolves to '{1}'. A guard must name a member of type bool or bool? on the awaited return value, such as IsSuccess.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -246,6 +246,18 @@ internal static class InstrumentDiagnostics
         id: "ZTEL021",
         title: "Constant tag value cannot be recorded",
         messageFormat: "[{0}(\"{1}\", ...)] on '{2}.{3}' records nothing — its value is an array or a type. A constant tag value must be a string, bool, char, number or enum.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    /// A <c>{parameter.Member}</c> token in a span name whose path does not resolve. A warning,
+    /// like ZTEL010: the token is left out of the name, which still identifies the operation.
+    /// </summary>
+    public static readonly DiagnosticDescriptor SpanNameTokenPathNotFound = new(
+        id: "ZTEL022",
+        title: "Span name token path does not resolve",
+        messageFormat: "'{0}' in the token '{1}' of the [Trace] name on '{2}.{3}' is not a readable instance property or field of '{4}', so the token is left out of the span name",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true);

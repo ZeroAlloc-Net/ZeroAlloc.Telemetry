@@ -55,6 +55,10 @@ It is opt-in because it widens the declaring assembly's public API surface.
 public sealed class TraceAttribute : Attribute
 {
     public string Name { get; }
+    public ActivityKind Kind { get; set; }
+    public string? ErrorWhen { get; set; }
+    public string? ErrorDescription { get; set; }
+    public bool TagsAtStart { get; set; }
     public TraceAttribute(string name);
 }
 ```
@@ -137,9 +141,89 @@ private async Task<...> _core_SearchAsync_0(...)
 A name with no token is still emitted as a plain string literal, so nothing
 changes for existing code.
 
-`{type}` is the only recognised token. Anything else in braces is emitted
-verbatim and reported as **ZTEL006**, rather than leaving a literal brace in a
-span name to be discovered on a dashboard later.
+### Naming the span from its parameters
+
+`{parameter}` and `{parameter.Member}` tokens take the value of an argument,
+which is how the OpenTelemetry GenAI conventions name a span:
+`{gen_ai.operation.name} {gen_ai.request.model}`.
+
+```csharp
+[Trace("{operation} {request.Model}")]
+ValueTask<ChatResponse> ChatAsync(string operation, ChatRequest request, CancellationToken ct);
+```
+
+A sampler decides before the name could be composed, and an unsampled call
+should build no string, so the span starts under the constant part of the name
+and gets the full name as its `DisplayName` only when it was sampled:
+
+```csharp
+using var _activity = _activitySource.StartActivity("ChatAsync");
+if (_activity is not null)
+{
+    var _nameArg0 = request;
+    _activity.DisplayName = string.Create(CultureInfo.InvariantCulture, $"{operation}{" "}{_nameArg0?.Model}");
+}
+```
+
+The constant part is the name with the parameter tokens left out and its
+whitespace collapsed, such as `chat` for `"chat {model}"`. When nothing is left,
+as above, it is the method name. Values are formatted with the invariant
+culture, and a null is empty. A member path that does not resolve is reported as
+**ZTEL022** and the token is left out. `{type}` can be combined with parameter
+tokens, and keeps its meaning even when a parameter is named `type`.
+
+Any other token in braces is emitted verbatim and reported as **ZTEL006**,
+rather than leaving a literal brace in a span name to be discovered on a
+dashboard later.
+
+### Span kind
+
+`Kind` sets the span's `ActivityKind`, such as `Client` for a call to a remote
+service: `StartActivity("chat", ActivityKind.Client)`. The default, `Internal`,
+emits the call it always did.
+
+### Error status from the result
+
+A method that reports failure in its result, such as a `Result<T, E>`, never
+throws, so its span was recorded as a success. `ErrorWhen` names a `bool` or
+`bool?` member of the awaited result that marks the span as an error, and
+`ErrorDescription` an optional member for the status description. A member that
+is not a string is converted with `ToString()`.
+
+```csharp
+[Trace("chat", ErrorWhen = "IsFailure", ErrorDescription = "Error.Message")]
+ValueTask<Result<ChatResponse, ChatError>> ChatAsync(ChatRequest request, CancellationToken ct);
+```
+
+```csharp
+// Generated, after the result tags:
+if (_activity is not null && _result.IsFailure)
+    _activity.SetStatus(ActivityStatusCode.Error, _result.Error?.Message);
+```
+
+The paths resolve like `When`: a path that names nothing is **ZTEL007**, an
+`ErrorWhen` that is not a bool is **ZTEL008**, and `ErrorWhen` on a method with
+no result is **ZTEL005**. `ErrorDescription` is only read on an error, and has
+no effect without `ErrorWhen`. An exception still sets the error status as
+before.
+
+### Tags a sampler can see
+
+By default the `[TraceTagConstant]` and `[TraceTag]` tags are set right after
+the span starts, so a sampler deciding at the start does not see them.
+`TagsAtStart = true` passes them to `StartActivity` instead, as the GenAI
+conventions recommend:
+
+```csharp
+using var _activity = _activitySource.HasListeners()
+    ? _activitySource.StartActivity("chat", ActivityKind.Client, default(ActivityContext), _startTags_ChatAsync_0(operation, request, ct))
+    : null;
+```
+
+The tags are collected by a generated method, and only when the source has a
+listener. `StartActivity` takes them as an enumerable, so they are boxed into one
+`TagList` per call while something listens, sampled or not. With no listener
+nothing is allocated. A null value adds no tag.
 
 ---
 

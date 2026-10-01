@@ -26,6 +26,7 @@ namespace ZeroAlloc.Telemetry.Generator.Models;
 /// The method's type parameter list, such as <c>&lt;T&gt;</c>, or empty for a non-generic method.
 /// </param>
 /// <param name="ConstraintClauses">The <c>where</c> clauses the proxy method repeats from the interface method.</param>
+/// <param name="Trace">What <c>[Trace]</c> asks for beyond a plain span, or null for nothing more.</param>
 internal sealed record MethodModel(
     string Name,
     string ReturnType,
@@ -42,5 +43,6 @@ internal sealed record MethodModel(
     EquatableArray<MetricTagModel> MetricTags,
     string? TraceNameExpression = null,
     string TypeParameters = "",
-    EquatableArray<string> ConstraintClauses = default
+    EquatableArray<string> ConstraintClauses = default,
+    TraceOptions? Trace = null
 );

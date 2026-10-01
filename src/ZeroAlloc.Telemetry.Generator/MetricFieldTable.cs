@@ -141,6 +141,8 @@ internal sealed class MetricFieldTable
         || name.StartsWith("_core_", StringComparison.Ordinal)
         || name.StartsWith("_fault_", StringComparison.Ordinal)
         || name.StartsWith("_eachValue", StringComparison.Ordinal)
+        || name.StartsWith("_nameArg", StringComparison.Ordinal)
+        || name.StartsWith("_startTags", StringComparison.Ordinal)
         || IsNumberedLocal(name, "_read")
         || IsNumberedLocal(name, "_each");
 

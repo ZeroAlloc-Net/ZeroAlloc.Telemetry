@@ -19,5 +19,8 @@ public sealed class OrderService : IOrderService
     public ValueTask<OrderQuote> QuoteAsync(string customerId, CancellationToken ct) =>
         ValueTask.FromResult(new OrderQuote { Prices = new double[] { 9.5, 12.25 } });
 
+    public ValueTask<OrderDecision> DecideAsync(string customerId, CancellationToken ct) =>
+        ValueTask.FromResult(new OrderDecision { IsRejected = true, Reason = "out of stock" });
+
     public ValueTask<T> EchoAsync<T>(T value) where T : notnull => ValueTask.FromResult(value);
 }

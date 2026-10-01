@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using ZeroAlloc.Telemetry;
@@ -22,6 +23,12 @@ public interface IOrderService
     [HistogramFromResult("order.quote.prices", "Prices", Each = true)]
     [MetricTagConstant("order.operation", "quote")]
     ValueTask<OrderQuote> QuoteAsync([MetricTag("order.customer")] string customerId, CancellationToken ct);
+
+    // Span conventions (#170): kind, a name from a parameter, error status from the result, and
+    // tags passed to the sampler.
+    [Trace("decide {customerId}", Kind = ActivityKind.Client, ErrorWhen = "IsRejected", ErrorDescription = "Reason", TagsAtStart = true)]
+    [TraceTagConstant("order.channel", "web")]
+    ValueTask<OrderDecision> DecideAsync([TraceTag("order.customer")] string customerId, CancellationToken ct);
 
     // A generic method: the proxy repeats its type parameter and constraint (#168).
     [Trace("order.echo")]

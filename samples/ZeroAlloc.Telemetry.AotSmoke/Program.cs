@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -90,6 +91,43 @@ if (quoteSeconds < 0 || quoteSeconds > 1)
     return Fail($"order.quote.duration expected seconds below 1, got {quoteSeconds}");
 if (!Equals(customer, "cust-7") || !Equals(operation, "quote"))
     return Fail($"quote tags expected cust-7 and quote, got {customer ?? "none"} and {operation ?? "none"}");
+
+// Span conventions: kind, display name from a parameter, error status from the result, and the
+// tags the sampler sees.
+Activity? decided = null;
+var samplerSawCustomer = false;
+using var spanListener = new ActivityListener
+{
+    ShouldListenTo = source => string.Equals(source.Name, "ZeroAlloc.Telemetry.AotSmoke", StringComparison.Ordinal),
+    Sample = (ref ActivityCreationOptions<ActivityContext> options) =>
+    {
+        if (options.Tags is { } tags)
+        {
+            foreach (var tag in tags)
+            {
+                if (string.Equals(tag.Key, "order.customer", StringComparison.Ordinal) && Equals(tag.Value, "cust-9"))
+                    samplerSawCustomer = true;
+            }
+        }
+
+        return ActivitySamplingResult.AllDataAndRecorded;
+    },
+    ActivityStopped = activity =>
+    {
+        if (string.Equals(activity.OperationName, "decide", StringComparison.Ordinal))
+            decided = activity;
+    },
+};
+ActivitySource.AddActivityListener(spanListener);
+
+await proxy.DecideAsync("cust-9", CancellationToken.None).ConfigureAwait(false);
+if (decided is null) return Fail("DecideAsync recorded no span");
+if (decided.Kind != ActivityKind.Client) return Fail($"decide span kind expected Client, got {decided.Kind}");
+if (!string.Equals(decided.DisplayName, "decide cust-9", StringComparison.Ordinal))
+    return Fail($"decide span name expected 'decide cust-9', got '{decided.DisplayName}'");
+if (decided.Status != ActivityStatusCode.Error || !string.Equals(decided.StatusDescription, "out of stock", StringComparison.Ordinal))
+    return Fail($"decide span status expected Error 'out of stock', got {decided.Status} '{decided.StatusDescription}'");
+if (!samplerSawCustomer) return Fail("the sampler did not see the order.customer tag");
 
 // A generic method, instantiated over a value type and a reference type.
 var echoedInt = await proxy.EchoAsync(7).ConfigureAwait(false);
