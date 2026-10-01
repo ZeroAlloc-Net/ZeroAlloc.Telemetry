@@ -76,6 +76,8 @@ ZeroAlloc.Telemetry.TraceAttribute.ErrorDescription.get -> string?
 ZeroAlloc.Telemetry.TraceAttribute.ErrorDescription.set -> void
 ZeroAlloc.Telemetry.TraceAttribute.ErrorWhen.get -> string?
 ZeroAlloc.Telemetry.TraceAttribute.ErrorWhen.set -> void
+ZeroAlloc.Telemetry.TraceAttribute.ExceptionDescription.get -> bool
+ZeroAlloc.Telemetry.TraceAttribute.ExceptionDescription.set -> void
 ZeroAlloc.Telemetry.TraceAttribute.Kind.get -> System.Diagnostics.ActivityKind
 ZeroAlloc.Telemetry.TraceAttribute.Kind.set -> void
 ZeroAlloc.Telemetry.TraceAttribute.Name.get -> string!

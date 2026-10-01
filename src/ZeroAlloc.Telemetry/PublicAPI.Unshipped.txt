@@ -1,3 +1,1 @@
 #nullable enable
-ZeroAlloc.Telemetry.TraceAttribute.ExceptionDescription.get -> bool
-ZeroAlloc.Telemetry.TraceAttribute.ExceptionDescription.set -> void
