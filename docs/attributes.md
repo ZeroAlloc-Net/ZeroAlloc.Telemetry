@@ -22,7 +22,7 @@ public sealed class InstrumentAttribute : Attribute
 
 **Placement:** Interface only.
 
-**Effect:** Triggers the source generator. The generator emits a sealed proxy class named `{TypeName}Instrumented` (leading `I` stripped) next to the interface: in the same namespace, or for a nested interface in the same containing type, which must then be `partial`. A generic interface gets a generic proxy with the same type parameters and constraints. See [Nested and generic interfaces](source-generator.md#nested-and-generic-interfaces).
+**Effect:** Triggers the source generator. The generator emits a sealed proxy class named `{TypeName}Instrumented` (leading `I` stripped) next to the interface: in the same namespace, or for a nested interface in the same containing type, which must then be `partial`. A generic interface gets a generic proxy with the same type parameters and constraints. A generic method gets a generic proxy method with its constraints. See [Nested and generic interfaces](source-generator.md#nested-and-generic-interfaces).
 
 **`activitySource`:** The name used for both the static `ActivitySource` and the static `Meter` field in the generated proxy. Typically a dotted component name: `"MyApp.Orders"`, `"ZeroAlloc.EventSourcing"`.
 

@@ -42,6 +42,8 @@ public partial class Orders
 
 A generic interface gets a generic proxy with the same type parameters, and the proxy repeats the interface's constraints: `IRepository<TKey, TValue> where TKey : notnull` gets `RepositoryInstrumented<TKey, TValue> where TKey : notnull`. Variance is not repeated, since a class cannot declare it. Each closed proxy type, such as `RepositoryInstrumented<int, Order>`, has its own static `ActivitySource` and `Meter`, all with the name from `[Instrument]`, so listeners see them as one source.
 
+A generic method gets a generic proxy method with the same type parameters and constraint clauses, including `notnull`, `unmanaged`, `new()` and `allows ref struct`, so `ValueTask<Result<T, E>> UnionAsync<T>(T left, T right) where T : ISet<T>` is proxied as written. The forwarded call names its type arguments, `_inner.UnionAsync<T>(left, right)`, so a type parameter that appears only in the return type still binds.
+
 Two interfaces that would get the same proxy, such as `IStore` and `Store` in one namespace, or whose files would differ only in case, such as `IStore` and `Istore`, are reported with **ZTEL016** or **ZTEL015** on the one declared later, by file path and then position. Only that interface gets no proxy; every other proxy is generated.
 
 ## Generated Class Layout
@@ -249,8 +251,7 @@ Names that would still collide are made distinct with a numeric suffix, in the o
 ## v1 Limitations
 
 - `interface` targets only — `class` is not supported
-- `ref` and `out` parameters are not supported
-- Generic interface methods are not supported. Generic interfaces are; see [Nested and generic interfaces](#nested-and-generic-interfaces)
+- `ref`, `out` and `in` parameters, and properties, are not supported; see [#173](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/173)
 - A `file` interface, or an interface nested in a `file` type, gets no proxy: **ZTEL014**
 - An interface nested in an interface with an `in` or `out` type parameter gets no proxy, because C# does not allow a class there: **ZTEL017**
 - Sync methods are supported (no `async`/`await` wrapper needed)

@@ -83,10 +83,16 @@ internal static class TypeDeclarations
     /// when it has none. Variance is left out: a class cannot declare it, and a containing
     /// interface with a variant type parameter cannot hold the proxy at all, ZTEL017.
     /// </summary>
-    public static string TypeParameterList(INamedTypeSymbol type)
+    public static string TypeParameterList(INamedTypeSymbol type) => TypeParameterList(type.TypeParameters);
+
+    /// <summary>
+    /// The names of <paramref name="typeParameters"/>, as in <c>&lt;T, U&gt;</c>, or empty when
+    /// there are none. Shared by a generic proxy and a generic proxy method.
+    /// </summary>
+    public static string TypeParameterList(ImmutableArray<ITypeParameterSymbol> typeParameters)
     {
-        if (type.TypeParameters.Length == 0) return string.Empty;
-        return "<" + string.Join(", ", type.TypeParameters.Select(static p => Identifier(p.Name))) + ">";
+        if (typeParameters.Length == 0) return string.Empty;
+        return "<" + string.Join(", ", typeParameters.Select(static p => Identifier(p.Name))) + ">";
     }
 
     /// <summary>
@@ -94,10 +100,19 @@ internal static class TypeDeclarations
     /// constraints, in declaration order. A proxy is a new type, so it has to repeat them to
     /// implement the interface.
     /// </summary>
-    public static EquatableArray<string> ConstraintClauses(INamedTypeSymbol type, SymbolDisplayFormat typeFormat)
+    public static EquatableArray<string> ConstraintClauses(INamedTypeSymbol type, SymbolDisplayFormat typeFormat) =>
+        ConstraintClauses(type.TypeParameters, typeFormat);
+
+    /// <summary>
+    /// A <c>where</c> clause for each of <paramref name="typeParameters"/> that has constraints, in
+    /// declaration order. A proxy method implements its interface method implicitly, which C#
+    /// only allows when it declares the same constraints.
+    /// </summary>
+    public static EquatableArray<string> ConstraintClauses(
+        ImmutableArray<ITypeParameterSymbol> typeParameters, SymbolDisplayFormat typeFormat)
     {
         var clauses = ImmutableArray.CreateBuilder<string>();
-        foreach (var parameter in type.TypeParameters)
+        foreach (var parameter in typeParameters)
         {
             var constraints = new List<string>();
             if (parameter.HasReferenceTypeConstraint)

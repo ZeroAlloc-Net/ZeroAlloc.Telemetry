@@ -22,6 +22,10 @@ namespace ZeroAlloc.Telemetry.Generator.Models;
 /// <c>[MetricTagFromResult]</c> uses, in attribute order. Only the ones that resolved and apply
 /// to a metric the method declares; the rest were reported and are not emitted.
 /// </param>
+/// <param name="TypeParameters">
+/// The method's type parameter list, such as <c>&lt;T&gt;</c>, or empty for a non-generic method.
+/// </param>
+/// <param name="ConstraintClauses">The <c>where</c> clauses the proxy method repeats from the interface method.</param>
 internal sealed record MethodModel(
     string Name,
     string ReturnType,
@@ -36,5 +40,7 @@ internal sealed record MethodModel(
     EquatableArray<ConstantTagModel> ConstantTags,
     EquatableArray<MetricModel> ResultMetrics,
     EquatableArray<MetricTagModel> MetricTags,
-    string? TraceNameExpression = null
+    string? TraceNameExpression = null,
+    string TypeParameters = "",
+    EquatableArray<string> ConstraintClauses = default
 );
