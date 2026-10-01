@@ -37,7 +37,7 @@ internal sealed class OrderServiceInstrumented : IOrderService
         var _sw = Stopwatch.GetTimestamp();
         try
         {
-            var _result = await _inner.GetOrderAsync(orderId, ct);
+            var _result = await _inner.GetOrderAsync(orderId, ct).ConfigureAwait(false);
             _order_duration_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
             return _result;
         }
@@ -50,7 +50,7 @@ internal sealed class OrderServiceInstrumented : IOrderService
 
     private static async global::System.Threading.Tasks.ValueTask<string> _fault_GetOrderAsync_0(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }

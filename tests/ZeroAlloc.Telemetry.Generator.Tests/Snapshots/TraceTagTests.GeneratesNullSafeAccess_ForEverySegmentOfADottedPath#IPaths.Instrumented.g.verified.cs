@@ -36,7 +36,7 @@ internal sealed class PathsInstrumented : IPaths
         using var _activity = _activitySource.StartActivity("paths.deep");
         try
         {
-            var _result = await _inner.DeepAsync(ct);
+            var _result = await _inner.DeepAsync(ct).ConfigureAwait(false);
             var _tagged = _result;
             _activity?.SetTag("deep.count", _tagged?.Inner?.Items?.Count);
             return _result;
@@ -50,7 +50,7 @@ internal sealed class PathsInstrumented : IPaths
 
     private static async global::System.Threading.Tasks.Task<global::Outer> _fault_DeepAsync_0(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }
@@ -76,7 +76,7 @@ internal sealed class PathsInstrumented : IPaths
         using var _activity = _activitySource.StartActivity("paths.value");
         try
         {
-            var _result = await _inner.ValueAsync(ct);
+            var _result = await _inner.ValueAsync(ct).ConfigureAwait(false);
             var _tagged = _result;
             _activity?.SetTag("value.total", _tagged?.Total);
             _activity?.SetTag("value.width", _tagged?.Extent.Width);
@@ -91,7 +91,7 @@ internal sealed class PathsInstrumented : IPaths
 
     private static async global::System.Threading.Tasks.Task<global::Outer> _fault_ValueAsync_1(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }

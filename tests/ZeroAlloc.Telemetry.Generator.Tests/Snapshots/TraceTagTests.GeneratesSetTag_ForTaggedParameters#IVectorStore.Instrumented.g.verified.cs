@@ -38,7 +38,7 @@ internal sealed class VectorStoreInstrumented : IVectorStore
         _activity?.SetTag("top.k", topK);
         try
         {
-            var _result = await _inner.SearchAsync(collection, topK, ct);
+            var _result = await _inner.SearchAsync(collection, topK, ct).ConfigureAwait(false);
             return _result;
         }
         catch (Exception _ex)
@@ -50,7 +50,7 @@ internal sealed class VectorStoreInstrumented : IVectorStore
 
     private static async global::System.Threading.Tasks.Task<global::System.Collections.Generic.IReadOnlyList<string>> _fault_SearchAsync_0(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }

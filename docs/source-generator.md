@@ -132,7 +132,7 @@ private async ValueTask<OrderId> _core_CreateOrderAsync_0(CreateOrderCommand cmd
     using var _activity = _activitySource.StartActivity("order.create");
     try
     {
-        var _result = await _inner.CreateOrderAsync(cmd, ct);
+        var _result = await _inner.CreateOrderAsync(cmd, ct).ConfigureAwait(false);
         _orders_created.Add(1);
         return _result;
     }
@@ -143,6 +143,8 @@ private async ValueTask<OrderId> _core_CreateOrderAsync_0(CreateOrderCommand cmd
     }
 }
 ```
+
+Every generated `await` is `ConfigureAwait(false)`, so a proxy used from a library does not resume on its caller's synchronization context. A task-like type without a `ConfigureAwait(bool)` method is awaited as it is.
 
 An awaitable method's public proxy method is never `async`. When the source has no listener and none of the method's instruments is enabled, it returns the inner call's task as is, so a call adds no allocation even when the inner method completes asynchronously. Otherwise it calls a private `async` core that does the instrumented work. If the inner method throws before returning its task, `_fault_CreateOrderAsync_0`, a private `async` method that rethrows, hands the exception back inside a faulted task, or a canceled one for an `OperationCanceledException`. A caller therefore sees the same failure, on the await, whether or not anything is listening, and only the exception path allocates. The examples below show only the core.
 
@@ -163,7 +165,7 @@ private async ValueTask<Order> _core_GetOrderAsync_1(OrderId id, CancellationTok
     var _sw = Stopwatch.GetTimestamp();
     try
     {
-        var _result = await _inner.GetOrderAsync(id, ct);
+        var _result = await _inner.GetOrderAsync(id, ct).ConfigureAwait(false);
         _order_get_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
         return _result;
     }
@@ -218,7 +220,7 @@ private async Task<Result<TokenUsage, LlmError>> _core_CompleteAsync_0(string pr
 {
     try
     {
-        var _result = await _inner.CompleteAsync(prompt, ct);
+        var _result = await _inner.CompleteAsync(prompt, ct).ConfigureAwait(false);
         var _tagged = _result;
         if (_tagged?.IsSuccess == true && _tagged?.Value?.Input is { } _read0)
             _llm_tokens_input.Add(_read0);
@@ -246,7 +248,7 @@ Task<Result<TokenUsage, LlmError>> CompleteAsync(string prompt, CancellationToke
 
 Output, inside the same `try`:
 ```csharp
-var _result = await _inner.CompleteAsync(prompt, ct);
+var _result = await _inner.CompleteAsync(prompt, ct).ConfigureAwait(false);
 var _tagged = _result;
 if (_llm_tokens_input.Enabled && _tagged?.IsSuccess == true && _tagged?.Value?.Input is { } _read0)
 {

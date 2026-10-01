@@ -36,7 +36,7 @@ internal sealed class ExtentsInstrumented : IExtents
         using var _activity = _activitySource.StartActivity("extents.width");
         try
         {
-            var _result = await _inner.WidthAsync(ct);
+            var _result = await _inner.WidthAsync(ct).ConfigureAwait(false);
             var _tagged = _result;
             _activity?.SetTag("extent.width", _tagged?.Width);
             return _result;
@@ -50,7 +50,7 @@ internal sealed class ExtentsInstrumented : IExtents
 
     private static async global::System.Threading.Tasks.Task<global::Extent?> _fault_WidthAsync_0(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }
@@ -76,7 +76,7 @@ internal sealed class ExtentsInstrumented : IExtents
         using var _activity = _activitySource.StartActivity("extents.flag");
         try
         {
-            var _result = await _inner.FlagAsync(ct);
+            var _result = await _inner.FlagAsync(ct).ConfigureAwait(false);
             var _tagged = _result;
             if (_tagged == true)
                 _activity?.SetTag("extent.flag", _result);
@@ -91,7 +91,7 @@ internal sealed class ExtentsInstrumented : IExtents
 
     private static async global::System.Threading.Tasks.Task<bool?> _fault_FlagAsync_1(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }

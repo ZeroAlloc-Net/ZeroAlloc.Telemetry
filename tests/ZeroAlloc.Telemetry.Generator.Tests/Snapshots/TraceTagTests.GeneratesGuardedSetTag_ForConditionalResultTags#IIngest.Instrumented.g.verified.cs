@@ -36,7 +36,7 @@ internal sealed class IngestInstrumented : IIngest
         using var _activity = _activitySource.StartActivity("ingest.chunk");
         try
         {
-            var _result = await _inner.ChunkAsync(ct);
+            var _result = await _inner.ChunkAsync(ct).ConfigureAwait(false);
             var _tagged = _result;
             if (_tagged?.IsSuccess == true)
                 _activity?.SetTag("chunk.count", _tagged?.Value?.Count);
@@ -51,7 +51,7 @@ internal sealed class IngestInstrumented : IIngest
 
     private static async global::System.Threading.Tasks.Task<global::Result<global::System.Collections.Generic.IReadOnlyList<global::Chunk>, global::RagError>> _fault_ChunkAsync_0(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }

@@ -36,7 +36,7 @@ internal sealed class OutcomeInstrumented : IOutcome
         using var _activity = _activitySource.StartActivity("outcome.run");
         try
         {
-            var _result = await _inner.RunAsync(ct);
+            var _result = await _inner.RunAsync(ct).ConfigureAwait(false);
             if (_result.Ok)
                 _activity?.SetTag("outcome.count", _result.Count);
             return _result;
@@ -50,7 +50,7 @@ internal sealed class OutcomeInstrumented : IOutcome
 
     private static async global::System.Threading.Tasks.ValueTask<global::Outcome> _fault_RunAsync_0(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }

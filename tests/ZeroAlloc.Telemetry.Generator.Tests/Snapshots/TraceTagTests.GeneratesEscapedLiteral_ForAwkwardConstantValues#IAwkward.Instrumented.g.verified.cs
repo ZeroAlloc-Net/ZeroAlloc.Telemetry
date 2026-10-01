@@ -38,7 +38,7 @@ internal sealed class AwkwardInstrumented : IAwkward
         _activity?.SetTag("path", "C:\\temp\\x");
         try
         {
-            var _result = await _inner.RunAsync(ct);
+            var _result = await _inner.RunAsync(ct).ConfigureAwait(false);
             return _result;
         }
         catch (Exception _ex)
@@ -50,7 +50,7 @@ internal sealed class AwkwardInstrumented : IAwkward
 
     private static async global::System.Threading.Tasks.Task<string> _fault_RunAsync_0(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }

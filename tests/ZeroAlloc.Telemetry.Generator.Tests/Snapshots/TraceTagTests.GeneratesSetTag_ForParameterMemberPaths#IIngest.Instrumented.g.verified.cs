@@ -40,7 +40,7 @@ internal sealed class IngestInstrumented : IIngest
         _activity?.SetTag("vectorstore.batch.size", _tag_chunks?.Count);
         try
         {
-            await _inner.StoreAsync(metadata, chunks, ct);
+            await _inner.StoreAsync(metadata, chunks, ct).ConfigureAwait(false);
         }
         catch (Exception _ex)
         {
@@ -51,7 +51,7 @@ internal sealed class IngestInstrumented : IIngest
 
     private static async global::System.Threading.Tasks.Task _fault_StoreAsync_0(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
     }
 }

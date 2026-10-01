@@ -41,7 +41,7 @@ internal sealed class RerankerInstrumented : IReranker
         _activity?.SetTag("graphrag.search.mode", (global::SearchMode)2);
         try
         {
-            var _result = await _inner.RerankAsync(ct);
+            var _result = await _inner.RerankAsync(ct).ConfigureAwait(false);
             return _result;
         }
         catch (Exception _ex)
@@ -53,7 +53,7 @@ internal sealed class RerankerInstrumented : IReranker
 
     private static async global::System.Threading.Tasks.Task<string> _fault_RerankAsync_0(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }

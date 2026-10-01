@@ -34,6 +34,29 @@ internal static class TaskShapes
     /// <summary>Whether the proxy has to <c>await</c> the inner call.</summary>
     public static bool IsAwaitable(ITypeSymbol type) => Classify(type).Awaitable;
 
+    /// <summary>
+    /// Whether the awaitable has an instance <c>ConfigureAwait(bool)</c>, so the proxy can await it
+    /// without capturing the caller's context. <c>Task</c> and <c>ValueTask</c> do; a task-like type
+    /// may not, and is then awaited as it is.
+    /// </summary>
+    public static bool HasConfigureAwait(ITypeSymbol type)
+    {
+        for (var t = type; t is not null; t = t.BaseType)
+        {
+            foreach (var member in t.GetMembers("ConfigureAwait"))
+            {
+                if (member is IMethodSymbol { IsStatic: false, TypeParameters.Length: 0, Parameters.Length: 1 } method
+                    && method.Parameters[0].Type.SpecialType == SpecialType.System_Boolean
+                    && !method.ReturnsVoid)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>Awaitable with no result: <c>Task</c>, <c>ValueTask</c>, or a task-like whose <c>GetResult</c> is void.</summary>
     public static bool IsVoidAwaitable(ITypeSymbol type)
     {

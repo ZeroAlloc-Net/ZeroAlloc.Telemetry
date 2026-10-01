@@ -43,7 +43,7 @@ internal sealed class FieldsInstrumented : IFields
     {
         try
         {
-            var _result = await _inner.CountedAsync(ct);
+            var _result = await _inner.CountedAsync(ct).ConfigureAwait(false);
             _x.Add(1);
             return _result;
         }
@@ -55,7 +55,7 @@ internal sealed class FieldsInstrumented : IFields
 
     private static async global::System.Threading.Tasks.Task<int> _fault_CountedAsync_0(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }
@@ -81,7 +81,7 @@ internal sealed class FieldsInstrumented : IFields
         var _sw = Stopwatch.GetTimestamp();
         try
         {
-            var _result = await _inner.TimedAsync(ct);
+            var _result = await _inner.TimedAsync(ct).ConfigureAwait(false);
             _x_2.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
             return _result;
         }
@@ -94,7 +94,7 @@ internal sealed class FieldsInstrumented : IFields
 
     private static async global::System.Threading.Tasks.Task<int> _fault_TimedAsync_1(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }
@@ -119,7 +119,7 @@ internal sealed class FieldsInstrumented : IFields
     {
         try
         {
-            var _result = await _inner.DottedAsync(ct);
+            var _result = await _inner.DottedAsync(ct).ConfigureAwait(false);
             _a_b.Add(1);
             return _result;
         }
@@ -131,7 +131,7 @@ internal sealed class FieldsInstrumented : IFields
 
     private static async global::System.Threading.Tasks.Task<int> _fault_DottedAsync_2(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }
@@ -156,7 +156,7 @@ internal sealed class FieldsInstrumented : IFields
     {
         try
         {
-            var _result = await _inner.UnderscoredAsync(ct);
+            var _result = await _inner.UnderscoredAsync(ct).ConfigureAwait(false);
             _a_b_2.Add(1);
             return _result;
         }
@@ -168,7 +168,7 @@ internal sealed class FieldsInstrumented : IFields
 
     private static async global::System.Threading.Tasks.Task<int> _fault_UnderscoredAsync_3(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }
@@ -193,7 +193,7 @@ internal sealed class FieldsInstrumented : IFields
     {
         try
         {
-            var _result = await _inner.SlashAsync(ct);
+            var _result = await _inner.SlashAsync(ct).ConfigureAwait(false);
             _http_requests_total.Add(1);
             return _result;
         }
@@ -205,7 +205,7 @@ internal sealed class FieldsInstrumented : IFields
 
     private static async global::System.Threading.Tasks.Task<int> _fault_SlashAsync_4(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }
@@ -230,7 +230,7 @@ internal sealed class FieldsInstrumented : IFields
     {
         try
         {
-            var _result = await _inner.QuotedAsync(ct);
+            var _result = await _inner.QuotedAsync(ct).ConfigureAwait(false);
             _say__hi_.Add(1);
             return _result;
         }
@@ -242,7 +242,7 @@ internal sealed class FieldsInstrumented : IFields
 
     private static async global::System.Threading.Tasks.Task<int> _fault_QuotedAsync_5(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }
@@ -267,7 +267,7 @@ internal sealed class FieldsInstrumented : IFields
     {
         try
         {
-            var _result = await _inner.MeterAsync(ct);
+            var _result = await _inner.MeterAsync(ct).ConfigureAwait(false);
             _metric_meter.Add(1);
             return _result;
         }
@@ -279,7 +279,7 @@ internal sealed class FieldsInstrumented : IFields
 
     private static async global::System.Threading.Tasks.Task<int> _fault_MeterAsync_6(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }
@@ -305,7 +305,7 @@ internal sealed class FieldsInstrumented : IFields
         var _sw = Stopwatch.GetTimestamp();
         try
         {
-            var _result = await _inner.ResultAsync(ct);
+            var _result = await _inner.ResultAsync(ct).ConfigureAwait(false);
             _metric_result.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
             return _result;
         }
@@ -318,7 +318,7 @@ internal sealed class FieldsInstrumented : IFields
 
     private static async global::System.Threading.Tasks.Task<int> _fault_ResultAsync_7(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }
@@ -343,7 +343,7 @@ internal sealed class FieldsInstrumented : IFields
     {
         try
         {
-            var _result = await _inner.CountedAgainAsync(ct);
+            var _result = await _inner.CountedAgainAsync(ct).ConfigureAwait(false);
             _x.Add(1);
             return _result;
         }
@@ -355,7 +355,7 @@ internal sealed class FieldsInstrumented : IFields
 
     private static async global::System.Threading.Tasks.Task<int> _fault_CountedAgainAsync_8(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }

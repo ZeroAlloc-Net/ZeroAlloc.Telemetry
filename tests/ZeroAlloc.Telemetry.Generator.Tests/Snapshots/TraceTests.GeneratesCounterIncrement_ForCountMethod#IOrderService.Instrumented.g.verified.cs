@@ -36,7 +36,7 @@ internal sealed class OrderServiceInstrumented : IOrderService
     {
         try
         {
-            await _inner.CreateOrderAsync(orderId, ct);
+            await _inner.CreateOrderAsync(orderId, ct).ConfigureAwait(false);
             _orders_created.Add(1);
         }
         catch (Exception)
@@ -47,7 +47,7 @@ internal sealed class OrderServiceInstrumented : IOrderService
 
     private static async global::System.Threading.Tasks.ValueTask _fault_CreateOrderAsync_0(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
     }
 }

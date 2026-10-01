@@ -38,7 +38,7 @@ internal sealed class OrdersInstrumented : IOrders
         var _sw = Stopwatch.GetTimestamp();
         try
         {
-            var _result = await _inner.CreateAsync(ct);
+            var _result = await _inner.CreateAsync(ct).ConfigureAwait(false);
             _orders_created.Add(1);
             _order_create_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
             return _result;
@@ -52,7 +52,7 @@ internal sealed class OrdersInstrumented : IOrders
 
     private static async global::System.Threading.Tasks.Task<int> _fault_CreateAsync_0(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }
@@ -78,7 +78,7 @@ internal sealed class OrdersInstrumented : IOrders
         var _sw = Stopwatch.GetTimestamp();
         try
         {
-            var _result = await _inner.CreateAgainAsync(ct);
+            var _result = await _inner.CreateAgainAsync(ct).ConfigureAwait(false);
             _orders_created.Add(1);
             _order_create_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
             return _result;
@@ -92,7 +92,7 @@ internal sealed class OrdersInstrumented : IOrders
 
     private static async global::System.Threading.Tasks.Task<int> _fault_CreateAgainAsync_1(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }

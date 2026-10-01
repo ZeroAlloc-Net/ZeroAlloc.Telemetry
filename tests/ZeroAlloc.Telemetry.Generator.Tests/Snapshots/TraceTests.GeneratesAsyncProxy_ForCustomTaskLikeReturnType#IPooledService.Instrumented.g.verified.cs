@@ -54,7 +54,7 @@ internal sealed class PooledServiceInstrumented : IPooledService
 
     private static async global::Pooled.PooledTask<global::System.Collections.Generic.List<int>> _fault_ListAsync_0(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }
@@ -96,7 +96,7 @@ internal sealed class PooledServiceInstrumented : IPooledService
 
     private static async global::Pooled.PooledTask<global::System.Collections.Generic.List<int>> _fault_CountAsync_1(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }
@@ -136,7 +136,7 @@ internal sealed class PooledServiceInstrumented : IPooledService
 
     private static async global::Pooled.PooledTask _fault_RunAsync_2(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
     }
 }

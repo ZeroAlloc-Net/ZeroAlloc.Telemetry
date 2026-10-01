@@ -37,7 +37,7 @@ internal sealed class QuotesInstrumented : IQuotes
     {
         try
         {
-            var _result = await _inner.QuoteAsync(ct);
+            var _result = await _inner.QuoteAsync(ct).ConfigureAwait(false);
             if (_quote_cost.Enabled && _result.Priced)
             {
                 var _metricTags0 = new TagList();
@@ -56,7 +56,7 @@ internal sealed class QuotesInstrumented : IQuotes
 
     private static async global::System.Threading.Tasks.ValueTask<global::Quote> _fault_QuoteAsync_0(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }

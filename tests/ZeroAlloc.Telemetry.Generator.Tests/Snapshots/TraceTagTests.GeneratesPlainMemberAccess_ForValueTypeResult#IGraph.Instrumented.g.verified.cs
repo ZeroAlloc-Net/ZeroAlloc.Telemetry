@@ -36,7 +36,7 @@ internal sealed class GraphInstrumented : IGraph
         using var _activity = _activitySource.StartActivity("graph.cluster");
         try
         {
-            var _result = await _inner.ClusterAsync(ct);
+            var _result = await _inner.ClusterAsync(ct).ConfigureAwait(false);
             _activity?.SetTag("graph.community.count", _result.Length);
             return _result;
         }
@@ -49,7 +49,7 @@ internal sealed class GraphInstrumented : IGraph
 
     private static async global::System.Threading.Tasks.Task<global::System.ReadOnlyMemory<byte>> _fault_ClusterAsync_0(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }
@@ -75,7 +75,7 @@ internal sealed class GraphInstrumented : IGraph
         using var _activity = _activitySource.StartActivity("graph.count");
         try
         {
-            var _result = await _inner.CountAsync(ct);
+            var _result = await _inner.CountAsync(ct).ConfigureAwait(false);
             var _tagged = _result;
             _activity?.SetTag("graph.node.count", _tagged);
             return _result;
@@ -89,7 +89,7 @@ internal sealed class GraphInstrumented : IGraph
 
     private static async global::System.Threading.Tasks.Task<int?> _fault_CountAsync_1(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }

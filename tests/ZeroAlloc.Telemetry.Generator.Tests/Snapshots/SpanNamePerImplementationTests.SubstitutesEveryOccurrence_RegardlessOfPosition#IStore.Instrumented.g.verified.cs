@@ -46,7 +46,7 @@ internal sealed class StoreInstrumented : IStore
         using var _activity = _activitySource.StartActivity(_spanName_SaveAsync_0);
         try
         {
-            await _inner.SaveAsync();
+            await _inner.SaveAsync().ConfigureAwait(false);
         }
         catch (Exception _ex)
         {
@@ -57,7 +57,7 @@ internal sealed class StoreInstrumented : IStore
 
     private static async global::System.Threading.Tasks.Task _fault_SaveAsync_0(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
     }
 
@@ -82,7 +82,7 @@ internal sealed class StoreInstrumented : IStore
         using var _activity = _activitySource.StartActivity(_spanName_LoadAsync_1);
         try
         {
-            await _inner.LoadAsync();
+            await _inner.LoadAsync().ConfigureAwait(false);
         }
         catch (Exception _ex)
         {
@@ -93,7 +93,7 @@ internal sealed class StoreInstrumented : IStore
 
     private static async global::System.Threading.Tasks.Task _fault_LoadAsync_1(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
     }
 }

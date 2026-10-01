@@ -36,7 +36,7 @@ internal sealed class RerankerInstrumented : IReranker
         using var _activity = _activitySource.StartActivity("rerank.run");
         try
         {
-            var _result = await _inner.RerankAsync(ct);
+            var _result = await _inner.RerankAsync(ct).ConfigureAwait(false);
             var _tagged = _result;
             _activity?.SetTag("rerank.candidate.count", _tagged?.Candidates);
             _activity?.SetTag("rerank.result.count", _tagged?.Kept);
@@ -51,7 +51,7 @@ internal sealed class RerankerInstrumented : IReranker
 
     private static async global::System.Threading.Tasks.Task<global::RerankOutcome> _fault_RerankAsync_0(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }
@@ -77,7 +77,7 @@ internal sealed class RerankerInstrumented : IReranker
         using var _activity = _activitySource.StartActivity("rerank.score");
         try
         {
-            var _result = await _inner.ScoreAsync(ct);
+            var _result = await _inner.ScoreAsync(ct).ConfigureAwait(false);
             _activity?.SetTag("rerank.score", _result);
             return _result;
         }
@@ -90,7 +90,7 @@ internal sealed class RerankerInstrumented : IReranker
 
     private static async global::System.Threading.Tasks.Task<double> _fault_ScoreAsync_1(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }

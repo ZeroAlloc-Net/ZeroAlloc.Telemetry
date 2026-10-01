@@ -41,7 +41,7 @@ internal sealed class ChatInstrumented : IChat
         var _sw = Stopwatch.GetTimestamp();
         try
         {
-            var _result = await _inner.CompleteAsync(prompt, ct);
+            var _result = await _inner.CompleteAsync(prompt, ct).ConfigureAwait(false);
             var _tagged = _result;
             if (_llm_tokens_input.Enabled && _tagged?.IsSuccess == true && _tagged?.Value?.Input is { } _read0)
             {
@@ -85,7 +85,7 @@ internal sealed class ChatInstrumented : IChat
 
     private static async global::System.Threading.Tasks.Task<global::Result<global::Reply, global::LlmError>> _fault_CompleteAsync_0(Exception _ex)
     {
-        await global::System.Threading.Tasks.Task.CompletedTask;
+        await global::System.Threading.Tasks.Task.CompletedTask.ConfigureAwait(false);
         global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
         return default!;
     }
