@@ -85,6 +85,7 @@ internal sealed class OrderServiceInstrumented : IOrderService
         }
         catch (Exception _ex)
         {
+            _activity?.SetTag("error.type", _ex.GetType().FullName);
             _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
             throw;
         }
@@ -111,9 +112,9 @@ Full methodology: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAll
 
 | Attribute | Instrument | Recorded when |
 |---|---|---|
-| `[Trace("name")]` | `ActivitySource.StartActivity("name")` | Every call — stopped in `finally`, Error status on exception |
+| `[Trace("name")]` | `ActivitySource.StartActivity("name")` | Every call — stopped in `finally`, Error status and `error.type` on exception |
 | `[Count("metric")]` | `Counter<long>.Add(1)` | After a successful (non-throwing) call only |
-| `[Histogram("metric")]` | `Histogram<double>.Record(ms)` | Every call including on exception, unless `When` is set |
+| `[Histogram("metric")]` | `Histogram<double>.Record(ms)` | Every call including on exception, tagged `error.type` there, unless `When` is set |
 | `[CountFromResult("metric", "Member")]` | `Counter<long>.Add(value)` | After a successful call, when the member is not null |
 | `[HistogramFromResult("metric", "Member")]` | `Histogram<double>.Record(value)` | After a successful call, when the member is not null |
 | `[MetricTagFromResult("tag", "Member")]` | A tag on the method's metrics | With each measurement, when a listener has enabled the instrument |

@@ -67,14 +67,16 @@ public sealed class MetricTagBehaviorTests : IDisposable
     }
 
     [Fact]
-    public async Task Throw_RecordsTheUnguardedHistogram_WithoutTags()
+    public async Task Throw_RecordsTheUnguardedHistogram_WithOnlyTheErrorType()
     {
         var proxy = new ModelServiceInstrumented(new FakeModelService { Throw = true });
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => proxy.PingAsync(CancellationToken.None)).ConfigureAwait(true);
 
-        _capture.TagsOf("model.ping").Should().ContainSingle().Which.Should().BeEmpty();
+        // The result tag cannot apply without a result; the exception classifies the point (#184).
+        _capture.TagsOf("model.ping").Should().ContainSingle().Which.Should().BeEquivalentTo(
+            new Dictionary<string, object?>(StringComparer.Ordinal) { ["error.type"] = "System.InvalidOperationException" });
     }
 
     [Fact]

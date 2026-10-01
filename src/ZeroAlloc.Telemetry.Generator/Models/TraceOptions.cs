@@ -24,10 +24,15 @@ namespace ZeroAlloc.Telemetry.Generator.Models;
 /// the argument, so testing the copy leaves the forwarded argument's null-state alone.
 /// </param>
 /// <param name="TagsAtStart">Whether the constant and parameter tags go to <c>StartActivity</c>.</param>
+/// <param name="OmitExceptionDescription">
+/// Whether the exception path sets the error status without the exception's message, for
+/// <c>ExceptionDescription = false</c>.
+/// </param>
 internal sealed record TraceOptions(
     string? Kind,
     string? ErrorGuard,
     string? ErrorDescription,
     string? DisplayName,
     EquatableArray<string> DisplayNameCopies,
-    bool TagsAtStart);
+    bool TagsAtStart,
+    bool OmitExceptionDescription);

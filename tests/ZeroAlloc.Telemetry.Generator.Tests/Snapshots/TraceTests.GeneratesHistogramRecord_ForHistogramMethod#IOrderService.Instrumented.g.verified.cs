@@ -41,9 +41,14 @@ internal sealed class OrderServiceInstrumented : IOrderService
             _order_duration_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
             return _result;
         }
-        catch (Exception)
+        catch (Exception _ex)
         {
-            _order_duration_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
+            if (_order_duration_ms.Enabled)
+            {
+                var _metricTags0 = new TagList();
+                _metricTags0.Add("error.type", _ex.GetType().FullName);
+                _order_duration_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds, in _metricTags0);
+            }
             throw;
         }
     }

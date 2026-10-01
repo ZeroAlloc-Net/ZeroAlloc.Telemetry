@@ -72,6 +72,7 @@ public sealed class TraceAttribute : Attribute
     public string? ErrorWhen { get; set; }
     public string? ErrorDescription { get; set; }
     public bool TagsAtStart { get; set; }
+    public bool ExceptionDescription { get; set; } = true;
     public TraceAttribute(string name);
 }
 ```
@@ -82,7 +83,8 @@ public sealed class TraceAttribute : Attribute
 
 - Span is started with `ActivitySource.StartActivity("name")` before the call.
 - Span is stopped automatically via `using` (disposed in `finally`).
-- On exception: `activity?.SetStatus(ActivityStatusCode.Error, ex.Message)` then rethrow.
+- On exception: `error.type` is set to the exception's full type name, the status to
+  `ActivityStatusCode.Error` with the exception's message, then the exception is rethrown.
 
 ```csharp
 [Trace("payment.charge")]
@@ -95,10 +97,34 @@ using var _activity = _activitySource.StartActivity("payment.charge");
 try { ... }
 catch (Exception _ex)
 {
+    _activity?.SetTag("error.type", _ex.GetType().FullName);
     _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
     throw;
 }
 ```
+
+### Keeping the exception message out of the span
+
+An exception message can carry request or response content, such as a prompt a
+provider echoes back in its error. `ExceptionDescription = false` sets the error
+status without a description:
+
+```csharp
+[Trace("chat", ExceptionDescription = false)]
+Task<ChatResult> ChatAsync(ChatRequest request, CancellationToken ct);
+
+// Generated:
+catch (Exception _ex)
+{
+    _activity?.SetTag("error.type", _ex.GetType().FullName);
+    _activity?.SetStatus(ActivityStatusCode.Error);
+    throw;
+}
+```
+
+`error.type` is set either way, so a failed call stays classifiable. The type
+name is the OpenTelemetry semantic conventions' fallback for an operation that
+fails with an exception.
 
 ### Varying the span name by implementation
 
@@ -326,6 +352,8 @@ public sealed class HistogramAttribute : Attribute
 
 Uses `Stopwatch.GetTimestamp()` before the call and `Stopwatch.GetElapsedTime(ts)` after, so the measurement includes the full method duration regardless of outcome.
 
+The point recorded for a call that throws is tagged `error.type` with the exception's full type name, so an error rate built on the histogram counts thrown calls. A `[MetricTagConstant]` or `[MetricTag]` named `error.type` that applies to the histogram takes its place. A `[MetricTagFromResult]` cannot, since a throw leaves no result.
+
 `Unit` decides what is recorded, so the values match the unit the instrument declares:
 
 | `Unit` | Recorded |
@@ -405,6 +433,7 @@ try
 }
 catch (Exception _ex)
 {
+    _activity?.SetTag("error.type", _ex.GetType().FullName);
     _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
     throw;   // no Record: a guarded histogram has nothing to evaluate on a throw
 }

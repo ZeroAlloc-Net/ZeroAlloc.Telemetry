@@ -43,6 +43,12 @@ public interface IOrderService
 
     int Pending { get; }
 
+    // The exception path (#184): error.type on the span and the duration point, and the
+    // exception's message kept out of the span.
+    [Trace("order.cancel", ExceptionDescription = false)]
+    [Histogram("order.cancel_ms")]
+    ValueTask CancelAsync(string orderId);
+
     // A generic method: the proxy repeats its type parameter and constraint (#168).
     [Trace("order.echo")]
     ValueTask<T> EchoAsync<T>(T value) where T : notnull;

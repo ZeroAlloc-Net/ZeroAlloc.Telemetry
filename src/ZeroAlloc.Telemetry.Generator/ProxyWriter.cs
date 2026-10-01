@@ -807,6 +807,10 @@ internal static class ProxyWriter
     /// tags that do not read the result are added. Without tags the emitted code is exactly what
     /// it was before tags existed.
     /// </para>
+    /// <para>
+    /// <paramref name="errorType"/> adds <c>error.type</c> from the caught exception, for the throw
+    /// path, unless a declared tag of that name already applies.
+    /// </para>
     /// </remarks>
     private static void WriteMeasurement(
         StringBuilder sb,
@@ -817,7 +821,8 @@ internal static class ProxyWriter
         string value,
         string? root,
         ref int tagLists,
-        int index = 0)
+        int index = 0,
+        bool errorType = false)
     {
         var field = fields.FieldFor(metric);
 
@@ -828,6 +833,12 @@ internal static class ProxyWriter
             if (tag.AppliesTo(metric) && (root is not null || (!tag.ReadsResult && !tag.RootIsOut)))
                 (tags ??= new List<MetricTagModel>()).Add(tag);
         }
+
+        // A declared error.type tag that applies on this path wins over the exception's type.
+        var addErrorType = errorType
+            && (tags is null || !tags.Any(static t => string.Equals(t.TagName, ErrorTypeTag, StringComparison.Ordinal)));
+        if (addErrorType)
+            tags ??= new List<MetricTagModel>();
 
         var enabled = field + ".Enabled";
         if (tags is null)
@@ -857,6 +868,9 @@ internal static class ProxyWriter
 
         for (var k = 0; k < tags.Count; k++)
             WriteMetricTag(sb, tags[k], list, $"_metricTag{listIndex}_{k.ToString(CultureInfo.InvariantCulture)}", root);
+
+        if (addErrorType)
+            sb.AppendLine($"                {list}.Add({Literal(ErrorTypeTag)}, {ErrorTypeValue});");
 
         WriteRecord(sb, "                ", metric, field, value, list, index);
         sb.AppendLine("            }");
@@ -948,25 +962,41 @@ internal static class ProxyWriter
     private static string Elapsed(MetricModel histogram) =>
         "Stopwatch.GetElapsedTime(_sw)." + histogram.ElapsedMember;
 
+    /// <summary>
+    /// The exception path: the span is marked failed and the unguarded histogram records the call,
+    /// both tagged with <c>error.type</c>, then the exception is rethrown.
+    /// </summary>
+    /// <remarks>
+    /// <c>error.type</c> is the exception's full type name, the OpenTelemetry semantic conventions'
+    /// fallback when an operation fails with an exception. Without it a thrown call's duration point
+    /// looks like a success with no result tags, and an error rate built on the histogram undercounts.
+    /// </remarks>
     private static void WriteCatchBlock(
         StringBuilder sb, MethodModel method, MetricFieldTable fields, ref int tagLists, bool disposeSpan = false)
     {
-        // Only the span reads the exception. Declaring the variable otherwise raises CS0168 in
-        // the generated file, and that fails every consumer building with TreatWarningsAsErrors.
-        sb.AppendLine(method.TraceName is not null
+        // A guarded histogram records only when its guard holds, and a throw leaves no result to
+        // evaluate it against. An unguarded one records on both paths, as it always has.
+        var histogram = method.Histogram is { GuardExpression: null } h ? h : null;
+
+        // Declaring the variable when nothing reads it raises CS0168 in the generated file, and
+        // that fails every consumer building with TreatWarningsAsErrors.
+        sb.AppendLine(method.TraceName is not null || histogram is not null
             ? "        catch (Exception _ex)"
             : "        catch (Exception)");
         sb.AppendLine("        {");
 
         if (method.TraceName is not null)
-            sb.AppendLine("            _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);");
+        {
+            sb.AppendLine($"            _activity?.SetTag({Literal(ErrorTypeTag)}, {ErrorTypeValue});");
+            sb.AppendLine(method.Trace is { OmitExceptionDescription: true }
+                ? "            _activity?.SetStatus(ActivityStatusCode.Error);"
+                : "            _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);");
+        }
 
-        // A guarded histogram records only when its guard holds, and a throw leaves no result to
-        // evaluate it against. An unguarded one records on both paths, as it always has.
-        if (method.Histogram is { GuardExpression: null } histogram)
+        if (histogram is not null)
         {
             WriteMeasurement(
-                sb, method, histogram, fields, null, Elapsed(histogram), root: null, ref tagLists);
+                sb, method, histogram, fields, null, Elapsed(histogram), root: null, ref tagLists, errorType: true);
         }
 
         // A span not declared with using is disposed here, since nothing else will end it.
@@ -976,6 +1006,12 @@ internal static class ProxyWriter
         sb.AppendLine("            throw;");
         sb.AppendLine("        }");
     }
+
+    /// <summary>The semantic-conventions attribute naming the class of error an operation ended with.</summary>
+    private const string ErrorTypeTag = "error.type";
+
+    /// <summary>The <c>error.type</c> value on the exception path: the exception's full type name.</summary>
+    private const string ErrorTypeValue = "_ex.GetType().FullName";
 
     /// <summary>Forwards a synchronous call that has no instruments.</summary>
     private static void WritePassthroughBody(StringBuilder sb, MethodModel method, string argList)

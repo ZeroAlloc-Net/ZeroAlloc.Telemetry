@@ -258,6 +258,83 @@ public class TraceOptionsTests
                 new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary))));
     }
 
+    /// <summary>
+    /// The exception path sets <c>error.type</c> on the span (#184), and takes the exception's
+    /// message as the status description unless <c>ExceptionDescription = false</c>.
+    /// </summary>
+    [Fact]
+    public void ExceptionPath_SetsErrorType_AndTheDescriptionOnlyWhenNotOptedOut()
+    {
+        var run = GeneratorCompilation.RunAll("""
+            using System.Threading.Tasks;
+            using ZeroAlloc.Telemetry;
+            [Instrument("a")]
+            public interface IOps
+            {
+                [Trace("described")] Task DescribedAsync();
+                [Trace("explicit", ExceptionDescription = true)] void Explicit();
+                [Trace("quiet", ExceptionDescription = false)] Task QuietAsync();
+            }
+            """);
+
+        run.GeneratorDiagnostics.Should().BeEmpty();
+        run.Errors.Should().BeEmpty();
+        var proxy = Proxy(run, "IOps");
+        CountOf(proxy, "_activity?.SetTag(\"error.type\", _ex.GetType().FullName);").Should().Be(3);
+        CountOf(proxy, "_activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);").Should().Be(2);
+        CountOf(proxy, "_activity?.SetStatus(ActivityStatusCode.Error);").Should().Be(1);
+    }
+
+    /// <summary>
+    /// The unguarded histogram's throw-path point carries <c>error.type</c> (#184), so it can be told
+    /// from a success, even on a method with no span. A declared tag of that name that applies on
+    /// the throw path wins, and a guarded histogram still records nothing on a throw.
+    /// </summary>
+    [Fact]
+    public void ExceptionPath_TagsTheHistogramWithErrorType_UnlessDeclared()
+    {
+        var run = GeneratorCompilation.RunAll("""
+            using System.Threading.Tasks;
+            using ZeroAlloc.Telemetry;
+            public sealed class Result { public bool IsFailure { get; init; } public string Code { get; init; } = ""; }
+            [Instrument("a")]
+            public interface IOps
+            {
+                [Histogram("plain.duration")]
+                Task<int> PlainAsync();
+
+                [Histogram("declared.duration")]
+                [MetricTagConstant("error.type", "custom")]
+                Task DeclaredAsync();
+
+                [Histogram("result.duration")]
+                [MetricTagFromResult("error.type", "Code", When = "IsFailure")]
+                Task<Result> ResultAsync();
+
+                [Histogram("guarded.duration", When = "IsFailure")]
+                Task<Result> GuardedAsync();
+            }
+            """);
+
+        run.GeneratorDiagnostics.Should().BeEmpty();
+        run.Errors.Should().BeEmpty();
+        var proxy = Proxy(run, "IOps");
+
+        // Plain and result each add it on the throw path: the result tag cannot apply there.
+        CountOf(proxy, ".Add(\"error.type\", _ex.GetType().FullName);").Should().Be(2);
+        CountOf(proxy, ".Add(\"error.type\", \"custom\");").Should().Be(2);
+        // Only the guarded method's core catch reads no exception.
+        CountOf(proxy, "catch (Exception)\n").Should().Be(1);
+    }
+
+    private static int CountOf(string text, string value)
+    {
+        var count = 0;
+        for (var i = text.IndexOf(value, StringComparison.Ordinal); i >= 0; i = text.IndexOf(value, i + value.Length, StringComparison.Ordinal))
+            count++;
+        return count;
+    }
+
     private static string Proxy(GeneratorOutput run, string interfaceName) =>
         run.Output.SyntaxTrees
             .First(t => t.FilePath.EndsWith(interfaceName + ".Instrumented.g.cs", StringComparison.Ordinal))

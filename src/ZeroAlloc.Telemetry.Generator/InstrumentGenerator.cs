@@ -628,7 +628,8 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
 
     /// <summary>
     /// Reads what <c>[Trace]</c> asks for beyond a plain span: its kind, the error status from the
-    /// result, the display name and the tags at start. Null when it asks for none of them.
+    /// result, the display name, the tags at start and the exception description. Null when it asks
+    /// for none of them.
     /// </summary>
     private static TraceOptions? BuildTraceOptions(
         Compilation compilation,
@@ -644,6 +645,9 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
 
         var kind = TraceKind(attr);
         var tagsAtStart = GetNamedBool(attr, "TagsAtStart");
+        // Defaults to true, so only an explicit false asks for anything.
+        var omitExceptionDescription = attr.NamedArguments.Any(static n =>
+            string.Equals(n.Key, "ExceptionDescription", StringComparison.Ordinal) && n.Value.Value is false);
         var errorWhen = GetNamedString(attr, "ErrorWhen");
         var errorDescription = GetNamedString(attr, "ErrorDescription");
 
@@ -664,10 +668,11 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             description = ErrorDescriptionAccess(compilation, attr, method, resultType, errorDescription, diagnostics);
         }
 
-        if (kind is null && guard is null && spanName.DisplayName is null && !tagsAtStart)
+        if (kind is null && guard is null && spanName.DisplayName is null && !tagsAtStart && !omitExceptionDescription)
             return null;
 
-        return new TraceOptions(kind, guard, description, spanName.DisplayName, spanName.Copies, tagsAtStart);
+        return new TraceOptions(
+            kind, guard, description, spanName.DisplayName, spanName.Copies, tagsAtStart, omitExceptionDescription);
     }
 
     /// <summary>The span kind as an expression, or null for the default <c>Internal</c>.</summary>

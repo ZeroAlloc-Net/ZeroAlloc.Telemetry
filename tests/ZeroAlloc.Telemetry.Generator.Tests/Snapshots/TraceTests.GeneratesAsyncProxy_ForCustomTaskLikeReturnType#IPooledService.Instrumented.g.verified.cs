@@ -46,8 +46,14 @@ internal sealed class PooledServiceInstrumented : IPooledService
         }
         catch (Exception _ex)
         {
+            _activity?.SetTag("error.type", _ex.GetType().FullName);
             _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
-            _pooled_list_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
+            if (_pooled_list_ms.Enabled)
+            {
+                var _metricTags0 = new TagList();
+                _metricTags0.Add("error.type", _ex.GetType().FullName);
+                _pooled_list_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds, in _metricTags0);
+            }
             throw;
         }
     }
@@ -89,6 +95,7 @@ internal sealed class PooledServiceInstrumented : IPooledService
         }
         catch (Exception _ex)
         {
+            _activity?.SetTag("error.type", _ex.GetType().FullName);
             _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
             throw;
         }
@@ -128,8 +135,14 @@ internal sealed class PooledServiceInstrumented : IPooledService
         }
         catch (Exception _ex)
         {
+            _activity?.SetTag("error.type", _ex.GetType().FullName);
             _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
-            _pooled_run_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
+            if (_pooled_run_ms.Enabled)
+            {
+                var _metricTags0 = new TagList();
+                _metricTags0.Add("error.type", _ex.GetType().FullName);
+                _pooled_run_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds, in _metricTags0);
+            }
             throw;
         }
     }

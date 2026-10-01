@@ -160,6 +160,58 @@ var echoedText = await proxy.EchoAsync("seven").ConfigureAwait(false);
 if (echoedInt != 7 || !string.Equals(echoedText, "seven", StringComparison.Ordinal))
     return Fail($"EchoAsync expected 7 and seven, got {echoedInt} and {echoedText}");
 
+// The exception path: error.type names the exception on the span and on the duration point, and
+// ExceptionDescription = false keeps the exception's message out of the span.
+Activity? cancelled = null;
+object? cancelErrorType = null;
+using var cancelSpans = new ActivityListener
+{
+    ShouldListenTo = s => string.Equals(s.Name, "ZeroAlloc.Telemetry.AotSmoke", StringComparison.Ordinal),
+    Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+    ActivityStopped = activity =>
+    {
+        if (string.Equals(activity.OperationName, "order.cancel", StringComparison.Ordinal))
+            cancelled = activity;
+    },
+};
+ActivitySource.AddActivityListener(cancelSpans);
+using var cancelMetrics = new MeterListener();
+cancelMetrics.InstrumentPublished = (instrument, l) =>
+{
+    if (string.Equals(instrument.Meter.Name, "ZeroAlloc.Telemetry.AotSmoke", StringComparison.Ordinal)
+        && string.Equals(instrument.Name, "order.cancel_ms", StringComparison.Ordinal))
+    {
+        l.EnableMeasurementEvents(instrument);
+    }
+};
+cancelMetrics.SetMeasurementEventCallback<double>((_, _, tags, _) =>
+{
+    foreach (ref readonly var tag in tags)
+    {
+        if (string.Equals(tag.Key, "error.type", StringComparison.Ordinal))
+            cancelErrorType = tag.Value;
+    }
+});
+cancelMetrics.Start();
+
+try
+{
+    await proxy.CancelAsync("o-7").ConfigureAwait(false);
+    return Fail("CancelAsync did not throw");
+}
+catch (InvalidOperationException)
+{
+}
+
+const string cancelType = "System.InvalidOperationException";
+if (cancelled is null) return Fail("CancelAsync recorded no span");
+if (cancelled.Status != ActivityStatusCode.Error || cancelled.StatusDescription is not null)
+    return Fail($"cancel span status expected Error with no description, got {cancelled.Status} '{cancelled.StatusDescription}'");
+if (!Equals(cancelled.GetTagItem("error.type"), cancelType))
+    return Fail($"cancel span error.type expected {cancelType}, got {cancelled.GetTagItem("error.type") ?? "none"}");
+if (!Equals(cancelErrorType, cancelType))
+    return Fail($"order.cancel_ms error.type expected {cancelType}, got {cancelErrorType ?? "none"}");
+
 Console.WriteLine("AOT smoke: PASS");
 return 0;
 
