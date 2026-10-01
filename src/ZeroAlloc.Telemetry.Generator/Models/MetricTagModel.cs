@@ -19,6 +19,9 @@ namespace ZeroAlloc.Telemetry.Generator.Models;
 /// The resolved <c>When</c> condition to append to the result root, such as
 /// <c>?.IsSuccess == true</c>. Null adds the tag unconditionally.
 /// </param>
+/// <param name="RootIsOut">
+/// Whether the root is an <c>out</c> parameter, which has no value on the throw path.
+/// </param>
 /// <param name="Root">
 /// What <see cref="Access"/> is appended to: the parameter for a <c>[MetricTag]</c>, or the
 /// literal for a <c>[MetricTagConstant]</c>. Null for a <c>[MetricTagFromResult]</c>, which reads
@@ -30,7 +33,8 @@ internal sealed record MetricTagModel(
     string Access,
     bool ValueCanBeNull,
     string? GuardExpression = null,
-    string? Root = null)
+    string? Root = null,
+    bool RootIsOut = false)
 {
     /// <summary>Whether the tag reads the result, so it can only be added after a call that returned.</summary>
     public bool ReadsResult => Root is null;

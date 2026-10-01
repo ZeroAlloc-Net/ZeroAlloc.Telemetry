@@ -261,4 +261,41 @@ internal static class InstrumentDiagnostics
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
+
+    /// <summary>
+    /// An instrumentation attribute on a member the proxy forwards but cannot instrument: an
+    /// accessor of a property, indexer or event, or a method returning by reference. The member
+    /// still compiles and is forwarded, so this is a warning.
+    /// </summary>
+    public static readonly DiagnosticDescriptor UninstrumentableMember = new(
+        id: "ZTEL023",
+        title: "Instrumentation is not supported on this member",
+        messageFormat: "[{0}] on '{1}.{2}' records nothing — {3}. The member is forwarded without instrumentation.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    /// A tag or name token reading a parameter whose value the proxy cannot read where it would
+    /// need it. The tag or token is left out.
+    /// </summary>
+    public static readonly DiagnosticDescriptor UnreadableParameter = new(
+        id: "ZTEL024",
+        title: "Parameter value cannot be recorded",
+        messageFormat: "[{0}] on parameter '{1}' of '{2}.{3}' records nothing — {4}",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    /// A static abstract member: the proxy has to implement it as a static member, which cannot
+    /// reach the wrapped instance.
+    /// </summary>
+    public static readonly DiagnosticDescriptor StaticAbstractMember = new(
+        id: "ZTEL025",
+        title: "Instrumented interface has a static abstract member",
+        messageFormat: "Instrumented interface '{0}' gets no proxy because its member '{1}' is static abstract, and a proxy cannot forward a static member to the instance it wraps",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }
