@@ -18,7 +18,16 @@ internal sealed class OrderServiceInstrumented : IOrderService
     public global::System.Threading.Tasks.ValueTask CreateOrderAsync(string orderId, global::System.Threading.CancellationToken ct)
     {
         if (!_activitySource.HasListeners())
-            return _inner.CreateOrderAsync(orderId, ct);
+        {
+            try
+            {
+                return _inner.CreateOrderAsync(orderId, ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_CreateOrderAsync_0(_ex);
+            }
+        }
         return _core_CreateOrderAsync_0(orderId, ct);
     }
 
@@ -34,5 +43,11 @@ internal sealed class OrderServiceInstrumented : IOrderService
             _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
             throw;
         }
+    }
+
+    private static async global::System.Threading.Tasks.ValueTask _fault_CreateOrderAsync_0(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
     }
 }

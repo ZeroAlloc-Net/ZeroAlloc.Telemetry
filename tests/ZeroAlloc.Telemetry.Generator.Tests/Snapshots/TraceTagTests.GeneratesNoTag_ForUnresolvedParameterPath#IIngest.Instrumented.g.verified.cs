@@ -18,7 +18,16 @@ internal sealed class IngestInstrumented : IIngest
     public global::System.Threading.Tasks.Task StoreAsync(string source, global::System.Collections.Generic.IReadOnlyList<string> chunks, global::System.Threading.CancellationToken ct)
     {
         if (!_activitySource.HasListeners())
-            return _inner.StoreAsync(source, chunks, ct);
+        {
+            try
+            {
+                return _inner.StoreAsync(source, chunks, ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_StoreAsync_0(_ex);
+            }
+        }
         return _core_StoreAsync_0(source, chunks, ct);
     }
 
@@ -35,5 +44,11 @@ internal sealed class IngestInstrumented : IIngest
             _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
             throw;
         }
+    }
+
+    private static async global::System.Threading.Tasks.Task _fault_StoreAsync_0(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
     }
 }

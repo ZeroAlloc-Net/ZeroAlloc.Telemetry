@@ -18,7 +18,16 @@ internal sealed class OrderRepositoryInstrumented : IOrderRepository
     public global::System.Threading.Tasks.Task<global::OrderRow?> GetByIdAsync(int id, global::System.Threading.CancellationToken ct)
     {
         if (!_activitySource.HasListeners())
-            return _inner.GetByIdAsync(id, ct);
+        {
+            try
+            {
+                return _inner.GetByIdAsync(id, ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_GetByIdAsync_0(_ex);
+            }
+        }
         return _core_GetByIdAsync_0(id, ct);
     }
 
@@ -37,10 +46,26 @@ internal sealed class OrderRepositoryInstrumented : IOrderRepository
         }
     }
 
+    private static async global::System.Threading.Tasks.Task<global::OrderRow?> _fault_GetByIdAsync_0(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
+    }
+
     public global::System.Threading.Tasks.Task<global::OrderRow> FindAsync(string? filter, global::System.Threading.CancellationToken ct)
     {
         if (!_activitySource.HasListeners())
-            return _inner.FindAsync(filter, ct);
+        {
+            try
+            {
+                return _inner.FindAsync(filter, ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_FindAsync_1(_ex);
+            }
+        }
         return _core_FindAsync_1(filter, ct);
     }
 
@@ -59,10 +84,26 @@ internal sealed class OrderRepositoryInstrumented : IOrderRepository
         }
     }
 
+    private static async global::System.Threading.Tasks.Task<global::OrderRow> _fault_FindAsync_1(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
+    }
+
     public global::System.Threading.Tasks.Task<global::OrderRow?> SearchAsync(string? term, string tenant, global::System.Threading.CancellationToken ct)
     {
         if (!_activitySource.HasListeners())
-            return _inner.SearchAsync(term, tenant, ct);
+        {
+            try
+            {
+                return _inner.SearchAsync(term, tenant, ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_SearchAsync_2(_ex);
+            }
+        }
         return _core_SearchAsync_2(term, tenant, ct);
     }
 
@@ -79,5 +120,12 @@ internal sealed class OrderRepositoryInstrumented : IOrderRepository
             _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
             throw;
         }
+    }
+
+    private static async global::System.Threading.Tasks.Task<global::OrderRow?> _fault_SearchAsync_2(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
     }
 }

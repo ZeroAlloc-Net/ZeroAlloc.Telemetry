@@ -18,7 +18,16 @@ internal sealed class GraphInstrumented : IGraph
     public global::System.Threading.Tasks.Task<global::System.ReadOnlyMemory<byte>> ClusterAsync(global::System.Threading.CancellationToken ct)
     {
         if (!_activitySource.HasListeners())
-            return _inner.ClusterAsync(ct);
+        {
+            try
+            {
+                return _inner.ClusterAsync(ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_ClusterAsync_0(_ex);
+            }
+        }
         return _core_ClusterAsync_0(ct);
     }
 
@@ -38,10 +47,26 @@ internal sealed class GraphInstrumented : IGraph
         }
     }
 
+    private static async global::System.Threading.Tasks.Task<global::System.ReadOnlyMemory<byte>> _fault_ClusterAsync_0(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
+    }
+
     public global::System.Threading.Tasks.Task<int?> CountAsync(global::System.Threading.CancellationToken ct)
     {
         if (!_activitySource.HasListeners())
-            return _inner.CountAsync(ct);
+        {
+            try
+            {
+                return _inner.CountAsync(ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_CountAsync_1(_ex);
+            }
+        }
         return _core_CountAsync_1(ct);
     }
 
@@ -60,5 +85,12 @@ internal sealed class GraphInstrumented : IGraph
             _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
             throw;
         }
+    }
+
+    private static async global::System.Threading.Tasks.Task<int?> _fault_CountAsync_1(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
     }
 }

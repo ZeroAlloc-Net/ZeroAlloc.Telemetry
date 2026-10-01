@@ -62,13 +62,22 @@ finally
 }
 ```
 
-For a method returning `Task`, `ValueTask` or another awaitable, the proxy goes one step further. Its public method is not `async`: when the source has no listener and none of the method's instruments is enabled, it returns the inner task as is, so no state machine is allocated even when the inner call completes asynchronously. Only when something would record the call does it go through an `async` core:
+For a method returning `Task`, `ValueTask` or another awaitable, the proxy goes one step further. Its public method is not `async`: when the source has no listener and none of the method's instruments is enabled, it returns the inner task as is, so no state machine is allocated even when the inner call completes asynchronously. Only when something would record the call does it go through an `async` core. An exception the inner method throws before returning its task still reaches the caller inside the returned task, so failures look the same with telemetry on or off; only that exception path allocates:
 
 ```csharp
 public ValueTask<OrderId> CreateOrderAsync(CreateOrderCommand cmd, CancellationToken ct)
 {
     if (!_activitySource.HasListeners() && !_orders_created.Enabled)
-        return _inner.CreateOrderAsync(cmd, ct);
+    {
+        try
+        {
+            return _inner.CreateOrderAsync(cmd, ct);
+        }
+        catch (Exception _ex)
+        {
+            return _fault_CreateOrderAsync_0(_ex);
+        }
+    }
     return _core_CreateOrderAsync_0(cmd, ct);
 }
 ```

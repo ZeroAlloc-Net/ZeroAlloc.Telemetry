@@ -18,7 +18,16 @@ internal sealed class ExtentsInstrumented : IExtents
     public global::System.Threading.Tasks.Task<global::Extent?> WidthAsync(global::System.Threading.CancellationToken ct)
     {
         if (!_activitySource.HasListeners())
-            return _inner.WidthAsync(ct);
+        {
+            try
+            {
+                return _inner.WidthAsync(ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_WidthAsync_0(_ex);
+            }
+        }
         return _core_WidthAsync_0(ct);
     }
 
@@ -39,10 +48,26 @@ internal sealed class ExtentsInstrumented : IExtents
         }
     }
 
+    private static async global::System.Threading.Tasks.Task<global::Extent?> _fault_WidthAsync_0(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
+    }
+
     public global::System.Threading.Tasks.Task<bool?> FlagAsync(global::System.Threading.CancellationToken ct)
     {
         if (!_activitySource.HasListeners())
-            return _inner.FlagAsync(ct);
+        {
+            try
+            {
+                return _inner.FlagAsync(ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_FlagAsync_1(_ex);
+            }
+        }
         return _core_FlagAsync_1(ct);
     }
 
@@ -62,5 +87,12 @@ internal sealed class ExtentsInstrumented : IExtents
             _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
             throw;
         }
+    }
+
+    private static async global::System.Threading.Tasks.Task<bool?> _fault_FlagAsync_1(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
     }
 }

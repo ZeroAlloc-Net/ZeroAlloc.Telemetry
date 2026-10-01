@@ -26,7 +26,16 @@ internal sealed class FieldsInstrumented : IFields
     public global::System.Threading.Tasks.Task<int> CountedAsync(global::System.Threading.CancellationToken ct)
     {
         if (!_x.Enabled)
-            return _inner.CountedAsync(ct);
+        {
+            try
+            {
+                return _inner.CountedAsync(ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_CountedAsync_0(_ex);
+            }
+        }
         return _core_CountedAsync_0(ct);
     }
 
@@ -44,10 +53,26 @@ internal sealed class FieldsInstrumented : IFields
         }
     }
 
+    private static async global::System.Threading.Tasks.Task<int> _fault_CountedAsync_0(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
+    }
+
     public global::System.Threading.Tasks.Task<int> TimedAsync(global::System.Threading.CancellationToken ct)
     {
         if (!_x_2.Enabled)
-            return _inner.TimedAsync(ct);
+        {
+            try
+            {
+                return _inner.TimedAsync(ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_TimedAsync_1(_ex);
+            }
+        }
         return _core_TimedAsync_1(ct);
     }
 
@@ -67,10 +92,26 @@ internal sealed class FieldsInstrumented : IFields
         }
     }
 
+    private static async global::System.Threading.Tasks.Task<int> _fault_TimedAsync_1(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
+    }
+
     public global::System.Threading.Tasks.Task<int> DottedAsync(global::System.Threading.CancellationToken ct)
     {
         if (!_a_b.Enabled)
-            return _inner.DottedAsync(ct);
+        {
+            try
+            {
+                return _inner.DottedAsync(ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_DottedAsync_2(_ex);
+            }
+        }
         return _core_DottedAsync_2(ct);
     }
 
@@ -88,10 +129,26 @@ internal sealed class FieldsInstrumented : IFields
         }
     }
 
+    private static async global::System.Threading.Tasks.Task<int> _fault_DottedAsync_2(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
+    }
+
     public global::System.Threading.Tasks.Task<int> UnderscoredAsync(global::System.Threading.CancellationToken ct)
     {
         if (!_a_b_2.Enabled)
-            return _inner.UnderscoredAsync(ct);
+        {
+            try
+            {
+                return _inner.UnderscoredAsync(ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_UnderscoredAsync_3(_ex);
+            }
+        }
         return _core_UnderscoredAsync_3(ct);
     }
 
@@ -109,10 +166,26 @@ internal sealed class FieldsInstrumented : IFields
         }
     }
 
+    private static async global::System.Threading.Tasks.Task<int> _fault_UnderscoredAsync_3(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
+    }
+
     public global::System.Threading.Tasks.Task<int> SlashAsync(global::System.Threading.CancellationToken ct)
     {
         if (!_http_requests_total.Enabled)
-            return _inner.SlashAsync(ct);
+        {
+            try
+            {
+                return _inner.SlashAsync(ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_SlashAsync_4(_ex);
+            }
+        }
         return _core_SlashAsync_4(ct);
     }
 
@@ -130,10 +203,26 @@ internal sealed class FieldsInstrumented : IFields
         }
     }
 
+    private static async global::System.Threading.Tasks.Task<int> _fault_SlashAsync_4(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
+    }
+
     public global::System.Threading.Tasks.Task<int> QuotedAsync(global::System.Threading.CancellationToken ct)
     {
         if (!_say__hi_.Enabled)
-            return _inner.QuotedAsync(ct);
+        {
+            try
+            {
+                return _inner.QuotedAsync(ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_QuotedAsync_5(_ex);
+            }
+        }
         return _core_QuotedAsync_5(ct);
     }
 
@@ -151,10 +240,26 @@ internal sealed class FieldsInstrumented : IFields
         }
     }
 
+    private static async global::System.Threading.Tasks.Task<int> _fault_QuotedAsync_5(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
+    }
+
     public global::System.Threading.Tasks.Task<int> MeterAsync(global::System.Threading.CancellationToken ct)
     {
         if (!_metric_meter.Enabled)
-            return _inner.MeterAsync(ct);
+        {
+            try
+            {
+                return _inner.MeterAsync(ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_MeterAsync_6(_ex);
+            }
+        }
         return _core_MeterAsync_6(ct);
     }
 
@@ -172,10 +277,26 @@ internal sealed class FieldsInstrumented : IFields
         }
     }
 
+    private static async global::System.Threading.Tasks.Task<int> _fault_MeterAsync_6(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
+    }
+
     public global::System.Threading.Tasks.Task<int> ResultAsync(global::System.Threading.CancellationToken ct)
     {
         if (!_metric_result.Enabled)
-            return _inner.ResultAsync(ct);
+        {
+            try
+            {
+                return _inner.ResultAsync(ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_ResultAsync_7(_ex);
+            }
+        }
         return _core_ResultAsync_7(ct);
     }
 
@@ -195,10 +316,26 @@ internal sealed class FieldsInstrumented : IFields
         }
     }
 
+    private static async global::System.Threading.Tasks.Task<int> _fault_ResultAsync_7(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
+    }
+
     public global::System.Threading.Tasks.Task<int> CountedAgainAsync(global::System.Threading.CancellationToken ct)
     {
         if (!_x.Enabled)
-            return _inner.CountedAgainAsync(ct);
+        {
+            try
+            {
+                return _inner.CountedAgainAsync(ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_CountedAgainAsync_8(_ex);
+            }
+        }
         return _core_CountedAgainAsync_8(ct);
     }
 
@@ -214,5 +351,12 @@ internal sealed class FieldsInstrumented : IFields
         {
             throw;
         }
+    }
+
+    private static async global::System.Threading.Tasks.Task<int> _fault_CountedAgainAsync_8(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
     }
 }

@@ -114,7 +114,16 @@ Output:
 public ValueTask<OrderId> CreateOrderAsync(CreateOrderCommand cmd, CancellationToken ct)
 {
     if (!_activitySource.HasListeners() && !_orders_created.Enabled)
-        return _inner.CreateOrderAsync(cmd, ct);
+    {
+        try
+        {
+            return _inner.CreateOrderAsync(cmd, ct);
+        }
+        catch (Exception _ex)
+        {
+            return _fault_CreateOrderAsync_0(_ex);
+        }
+    }
     return _core_CreateOrderAsync_0(cmd, ct);
 }
 
@@ -135,7 +144,7 @@ private async ValueTask<OrderId> _core_CreateOrderAsync_0(CreateOrderCommand cmd
 }
 ```
 
-An awaitable method's public proxy method is never `async`. When the source has no listener and none of the method's instruments is enabled, it returns the inner call's task as is, so a call adds no allocation even when the inner method completes asynchronously. Otherwise it calls a private `async` core that does the instrumented work. The examples below show only the core.
+An awaitable method's public proxy method is never `async`. When the source has no listener and none of the method's instruments is enabled, it returns the inner call's task as is, so a call adds no allocation even when the inner method completes asynchronously. Otherwise it calls a private `async` core that does the instrumented work. If the inner method throws before returning its task, `_fault_CreateOrderAsync_0`, a private `async` method that rethrows, hands the exception back inside a faulted task, or a canceled one for an `OperationCanceledException`. A caller therefore sees the same failure, on the await, whether or not anything is listening, and only the exception path allocates. The examples below show only the core.
 
 ### [Trace] + [Histogram]
 
@@ -178,11 +187,18 @@ Output:
 ```csharp
 public ValueTask DeleteOrderAsync(OrderId id, CancellationToken ct)
 {
-    return _inner.DeleteOrderAsync(id, ct);
+    try
+    {
+        return _inner.DeleteOrderAsync(id, ct);
+    }
+    catch (Exception _ex)
+    {
+        return _fault_DeleteOrderAsync_2(_ex);
+    }
 }
 ```
 
-No try/catch, no timing, no span, and no state machine: the inner task is returned as is.
+No timing, no span, and no state machine: the inner task is returned as is. The catch only turns a synchronous throw into a faulted task, as the `async` pass-through before it did.
 
 ### Result-driven instruments
 

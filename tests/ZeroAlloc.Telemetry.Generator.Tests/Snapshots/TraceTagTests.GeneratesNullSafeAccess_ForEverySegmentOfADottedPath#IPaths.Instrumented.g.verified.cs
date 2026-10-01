@@ -18,7 +18,16 @@ internal sealed class PathsInstrumented : IPaths
     public global::System.Threading.Tasks.Task<global::Outer> DeepAsync(global::System.Threading.CancellationToken ct)
     {
         if (!_activitySource.HasListeners())
-            return _inner.DeepAsync(ct);
+        {
+            try
+            {
+                return _inner.DeepAsync(ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_DeepAsync_0(_ex);
+            }
+        }
         return _core_DeepAsync_0(ct);
     }
 
@@ -39,10 +48,26 @@ internal sealed class PathsInstrumented : IPaths
         }
     }
 
+    private static async global::System.Threading.Tasks.Task<global::Outer> _fault_DeepAsync_0(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
+    }
+
     public global::System.Threading.Tasks.Task<global::Outer> ValueAsync(global::System.Threading.CancellationToken ct)
     {
         if (!_activitySource.HasListeners())
-            return _inner.ValueAsync(ct);
+        {
+            try
+            {
+                return _inner.ValueAsync(ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_ValueAsync_1(_ex);
+            }
+        }
         return _core_ValueAsync_1(ct);
     }
 
@@ -62,5 +87,12 @@ internal sealed class PathsInstrumented : IPaths
             _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
             throw;
         }
+    }
+
+    private static async global::System.Threading.Tasks.Task<global::Outer> _fault_ValueAsync_1(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
     }
 }

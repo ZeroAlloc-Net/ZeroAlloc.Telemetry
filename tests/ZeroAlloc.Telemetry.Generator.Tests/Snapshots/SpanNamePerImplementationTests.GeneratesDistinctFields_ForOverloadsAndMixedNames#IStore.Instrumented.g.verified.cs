@@ -28,7 +28,16 @@ internal sealed class StoreInstrumented : IStore
     public global::System.Threading.Tasks.Task SaveAsync(string key)
     {
         if (!_activitySource.HasListeners())
-            return _inner.SaveAsync(key);
+        {
+            try
+            {
+                return _inner.SaveAsync(key);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_SaveAsync_0(_ex);
+            }
+        }
         return _core_SaveAsync_0(key);
     }
 
@@ -46,10 +55,25 @@ internal sealed class StoreInstrumented : IStore
         }
     }
 
+    private static async global::System.Threading.Tasks.Task _fault_SaveAsync_0(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+    }
+
     public global::System.Threading.Tasks.Task SaveAsync(string key, int ttl)
     {
         if (!_activitySource.HasListeners())
-            return _inner.SaveAsync(key, ttl);
+        {
+            try
+            {
+                return _inner.SaveAsync(key, ttl);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_SaveAsync_1(_ex);
+            }
+        }
         return _core_SaveAsync_1(key, ttl);
     }
 
@@ -67,10 +91,25 @@ internal sealed class StoreInstrumented : IStore
         }
     }
 
+    private static async global::System.Threading.Tasks.Task _fault_SaveAsync_1(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+    }
+
     public global::System.Threading.Tasks.Task PurgeAsync()
     {
         if (!_activitySource.HasListeners())
-            return _inner.PurgeAsync();
+        {
+            try
+            {
+                return _inner.PurgeAsync();
+            }
+            catch (Exception _ex)
+            {
+                return _fault_PurgeAsync_2(_ex);
+            }
+        }
         return _core_PurgeAsync_2();
     }
 
@@ -86,5 +125,11 @@ internal sealed class StoreInstrumented : IStore
             _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
             throw;
         }
+    }
+
+    private static async global::System.Threading.Tasks.Task _fault_PurgeAsync_2(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
     }
 }

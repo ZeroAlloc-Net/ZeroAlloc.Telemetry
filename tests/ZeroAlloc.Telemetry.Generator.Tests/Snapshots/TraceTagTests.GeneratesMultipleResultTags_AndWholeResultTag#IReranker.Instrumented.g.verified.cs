@@ -18,7 +18,16 @@ internal sealed class RerankerInstrumented : IReranker
     public global::System.Threading.Tasks.Task<global::RerankOutcome> RerankAsync(global::System.Threading.CancellationToken ct)
     {
         if (!_activitySource.HasListeners())
-            return _inner.RerankAsync(ct);
+        {
+            try
+            {
+                return _inner.RerankAsync(ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_RerankAsync_0(_ex);
+            }
+        }
         return _core_RerankAsync_0(ct);
     }
 
@@ -40,10 +49,26 @@ internal sealed class RerankerInstrumented : IReranker
         }
     }
 
+    private static async global::System.Threading.Tasks.Task<global::RerankOutcome> _fault_RerankAsync_0(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
+    }
+
     public global::System.Threading.Tasks.Task<double> ScoreAsync(global::System.Threading.CancellationToken ct)
     {
         if (!_activitySource.HasListeners())
-            return _inner.ScoreAsync(ct);
+        {
+            try
+            {
+                return _inner.ScoreAsync(ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_ScoreAsync_1(_ex);
+            }
+        }
         return _core_ScoreAsync_1(ct);
     }
 
@@ -61,5 +86,12 @@ internal sealed class RerankerInstrumented : IReranker
             _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
             throw;
         }
+    }
+
+    private static async global::System.Threading.Tasks.Task<double> _fault_ScoreAsync_1(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
     }
 }

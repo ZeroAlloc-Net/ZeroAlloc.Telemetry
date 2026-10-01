@@ -18,7 +18,16 @@ internal sealed class VectorStoreInstrumented : IVectorStore
     public global::System.Threading.Tasks.Task<global::System.Collections.Generic.IReadOnlyList<string>> SearchAsync(string collection, global::System.Threading.CancellationToken ct)
     {
         if (!_activitySource.HasListeners())
-            return _inner.SearchAsync(collection, ct);
+        {
+            try
+            {
+                return _inner.SearchAsync(collection, ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_SearchAsync_0(_ex);
+            }
+        }
         return _core_SearchAsync_0(collection, ct);
     }
 
@@ -37,5 +46,12 @@ internal sealed class VectorStoreInstrumented : IVectorStore
             _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
             throw;
         }
+    }
+
+    private static async global::System.Threading.Tasks.Task<global::System.Collections.Generic.IReadOnlyList<string>> _fault_SearchAsync_0(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
     }
 }

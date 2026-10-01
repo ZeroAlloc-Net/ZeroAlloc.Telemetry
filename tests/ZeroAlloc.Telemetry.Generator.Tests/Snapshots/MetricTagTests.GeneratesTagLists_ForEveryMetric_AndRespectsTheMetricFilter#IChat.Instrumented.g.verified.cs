@@ -22,7 +22,16 @@ internal sealed class ChatInstrumented : IChat
     public global::System.Threading.Tasks.Task<global::Result<global::Reply, global::LlmError>> CompleteAsync(string prompt, global::System.Threading.CancellationToken ct)
     {
         if (!_activitySource.HasListeners() && !_llm_calls.Enabled && !_llm_duration.Enabled && !_llm_tokens_input.Enabled && !_llm_cost.Enabled)
-            return _inner.CompleteAsync(prompt, ct);
+        {
+            try
+            {
+                return _inner.CompleteAsync(prompt, ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_CompleteAsync_0(_ex);
+            }
+        }
         return _core_CompleteAsync_0(prompt, ct);
     }
 
@@ -72,5 +81,12 @@ internal sealed class ChatInstrumented : IChat
             _llm_duration.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
             throw;
         }
+    }
+
+    private static async global::System.Threading.Tasks.Task<global::Result<global::Reply, global::LlmError>> _fault_CompleteAsync_0(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
     }
 }

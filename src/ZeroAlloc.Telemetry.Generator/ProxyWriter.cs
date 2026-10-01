@@ -161,27 +161,75 @@ internal static class ProxyWriter
         // An awaitable method is never async itself. Awaiting in the public method would allocate
         // its state machine whenever the inner call completes asynchronously, even with nothing
         // listening, so the inner task is returned as is unless something would be recorded.
+        var inner = $"_inner.{Id(method.Name)}{method.TypeParameters}({argList})";
+        var fault = FaultMethodName(method, index);
         WriteSignature(sb, method, "public ", Id(method.Name), paramList);
         sb.AppendLine("    {");
-        if (!instrumented)
+        if (instrumented)
         {
-            WritePassthroughBody(sb, method, argList);
+            sb.AppendLine($"        if ({QuietCondition(method, fields)})");
+            sb.AppendLine("        {");
+            WriteForwardOrFault(sb, "            ", inner, fault + method.TypeParameters);
+            sb.AppendLine("        }");
+            sb.AppendLine($"        return {CoreMethodName(method, index)}{method.TypeParameters}({argList});");
+        }
+        else
+        {
+            WriteForwardOrFault(sb, "        ", inner, fault + method.TypeParameters);
+        }
+        sb.AppendLine("    }");
+
+        if (instrumented)
+        {
+            sb.AppendLine();
+            WriteSignature(sb, method, "private async ", CoreMethodName(method, index), paramList);
+            sb.AppendLine("    {");
+            WriteInstrumentedPrologueAndBody(sb, method, index, argList, fields);
             sb.AppendLine("    }");
-            return;
         }
 
-        var core = CoreMethodName(method, index);
-        sb.AppendLine($"        if ({QuietCondition(method, fields)})");
-        sb.AppendLine($"            return _inner.{Id(method.Name)}{method.TypeParameters}({argList});");
-        sb.AppendLine($"        return {core}{method.TypeParameters}({argList});");
-        sb.AppendLine("    }");
+        WriteFaultMethod(sb, method, fault);
+    }
 
+    /// <summary>
+    /// Returns the inner call's awaitable. An exception the inner method throws before returning
+    /// one is handed back inside a faulted awaitable instead, so a caller sees it on the await,
+    /// exactly as it would from the async core when something is listening.
+    /// </summary>
+    private static void WriteForwardOrFault(StringBuilder sb, string indent, string innerCall, string fault)
+    {
+        sb.AppendLine($"{indent}try");
+        sb.AppendLine($"{indent}{{");
+        sb.AppendLine($"{indent}    return {innerCall};");
+        sb.AppendLine($"{indent}}}");
+        sb.AppendLine($"{indent}catch (Exception _ex)");
+        sb.AppendLine($"{indent}{{");
+        sb.AppendLine($"{indent}    return {fault}(_ex);");
+        sb.AppendLine($"{indent}}}");
+    }
+
+    /// <summary>
+    /// An async method that rethrows the exception it is given, so the method builder turns it
+    /// into the awaitable an async method would return: faulted, or canceled for an
+    /// <see cref="OperationCanceledException"/> with the exception kept. It runs only on the
+    /// exception path, so the success path stays free of allocation, and it works for every
+    /// awaitable the proxy supports, including task-like types with their own builder.
+    /// </summary>
+    private static void WriteFaultMethod(StringBuilder sb, MethodModel method, string name)
+    {
         sb.AppendLine();
-        WriteSignature(sb, method, "private async ", core, paramList);
+        WriteSignature(sb, method, "private static async ", name, "Exception _ex");
         sb.AppendLine("    {");
-        WriteInstrumentedPrologueAndBody(sb, method, index, argList, fields);
+        sb.AppendLine("        await global::System.Threading.Tasks.Task.CompletedTask;");
+        sb.AppendLine("        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);");
+        if (!method.ReturnsVoid)
+            sb.AppendLine("        return default!;");
         sb.AppendLine("    }");
     }
+
+    /// <summary>The fault method of an awaitable method; see <see cref="WriteFaultMethod"/>.</summary>
+    private static string FaultMethodName(MethodModel method, int index) =>
+        $"_fault_{method.Name}_{index.ToString(CultureInfo.InvariantCulture)}";
 
     /// <summary>
     /// The method's declaration line and, for a generic method, its constraint clauses: an
@@ -548,14 +596,11 @@ internal static class ProxyWriter
         sb.AppendLine("        }");
     }
 
-    /// <summary>
-    /// Forwards the call. An awaitable result is returned, not awaited, so a method without
-    /// instruments adds no state machine.
-    /// </summary>
+    /// <summary>Forwards a synchronous call that has no instruments.</summary>
     private static void WritePassthroughBody(StringBuilder sb, MethodModel method, string argList)
     {
         var callExpr      = $"_inner.{Id(method.Name)}{method.TypeParameters}({argList})";
-        var returnKeyword = method.ReturnsVoid && !method.IsAsync ? string.Empty : "return ";
+        var returnKeyword = method.ReturnsVoid ? string.Empty : "return ";
         sb.AppendLine($"        {returnKeyword}{callExpr};");
     }
 
