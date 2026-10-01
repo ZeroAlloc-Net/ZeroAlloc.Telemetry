@@ -50,6 +50,28 @@ public sealed class HistogramFromResultAttribute : Attribute
     /// <summary>The instrument's unit, e.g. <c>1</c> for a ratio. Null passes no unit.</summary>
     public string? Unit { get; set; }
 
+    /// <summary>
+    /// Explicit bucket boundaries, passed to the instrument as
+    /// <c>InstrumentAdvice&lt;double&gt;.HistogramBucketBoundaries</c>. Null leaves the choice to
+    /// the listener. The rules of <see cref="HistogramAttribute.Buckets"/> apply.
+    /// </summary>
+    public double[]? Buckets { get; set; }
+
+    /// <summary>
+    /// Records every element of <see cref="Member"/> instead of the member itself. The member must
+    /// then be a <c>ReadOnlySpan&lt;double&gt;</c>, <c>Span&lt;double&gt;</c>,
+    /// <c>ReadOnlyMemory&lt;double&gt;</c>, <c>Memory&lt;double&gt;</c>, an array, or a type whose
+    /// <c>GetEnumerator()</c> returns a struct, such as <c>List&lt;double&gt;</c> or
+    /// <c>ImmutableArray&lt;double&gt;</c>, with numeric elements. Anything else is reported as
+    /// <c>ZTEL009</c>.
+    /// </summary>
+    /// <remarks>
+    /// The elements are only iterated when a listener has enabled the instrument, and iterating
+    /// allocates nothing. A null element is skipped. The tags, if any, are built once and shared
+    /// by every element's measurement.
+    /// </remarks>
+    public bool Each { get; set; }
+
     /// <summary>The instrument's description. Null passes none.</summary>
     public string? Description { get; set; }
 

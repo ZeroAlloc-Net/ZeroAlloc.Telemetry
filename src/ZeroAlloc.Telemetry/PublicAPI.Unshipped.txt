@@ -1,1 +1,20 @@
 #nullable enable
+ZeroAlloc.Telemetry.HistogramAttribute.Buckets.get -> double[]?
+ZeroAlloc.Telemetry.HistogramAttribute.Buckets.set -> void
+ZeroAlloc.Telemetry.HistogramFromResultAttribute.Buckets.get -> double[]?
+ZeroAlloc.Telemetry.HistogramFromResultAttribute.Buckets.set -> void
+ZeroAlloc.Telemetry.HistogramFromResultAttribute.Each.get -> bool
+ZeroAlloc.Telemetry.HistogramFromResultAttribute.Each.set -> void
+ZeroAlloc.Telemetry.MetricTagAttribute
+ZeroAlloc.Telemetry.MetricTagAttribute.Member.get -> string?
+ZeroAlloc.Telemetry.MetricTagAttribute.Metric.get -> string?
+ZeroAlloc.Telemetry.MetricTagAttribute.Metric.set -> void
+ZeroAlloc.Telemetry.MetricTagAttribute.MetricTagAttribute(string! name) -> void
+ZeroAlloc.Telemetry.MetricTagAttribute.MetricTagAttribute(string! name, string! member) -> void
+ZeroAlloc.Telemetry.MetricTagAttribute.Name.get -> string!
+ZeroAlloc.Telemetry.MetricTagConstantAttribute
+ZeroAlloc.Telemetry.MetricTagConstantAttribute.Metric.get -> string?
+ZeroAlloc.Telemetry.MetricTagConstantAttribute.Metric.set -> void
+ZeroAlloc.Telemetry.MetricTagConstantAttribute.MetricTagConstantAttribute(string! name, object? value) -> void
+ZeroAlloc.Telemetry.MetricTagConstantAttribute.Name.get -> string!
+ZeroAlloc.Telemetry.MetricTagConstantAttribute.Value.get -> object?

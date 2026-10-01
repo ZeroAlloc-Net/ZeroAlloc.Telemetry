@@ -21,6 +21,19 @@ namespace ZeroAlloc.Telemetry.Generator.Models;
 /// <param name="ValueIsDecimal">
 /// <c>decimal</c> or <c>decimal?</c>, which has no implicit conversion to <c>double</c> and is cast.
 /// </param>
+/// <param name="ElapsedMember">
+/// For <c>[Histogram]</c>, the <c>TimeSpan</c> property the elapsed time is read from, chosen by
+/// its unit, such as <c>TotalSeconds</c>.
+/// </param>
+/// <param name="Buckets">
+/// For a histogram, the bucket boundaries as C# literals, passed as instrument advice; empty for none.
+/// </param>
+/// <param name="Each">
+/// For <c>[HistogramFromResult(Each = true)]</c>, how the member is iterated; otherwise
+/// <see cref="EachKind.None"/>.
+/// </param>
+/// <param name="ElementCanBeNull">For <see cref="EachKind.Enumerable"/>, whether an element can be null and is skipped.</param>
+/// <param name="ElementIsDecimal">For <see cref="EachKind.Enumerable"/>, whether an element is cast from decimal.</param>
 internal sealed record MetricModel(
     MetricKind Kind,
     string Metric,
@@ -29,4 +42,9 @@ internal sealed record MetricModel(
     string? GuardExpression = null,
     string? ValueAccess = null,
     bool ValueCanBeNull = false,
-    bool ValueIsDecimal = false);
+    bool ValueIsDecimal = false,
+    string ElapsedMember = "TotalMilliseconds",
+    EquatableArray<string> Buckets = default,
+    EachKind Each = EachKind.None,
+    bool ElementCanBeNull = false,
+    bool ElementIsDecimal = false);

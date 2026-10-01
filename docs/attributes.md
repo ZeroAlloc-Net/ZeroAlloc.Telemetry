@@ -218,15 +218,29 @@ public sealed class HistogramAttribute : Attribute
     public string? When { get; set; }
     public string? Unit { get; set; }
     public string? Description { get; set; }
+    public double[]? Buckets { get; set; }
     public HistogramAttribute(string metric);
 }
 ```
 
 **Placement:** Interface method.
 
-**Effect:** Records the elapsed time in milliseconds in a `Histogram<double>` on every call — including when the method throws.
+**Effect:** Records the elapsed time in a `Histogram<double>` on every call — including when the method throws.
 
-Uses `Stopwatch.GetTimestamp()` before the call and `Stopwatch.GetElapsedTime(ts).TotalMilliseconds` after, so the measurement includes the full method duration regardless of outcome.
+Uses `Stopwatch.GetTimestamp()` before the call and `Stopwatch.GetElapsedTime(ts)` after, so the measurement includes the full method duration regardless of outcome.
+
+`Unit` decides what is recorded, so the values match the unit the instrument declares:
+
+| `Unit` | Recorded |
+|---|---|
+| none, `ms` | `TotalMilliseconds` |
+| `s` | `TotalSeconds`, as the OpenTelemetry semantic conventions use |
+| `us` | `TotalMicroseconds` |
+| `ns` | `TotalNanoseconds` |
+| `min` | `TotalMinutes` |
+| `h` | `TotalHours` |
+
+Any other unit is reported as **ZTEL018**, and the duration is recorded in milliseconds. Before 1.9 every duration was recorded in milliseconds whatever the unit, so a histogram declared with `Unit = "s"` reported values a thousand times too large.
 
 ```csharp
 [Histogram("payment.charge_ms", Unit = "ms")]
@@ -252,6 +266,25 @@ catch (Exception)
     throw;
 }
 ```
+
+### Bucket boundaries
+
+`Buckets` passes explicit bucket boundaries to the instrument as `InstrumentAdvice<double>.HistogramBucketBoundaries`, which exporters such as OpenTelemetry's use instead of their defaults:
+
+```csharp
+[Histogram("gen_ai.client.operation.duration", Unit = "s",
+    Buckets = new[] { 0.01, 0.02, 0.04, 0.08, 0.16, 0.32, 0.64, 1.28, 2.56, 5.12, 10.24, 20.48, 40.96, 81.92 })]
+ValueTask<ChatResponse> CompleteAsync(ChatRequest request, CancellationToken ct);
+```
+
+```csharp
+// Generated:
+private static readonly Histogram<double> _gen_ai_client_operation_duration =
+    _meter.CreateHistogram<double>("gen_ai.client.operation.duration", unit: "s", description: null, tags: null,
+        advice: new InstrumentAdvice<double> { HistogramBucketBoundaries = new double[] { 0.01, 0.02, /* ... */ 81.92 } });
+```
+
+The boundaries must be finite and strictly increasing, or the generator reports **ZTEL019**: the runtime would otherwise throw when the proxy's static fields are initialised. Advice needs System.Diagnostics.DiagnosticSource 9.0, which .NET 9 and later include; on .NET 8 reference the 9.0 package, or the generator reports **ZTEL020**. When several methods record one metric, the first that declares buckets sets them. `[HistogramFromResult]` takes `Buckets` too.
 
 ### Timing only successful calls
 
@@ -336,6 +369,8 @@ public sealed class HistogramFromResultAttribute : Attribute
     public string Member { get; }
     public string? When { get; set; }
     public string? Unit { get; set; }
+    public double[]? Buckets { get; set; }
+    public bool Each { get; set; }
     public string? Description { get; set; }
     public HistogramFromResultAttribute(string metric, string member);
 }
@@ -365,6 +400,23 @@ if (_tagged?.IsSuccess == true && _tagged?.Value?.Cost is { } _read1)
 - **Null** values are not recorded, and **a call that throws** records nothing, since there is no result.
 
 ---
+
+### One measurement per element
+
+With `Each = true`, every element of the member is recorded, such as the token count of each modality or the score of each retrieved document. The member must be a `ReadOnlySpan<double>`, `Span<double>`, `ReadOnlyMemory<double>`, `Memory<double>`, an array, or a type whose `GetEnumerator()` returns a struct, such as `List<double>` or `ImmutableArray<double>`, with numeric elements. Anything else, such as an `IEnumerable<double>`, whose enumerator would be allocated, is reported as **ZTEL009**. A span cannot be reached through a member that can be null; expose a `ReadOnlyMemory<double>` there instead.
+
+```csharp
+[HistogramFromResult("rag.document.score", "Scores", Each = true)]
+ValueTask<Retrieval> RetrieveAsync(string query, CancellationToken ct);
+```
+
+```csharp
+// Generated, Scores being a ReadOnlyMemory<double>:
+if (_rag_document_score.Enabled)
+    _recordEach(_rag_document_score, _result.Scores.Span);
+```
+
+The elements are only iterated when a listener has enabled the instrument, and iterating allocates nothing. A null element is skipped. Tags are built once and shared by every element's measurement.
 
 ## [MetricTagFromResult]
 
@@ -422,6 +474,48 @@ Diagnostics:
 - A bad path or `When` is **ZTEL007** or **ZTEL008**, and a method with no return value is **ZTEL005**, as for the other result attributes.
 
 ---
+
+## [MetricTag] and [MetricTagConstant]
+
+```csharp
+[AttributeUsage(AttributeTargets.Parameter, AllowMultiple = true)]
+public sealed class MetricTagAttribute : Attribute
+{
+    public string Name { get; }
+    public string? Member { get; }
+    public string? Metric { get; set; }
+    public MetricTagAttribute(string name);
+    public MetricTagAttribute(string name, string member);
+}
+
+[AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
+public sealed class MetricTagConstantAttribute : Attribute
+{
+    public string Name { get; }
+    public object? Value { get; }
+    public string? Metric { get; set; }
+    public MetricTagConstantAttribute(string name, object? value);
+}
+```
+
+**Placement:** `[MetricTag]` on a parameter, `[MetricTagConstant]` on an interface method.
+
+**Effect:** The metric counterparts of `[TraceTag]` and `[TraceTagConstant]`: they add an argument, a member of one, or a constant as a tag on every metric the method records. `Metric` restricts a tag to the instruments of one metric name, as on `[MetricTagFromResult]`. These are the dimensions the OpenTelemetry GenAI conventions put on their metrics:
+
+```csharp
+[Histogram("gen_ai.client.operation.duration", Unit = "s")]
+[HistogramFromResult("gen_ai.client.token.usage", "Usage.Tokens", Each = true, Unit = "{token}")]
+[MetricTagConstant("gen_ai.operation.name", "chat")]
+[MetricTagConstant("gen_ai.provider.name", "openai")]
+[MetricTagConstant("gen_ai.token.modality", "text", Metric = "gen_ai.client.token.usage")]
+ValueTask<ChatResponse> CompleteAsync(
+    [MetricTag("gen_ai.request.model", "Model")] ChatRequest request,
+    CancellationToken ct);
+```
+
+Like every metric tag, they are only built behind the instrument's `Enabled`, so a call with no listener neither reads the argument nor boxes it. Constants come first, then parameter tags in parameter order, then `[MetricTagFromResult]` tags. Unlike result tags, they are known before the call, so the measurement an unguarded `[Histogram]` records when the call throws carries them too.
+
+A null value, or a null anywhere along the path, adds no tag, and so does a null constant. A path that names no member is reported as **ZTEL010**, a constant that is an array or a type as **ZTEL021**, a tag on no metric as **ZTEL011**, and two tags with one name on one metric, whatever their kinds, as **ZTEL012**.
 
 ## Member paths and When
 

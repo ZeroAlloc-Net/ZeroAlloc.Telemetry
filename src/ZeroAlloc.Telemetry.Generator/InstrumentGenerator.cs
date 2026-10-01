@@ -19,6 +19,8 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
     private const string CountFromResultAttrFqn     = "ZeroAlloc.Telemetry.CountFromResultAttribute";
     private const string HistogramFromResultAttrFqn = "ZeroAlloc.Telemetry.HistogramFromResultAttribute";
     private const string MetricTagFromResultAttrFqn = "ZeroAlloc.Telemetry.MetricTagFromResultAttribute";
+    private const string MetricTagAttrFqn           = "ZeroAlloc.Telemetry.MetricTagAttribute";
+    private const string MetricTagConstantAttrFqn   = "ZeroAlloc.Telemetry.MetricTagConstantAttribute";
 
     /// <summary>
     /// Fully-qualified names that keep nullable reference type annotations.
@@ -96,6 +98,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         RegisterMethodAttributeDiagnostic(context, CountFromResultAttrFqn, "CountFromResult");
         RegisterMethodAttributeDiagnostic(context, HistogramFromResultAttrFqn, "HistogramFromResult");
         RegisterMethodAttributeDiagnostic(context, MetricTagFromResultAttrFqn, "MetricTagFromResult");
+        RegisterMethodAttributeDiagnostic(context, MetricTagConstantAttrFqn, "MetricTagConstant");
         RegisterMethodAttributeDiagnostic(context, TraceTagFromResultAttrFqn, "TraceTagFromResult");
         RegisterMethodAttributeDiagnostic(context, TraceTagConstantAttrFqn, "TraceTagConstant");
     }
@@ -306,7 +309,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             var parameters = BuildParameters(compilation, member, traceName is null, diagnostics);
             var resultType = TaskShapes.UnwrapAwaited(member.ReturnType);
             var resultTags = BuildResultTags(compilation, member, resultType, returnsVoid, traceName is null, diagnostics);
-            var constantTags = BuildConstantTags(member);
+            var constantTags = BuildConstantTags(target, member, diagnostics);
 
             var count         = BuildPlainMetric(compilation, target, member, CountAttributeFqn, "Count", MetricKind.Counter, resultType, returnsVoid, diagnostics);
             var histogram     = BuildPlainMetric(compilation, target, member, HistogramAttributeFqn, "Histogram", MetricKind.Histogram, resultType, returnsVoid, diagnostics);
@@ -520,7 +523,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 {
                     var fallback = ps[i].Locations.FirstOrDefault() ?? MethodLocation(method);
                     diagnostics.Add(ParameterTagPathNotFound(
-                        AttributeLocations.Positional(attr!, 1, "member", fallback), member!, ps[i].Name, path));
+                        AttributeLocations.Positional(attr!, 1, "member", fallback), member!, ps[i].Name, path, "TraceTag"));
                     tagName = null;
                 }
             }
@@ -725,16 +728,17 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 resolution.MissingOn?.ToDisplayString());
 
     private static DiagnosticInfo ParameterTagPathNotFound(
-        Location location, string path, string parameterName, PathResolver.Resolution resolution) =>
+        Location location, string path, string parameterName, PathResolver.Resolution resolution, string attributeName) =>
         string.IsNullOrEmpty(resolution.MissingSegment)
-            ? DiagnosticInfo.Create(InstrumentDiagnostics.ParameterTagPathEmptySegment, location, path, parameterName)
+            ? DiagnosticInfo.Create(InstrumentDiagnostics.ParameterTagPathEmptySegment, location, path, parameterName, attributeName)
             : DiagnosticInfo.Create(
                 InstrumentDiagnostics.ParameterTagPathNotFound,
                 location,
                 resolution.MissingSegment,
                 path,
                 resolution.MissingOn?.ToDisplayString(),
-                parameterName);
+                parameterName,
+                attributeName);
 
     private static bool IsAttribute(AttributeData attr, string attributeFqn) =>
         string.Equals(attr.AttributeClass?.ToDisplayString(), attributeFqn, StringComparison.Ordinal);
@@ -753,7 +757,8 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
     private static Location MethodLocation(IMethodSymbol method) =>
         method.Locations.FirstOrDefault() ?? Location.None;
 
-    private static ConstantTagModel[] BuildConstantTags(IMethodSymbol method)
+    private static ConstantTagModel[] BuildConstantTags(
+        INamedTypeSymbol target, IMethodSymbol method, ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         List<ConstantTagModel>? tags = null;
         foreach (var attr in method.GetAttributes())
@@ -770,13 +775,24 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
 
             var literal = FormatConstant(attr.ConstructorArguments[1]);
             if (literal is null)
+            {
+                diagnostics.Add(UnsupportedConstant(attr, target, method, "TraceTagConstant", name!));
                 continue;
+            }
 
             (tags ??= new List<ConstantTagModel>()).Add(new ConstantTagModel(name!, literal));
         }
 
         return tags?.ToArray() ?? [];
     }
+
+    /// <summary>ZTEL021: a constant tag whose value no tag can carry.</summary>
+    private static DiagnosticInfo UnsupportedConstant(
+        AttributeData attr, INamedTypeSymbol target, IMethodSymbol method, string shortName, string name) =>
+        DiagnosticInfo.Create(
+            InstrumentDiagnostics.UnsupportedConstantTagValue,
+            AttributeLocations.Positional(attr, 1, "value", MethodLocation(method)),
+            shortName, name, target.ToDisplayString(), method.Name);
 
     private static string? GetAttributeFirstArg(IMethodSymbol method, string attributeFqn)
     {
@@ -832,7 +848,116 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 return null;
         }
 
-        return new MetricModel(kind, metric, GetNamedString(attr, "Unit"), GetNamedString(attr, "Description"), guard);
+        var unit = GetNamedString(attr, "Unit");
+        if (kind == MetricKind.Counter)
+            return new MetricModel(kind, metric, unit, GetNamedString(attr, "Description"), guard);
+
+        return new MetricModel(
+            kind,
+            metric,
+            unit,
+            GetNamedString(attr, "Description"),
+            guard,
+            ElapsedMember: ElapsedMember(attr, method, metric, unit, diagnostics),
+            Buckets: BuildBuckets(compilation, attr, method, shortName, metric, diagnostics));
+    }
+
+    /// <summary>
+    /// The <c>TimeSpan</c> property a <c>[Histogram]</c> records, chosen by its unit so the value
+    /// is in the unit the instrument declares. Before 1.9 every duration was milliseconds, so a
+    /// histogram declared in seconds recorded values a thousand times too large.
+    /// </summary>
+    private static string ElapsedMember(
+        AttributeData attr, IMethodSymbol method, string metric, string? unit, ImmutableArray<DiagnosticInfo>.Builder diagnostics)
+    {
+        switch (unit)
+        {
+            case null:
+            case "ms":
+                return "TotalMilliseconds";
+            case "s":
+                return "TotalSeconds";
+            case "us":
+                return "TotalMicroseconds";
+            case "ns":
+                return "TotalNanoseconds";
+            case "min":
+                return "TotalMinutes";
+            case "h":
+                return "TotalHours";
+            default:
+                diagnostics.Add(DiagnosticInfo.Create(
+                    InstrumentDiagnostics.UnconvertibleHistogramUnit,
+                    AttributeLocations.Named(attr, "Unit", MethodLocation(method)),
+                    metric, unit));
+                return "TotalMilliseconds";
+        }
+    }
+
+    /// <summary>
+    /// The <c>Buckets</c> of a histogram attribute as C# literals, or empty when there are none or
+    /// they cannot be emitted, having reported ZTEL019 or ZTEL020.
+    /// </summary>
+    private static EquatableArray<string> BuildBuckets(
+        Compilation compilation,
+        AttributeData attr,
+        IMethodSymbol method,
+        string shortName,
+        string metric,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
+    {
+        TypedConstant? found = null;
+        foreach (var named in attr.NamedArguments)
+        {
+            if (string.Equals(named.Key, "Buckets", StringComparison.Ordinal))
+                found = named.Value;
+        }
+
+        if (found is not { IsNull: false, Kind: TypedConstantKind.Array } buckets)
+            return default;
+
+        var location = AttributeLocations.Named(attr, "Buckets", MethodLocation(method));
+        var values = buckets.Values.Select(static v => v.Value is double d ? d : double.NaN).ToArray();
+        if (BucketProblem(values) is { } problem)
+        {
+            diagnostics.Add(DiagnosticInfo.Create(
+                InstrumentDiagnostics.InvalidHistogramBuckets, location, shortName, metric, problem));
+            return default;
+        }
+
+        if (compilation.GetTypesByMetadataName("System.Diagnostics.Metrics.InstrumentAdvice`1").IsEmpty)
+        {
+            diagnostics.Add(DiagnosticInfo.Create(
+                InstrumentDiagnostics.HistogramBucketsUnavailable, location, shortName, metric));
+            return default;
+        }
+
+        return new EquatableArray<string>(values
+            .Select(static v => v.ToString("R", System.Globalization.CultureInfo.InvariantCulture))
+            .ToImmutableArray());
+    }
+
+    /// <summary>What <c>InstrumentAdvice</c> would reject the boundaries for, or null when it accepts them.</summary>
+    private static string? BucketProblem(double[] values)
+    {
+        if (values.Length == 0)
+            return "are empty";
+
+        for (var i = 0; i < values.Length; i++)
+        {
+            if (double.IsNaN(values[i]) || double.IsInfinity(values[i]))
+                return "contain a value that is not finite";
+
+            if (i > 0 && values[i] <= values[i - 1])
+            {
+                return "are not in strictly increasing order: "
+                    + values[i].ToString("R", System.Globalization.CultureInfo.InvariantCulture)
+                    + " follows "
+                    + values[i - 1].ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+            }
+        }
+
+        return null;
     }
 
     private const string CounterTypesReason =
@@ -925,25 +1050,31 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
 
         var path = PathResolver.Resolve(compilation, resultType, member);
         var valueOk = path.Resolved;
+        var each = kind == MetricKind.Histogram && GetNamedBool(attr, "Each");
+        var eachShape = default(EachShape);
         if (!valueOk)
         {
             diagnostics.Add(PathNotFound(memberLocation, member, path));
         }
-        else if (!Fits(kind, path.FinalType!))
+        else if (MisfitReason(compilation, kind, each, path, out eachShape) is { } reason)
         {
             diagnostics.Add(DiagnosticInfo.Create(
                 InstrumentDiagnostics.MemberDoesNotFitInstrument,
                 memberLocation,
-                shortName,
+                each ? shortName + "(Each = true)" : shortName,
                 member.Length == 0 ? "the return value" : $"'{member}'",
                 path.FinalType!.ToDisplayString(),
-                FitReason(kind, path.FinalType!)));
+                reason));
             valueOk = false;
         }
 
         // Checked even after a bad member, so one build reports every error on the attribute.
         var guardOk = TryBuildGuard(
             compilation, attr, method, resultType, GetNamedString(attr, "When"), diagnostics, out var guard);
+
+        var buckets = kind == MetricKind.Histogram
+            ? BuildBuckets(compilation, attr, method, shortName, metric, diagnostics)
+            : default;
 
         if (!valueOk || !guardOk)
             return null;
@@ -956,7 +1087,133 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             guard,
             path.Access,
             path.CanBeNull,
-            PathResolver.UnwrapNullable(path.FinalType!).SpecialType == SpecialType.System_Decimal);
+            !each && PathResolver.UnwrapNullable(path.FinalType!).SpecialType == SpecialType.System_Decimal,
+            Buckets: buckets,
+            Each: eachShape.Kind,
+            ElementCanBeNull: eachShape.ElementCanBeNull,
+            ElementIsDecimal: eachShape.ElementIsDecimal);
+    }
+
+    /// <summary>
+    /// Why the resolved member cannot go to the instrument, for ZTEL009, or null when it fits.
+    /// </summary>
+    private static string? MisfitReason(
+        Compilation compilation, MetricKind kind, bool each, PathResolver.Resolution path, out EachShape eachShape)
+    {
+        eachShape = default;
+        if (!each)
+            return Fits(kind, path.FinalType!) ? null : FitReason(kind, path.FinalType!);
+
+        eachShape = ClassifyEach(compilation, path.FinalType!, path.CanBeNull, out var reason);
+        return eachShape.Kind == EachKind.None ? reason : null;
+    }
+
+    private readonly record struct EachShape(EachKind Kind, bool ElementCanBeNull, bool ElementIsDecimal);
+
+    private const string EachTypesReason =
+        "With Each = true the member must be a ReadOnlySpan<double>, Span<double>, ReadOnlyMemory<double>, Memory<double>, an array, or a type whose GetEnumerator() returns a struct, with numeric elements";
+
+    private const string EachSpanThroughNullReason =
+        "A span cannot be read through a value that can be null; reach it through members that cannot be null, or expose it as a ReadOnlyMemory<double>";
+
+    /// <summary>
+    /// How a per-element histogram iterates <paramref name="type"/>, or <see cref="EachKind.None"/>
+    /// with the reason when it cannot without allocating.
+    /// </summary>
+    private static EachShape ClassifyEach(Compilation compilation, ITypeSymbol type, bool canBeNull, out string reason)
+    {
+        reason = EachTypesReason;
+        var underlying = PathResolver.UnwrapNullable(type);
+
+        if (underlying is INamedTypeSymbol { TypeArguments.Length: 1 } named
+            && named.TypeArguments[0].SpecialType == SpecialType.System_Double
+            && string.Equals(named.ContainingNamespace?.ToDisplayString(), "System", StringComparison.Ordinal))
+        {
+            switch (named.OriginalDefinition.MetadataName)
+            {
+                case "ReadOnlySpan`1":
+                case "Span`1":
+                    if (!canBeNull)
+                        return new EachShape(EachKind.Span, false, false);
+
+                    reason = EachSpanThroughNullReason;
+                    return default;
+
+                case "ReadOnlyMemory`1":
+                case "Memory`1":
+                    return new EachShape(EachKind.Memory, false, false);
+            }
+        }
+
+        var element = underlying is IArrayTypeSymbol { Rank: 1 } array
+            ? array.ElementType
+            : StructEnumeratorElement(compilation, underlying);
+
+        if (element is null || !Fits(MetricKind.Histogram, element))
+            return default;
+
+        return new EachShape(
+            EachKind.Enumerable,
+            PathResolver.CanBeNull(element),
+            PathResolver.UnwrapNullable(element).SpecialType == SpecialType.System_Decimal);
+    }
+
+    /// <summary>
+    /// The element type of a <c>foreach</c> over <paramref name="type"/> when its public
+    /// <c>GetEnumerator()</c> returns a struct, which <c>foreach</c> uses without boxing. A
+    /// ref struct enumerator is left out: it cannot live in the proxy's async method.
+    /// </summary>
+    private static ITypeSymbol? StructEnumeratorElement(Compilation compilation, ITypeSymbol type)
+    {
+        foreach (var member in type.GetMembers("GetEnumerator"))
+        {
+            if (member is not IMethodSymbol { IsStatic: false, Parameters.Length: 0, TypeParameters.Length: 0 } getEnumerator
+                || !compilation.IsSymbolAccessibleWithin(getEnumerator, compilation.Assembly))
+            {
+                continue;
+            }
+
+            var enumerator = getEnumerator.ReturnType;
+            if (!enumerator.IsValueType || enumerator.IsRefLikeType)
+                return null;
+
+            return HasMoveNext(enumerator) ? CurrentType(enumerator) : null;
+        }
+
+        return null;
+    }
+
+    private static bool HasMoveNext(ITypeSymbol enumerator)
+    {
+        foreach (var member in enumerator.GetMembers("MoveNext"))
+        {
+            if (member is IMethodSymbol { Parameters.Length: 0, ReturnType.SpecialType: SpecialType.System_Boolean })
+                return true;
+        }
+
+        return false;
+    }
+
+    private static ITypeSymbol? CurrentType(ITypeSymbol enumerator)
+    {
+        foreach (var member in enumerator.GetMembers("Current"))
+        {
+            if (member is IPropertySymbol property)
+                return property.Type;
+        }
+
+        return null;
+    }
+
+    private static bool GetNamedBool(AttributeData attr, string name)
+    {
+        foreach (var named in attr.NamedArguments)
+        {
+            if (string.Equals(named.Key, name, StringComparison.Ordinal))
+                return named.Value.Value is true;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -1017,12 +1274,13 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
     }
 
     /// <summary>
-    /// Builds <c>[MetricTagFromResult]</c> in attribute order. One that cannot be emitted, or that
-    /// no declared metric would carry, is reported and left out.
+    /// Builds the metric tags in emission order: <c>[MetricTagConstant]</c> in attribute order,
+    /// <c>[MetricTag]</c> in parameter order, then <c>[MetricTagFromResult]</c> in attribute order.
+    /// One that cannot be emitted, or that no declared metric would carry, is reported and left out.
     /// </summary>
     /// <remarks>
     /// The path and guard are resolved even for a tag reported as ZTEL011 or ZTEL012, so one build
-    /// reports every error on the attribute.
+    /// reports every error on the attribute. A tag name is unique per metric across all three kinds.
     /// </remarks>
     private static MetricTagModel[] BuildMetricTags(
         Compilation compilation,
@@ -1032,51 +1290,142 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         bool returnsVoid,
         ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
-        List<MetricTagModel>? tags = null;
-        string[]? declared = null;
-        HashSet<(string Metric, string Tag)>? taken = null;
+        var builder = new MetricTagBuilder(compilation, target, method, diagnostics);
+        builder.AddConstants();
+        builder.AddParameterTags();
+        if (returnsVoid)
+            builder.ReportResultTagsOnVoid();
+        else
+            builder.AddResultTags(resultType);
 
-        foreach (var attr in method.GetAttributes())
+        return builder.Tags.ToArray();
+    }
+
+    /// <summary>Collects one method's metric tags; see <see cref="BuildMetricTags"/>.</summary>
+    private sealed class MetricTagBuilder
+    {
+        private readonly Compilation _compilation;
+        private readonly INamedTypeSymbol _target;
+        private readonly IMethodSymbol _method;
+        private readonly ImmutableArray<DiagnosticInfo>.Builder _diagnostics;
+        private readonly HashSet<(string Metric, string Tag)> _taken = new();
+        private string[]? _declared;
+
+        public MetricTagBuilder(
+            Compilation compilation, INamedTypeSymbol target, IMethodSymbol method, ImmutableArray<DiagnosticInfo>.Builder diagnostics)
         {
-            if (!IsAttribute(attr, MetricTagFromResultAttrFqn))
-                continue;
-
-            if (attr.ConstructorArguments.Length < 2 || attr.ConstructorArguments[0].Value is not string name || name.Length == 0)
-                continue;
-
-            // No result, so nothing to resolve: see BuildResultMetrics.
-            if (returnsVoid)
-            {
-                diagnostics.Add(DiagnosticInfo.Create(
-                    InstrumentDiagnostics.ResultReadOnVoidMethod,
-                    MethodLocation(method), "MetricTagFromResult", target.ToDisplayString(), method.Name));
-                continue;
-            }
-
-            declared ??= DeclaredMetrics(method);
-            var filter = GetNamedString(attr, "Metric");
-            var applies = ApplicableMetrics(attr, target, method, name, filter, declared, diagnostics);
-            var unique = IsUniqueOnItsMetrics(attr, target, method, name, applies, taken ??= new(), diagnostics);
-
-            var member = attr.ConstructorArguments[1].Value as string ?? string.Empty;
-            var path = PathResolver.Resolve(compilation, resultType, member);
-            if (!path.Resolved)
-            {
-                diagnostics.Add(PathNotFound(
-                    AttributeLocations.Positional(attr, 1, "member", MethodLocation(method)), member, path));
-            }
-
-            var guardOk = TryBuildGuard(
-                compilation, attr, method, resultType, GetNamedString(attr, "When"), diagnostics, out var guard);
-
-            if (applies.Length == 0 || !unique || !path.Resolved || !guardOk)
-                continue;
-
-            (tags ??= new List<MetricTagModel>()).Add(
-                new MetricTagModel(name, filter, path.Access!, path.CanBeNull, guard));
+            _compilation = compilation;
+            _target = target;
+            _method = method;
+            _diagnostics = diagnostics;
         }
 
-        return tags?.ToArray() ?? [];
+        public List<MetricTagModel> Tags { get; } = new();
+
+        public void AddConstants()
+        {
+            foreach (var attr in _method.GetAttributes())
+            {
+                if (!IsAttribute(attr, MetricTagConstantAttrFqn) || Name(attr) is not { } name || attr.ConstructorArguments.Length < 2)
+                    continue;
+
+                var literal = FormatConstant(attr.ConstructorArguments[1]);
+                if (literal is null)
+                    _diagnostics.Add(UnsupportedConstant(attr, _target, _method, "MetricTagConstant", name));
+
+                var filter = GetNamedString(attr, "Metric");
+                if (!Place(attr, "MetricTagConstant", name, filter, MethodLocation(_method)) || literal is null)
+                    continue;
+
+                // A null constant adds no tag, as a null member does not.
+                if (!string.Equals(literal, "null", StringComparison.Ordinal))
+                    Tags.Add(new MetricTagModel(name, filter, string.Empty, false, Root: literal));
+            }
+        }
+
+        public void AddParameterTags()
+        {
+            foreach (var parameter in _method.Parameters)
+            {
+                var fallback = parameter.Locations.FirstOrDefault() ?? MethodLocation(_method);
+                foreach (var attr in parameter.GetAttributes())
+                {
+                    if (!IsAttribute(attr, MetricTagAttrFqn) || Name(attr) is not { } name)
+                        continue;
+
+                    var member = attr.ConstructorArguments.Length > 1 ? attr.ConstructorArguments[1].Value as string : null;
+                    var filter = GetNamedString(attr, "Metric");
+                    var placed = Place(attr, "MetricTag", name, filter, fallback);
+
+                    var path = PathResolver.Resolve(_compilation, parameter.Type, member ?? string.Empty);
+                    if (!path.Resolved)
+                    {
+                        _diagnostics.Add(ParameterTagPathNotFound(
+                            AttributeLocations.Positional(attr, 1, "member", fallback), member!, parameter.Name, path, "MetricTag"));
+                    }
+
+                    if (placed && path.Resolved)
+                    {
+                        Tags.Add(new MetricTagModel(
+                            name, filter, path.Access!, path.CanBeNull, Root: TypeDeclarations.Identifier(parameter.Name)));
+                    }
+                }
+            }
+        }
+
+        /// <summary>ZTEL005 for each <c>[MetricTagFromResult]</c>: there is no result to read.</summary>
+        public void ReportResultTagsOnVoid()
+        {
+            foreach (var attr in _method.GetAttributes())
+            {
+                if (IsAttribute(attr, MetricTagFromResultAttrFqn) && Name(attr) is not null && attr.ConstructorArguments.Length >= 2)
+                {
+                    _diagnostics.Add(DiagnosticInfo.Create(
+                        InstrumentDiagnostics.ResultReadOnVoidMethod,
+                        MethodLocation(_method), "MetricTagFromResult", _target.ToDisplayString(), _method.Name));
+                }
+            }
+        }
+
+        public void AddResultTags(ITypeSymbol resultType)
+        {
+            foreach (var attr in _method.GetAttributes())
+            {
+                if (!IsAttribute(attr, MetricTagFromResultAttrFqn) || Name(attr) is not { } name || attr.ConstructorArguments.Length < 2)
+                    continue;
+
+                var filter = GetNamedString(attr, "Metric");
+                var placed = Place(attr, "MetricTagFromResult", name, filter, MethodLocation(_method));
+
+                var member = attr.ConstructorArguments[1].Value as string ?? string.Empty;
+                var path = PathResolver.Resolve(_compilation, resultType, member);
+                if (!path.Resolved)
+                {
+                    _diagnostics.Add(PathNotFound(
+                        AttributeLocations.Positional(attr, 1, "member", MethodLocation(_method)), member, path));
+                }
+
+                var guardOk = TryBuildGuard(
+                    _compilation, attr, _method, resultType, GetNamedString(attr, "When"), _diagnostics, out var guard);
+
+                if (placed && path.Resolved && guardOk)
+                    Tags.Add(new MetricTagModel(name, filter, path.Access!, path.CanBeNull, guard));
+            }
+        }
+
+        private static string? Name(AttributeData attr) =>
+            attr.ConstructorArguments.Length > 0 && attr.ConstructorArguments[0].Value is string { Length: > 0 } name
+                ? name
+                : null;
+
+        /// <summary>Claims the name on the metrics the tag goes on; false when it goes on none of them.</summary>
+        private bool Place(AttributeData attr, string shortName, string name, string? filter, Location fallback)
+        {
+            _declared ??= DeclaredMetrics(_method);
+            var applies = ApplicableMetrics(attr, _target, _method, shortName, name, filter, _declared, fallback, _diagnostics);
+            var unique = IsUniqueOnItsMetrics(attr, _target, _method, shortName, name, applies, _taken, fallback, _diagnostics);
+            return applies.Length > 0 && unique;
+        }
     }
 
     /// <summary>
@@ -1087,9 +1436,11 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         AttributeData attr,
         INamedTypeSymbol target,
         IMethodSymbol method,
+        string shortName,
         string name,
         string? filter,
         string[] declared,
+        Location fallback,
         ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         var tagText = Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(name, quote: true);
@@ -1098,8 +1449,8 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         {
             diagnostics.Add(DiagnosticInfo.Create(
                 InstrumentDiagnostics.MetricTagWithoutMetric,
-                AttributeLocations.Positional(attr, 0, "name", MethodLocation(method)),
-                tagText, target.ToDisplayString(), method.Name));
+                AttributeLocations.Positional(attr, 0, "name", fallback),
+                tagText, target.ToDisplayString(), method.Name, shortName));
             return [];
         }
 
@@ -1111,8 +1462,8 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
 
         diagnostics.Add(DiagnosticInfo.Create(
             InstrumentDiagnostics.MetricTagUnknownMetric,
-            AttributeLocations.Named(attr, "Metric", MethodLocation(method)),
-            tagText, target.ToDisplayString(), method.Name, filter));
+            AttributeLocations.Named(attr, "Metric", fallback),
+            tagText, target.ToDisplayString(), method.Name, filter, shortName));
         return [];
     }
 
@@ -1124,9 +1475,11 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         AttributeData attr,
         INamedTypeSymbol target,
         IMethodSymbol method,
+        string shortName,
         string name,
         string[] metrics,
         HashSet<(string Metric, string Tag)> taken,
+        Location fallback,
         ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         foreach (var metric in metrics)
@@ -1136,8 +1489,8 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
 
             diagnostics.Add(DiagnosticInfo.Create(
                 InstrumentDiagnostics.DuplicateMetricTag,
-                AttributeLocations.Positional(attr, 0, "name", MethodLocation(method)),
-                name, metric, target.ToDisplayString(), method.Name));
+                AttributeLocations.Positional(attr, 0, "name", fallback),
+                name, metric, target.ToDisplayString(), method.Name, shortName));
             return false;
         }
 

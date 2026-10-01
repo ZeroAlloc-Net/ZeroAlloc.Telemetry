@@ -30,7 +30,9 @@ internal sealed class MetricFieldTable
     /// <param name="FieldName">The full identifier, including its leading underscore.</param>
     /// <param name="Unit">The first non-null unit declared for this instrument, in <see cref="Fields"/> order.</param>
     /// <param name="Description">The first non-null description declared for this instrument, in the same order.</param>
-    internal sealed record Field(MetricKind Kind, string Metric, string FieldName, string? Unit, string? Description);
+    /// <param name="Buckets">The first non-empty bucket boundaries declared for this histogram, in the same order.</param>
+    internal sealed record Field(
+        MetricKind Kind, string Metric, string FieldName, string? Unit, string? Description, EquatableArray<string> Buckets);
 
     private readonly record struct MetricKey(MetricKind Kind, string Metric);
 
@@ -39,6 +41,7 @@ internal sealed class MetricFieldTable
     private static readonly HashSet<string> ReservedNames = new(StringComparer.Ordinal)
     {
         "_activitySource", "_meter", "_inner", "_activity", "_sw", "_result", "_tagged", "_ex", "_implName",
+        "_recordEach",
     };
 
     private readonly Dictionary<MetricKey, int> _indexByKey;
@@ -81,12 +84,14 @@ internal sealed class MetricFieldTable
                     {
                         Unit = existing.Unit ?? metric.Unit,
                         Description = existing.Description ?? metric.Description,
+                        Buckets = existing.Buckets.Count > 0 ? existing.Buckets : metric.Buckets,
                     };
                     continue;
                 }
 
                 indexByKey.Add(key, fields.Count);
-                fields.Add(new Field(metric.Kind, metric.Metric, AssignName(metric.Metric, used), metric.Unit, metric.Description));
+                fields.Add(new Field(
+                    metric.Kind, metric.Metric, AssignName(metric.Metric, used), metric.Unit, metric.Description, metric.Buckets));
             }
         }
 
@@ -133,12 +138,18 @@ internal sealed class MetricFieldTable
         || name.StartsWith("_spanName_", StringComparison.Ordinal)
         || name.StartsWith("_tag_", StringComparison.Ordinal)
         || name.StartsWith("_metricTag", StringComparison.Ordinal)
-        || IsReadLocal(name);
+        || name.StartsWith("_core_", StringComparison.Ordinal)
+        || name.StartsWith("_fault_", StringComparison.Ordinal)
+        || name.StartsWith("_eachValue", StringComparison.Ordinal)
+        || IsNumberedLocal(name, "_read")
+        || IsNumberedLocal(name, "_each");
 
-    /// <summary><c>_read0</c>, <c>_read1</c> …: the pattern locals holding a non-null metric value.</summary>
-    private static bool IsReadLocal(string name)
+    /// <summary>
+    /// <c>_read0</c>, <c>_read1</c> …, the pattern locals holding a non-null metric value, and
+    /// <c>_each0</c> …, the elements of a per-element histogram.
+    /// </summary>
+    private static bool IsNumberedLocal(string name, string prefix)
     {
-        const string prefix = "_read";
         if (!name.StartsWith(prefix, StringComparison.Ordinal) || name.Length == prefix.Length)
             return false;
 
