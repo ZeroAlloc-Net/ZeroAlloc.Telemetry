@@ -15,7 +15,23 @@ internal sealed class OutcomeInstrumented : IOutcome
     private readonly IOutcome _inner;
     public OutcomeInstrumented(IOutcome inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.ValueTask<global::Outcome> RunAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.ValueTask<global::Outcome> RunAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_activitySource.HasListeners())
+        {
+            try
+            {
+                return _inner.RunAsync(ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_RunAsync_0(_ex);
+            }
+        }
+        return _core_RunAsync_0(ct);
+    }
+
+    private async global::System.Threading.Tasks.ValueTask<global::Outcome> _core_RunAsync_0(global::System.Threading.CancellationToken ct)
     {
         using var _activity = _activitySource.StartActivity("outcome.run");
         try
@@ -30,5 +46,12 @@ internal sealed class OutcomeInstrumented : IOutcome
             _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
             throw;
         }
+    }
+
+    private static async global::System.Threading.Tasks.ValueTask<global::Outcome> _fault_RunAsync_0(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
     }
 }

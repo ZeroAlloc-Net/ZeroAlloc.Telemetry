@@ -19,7 +19,23 @@ internal sealed class PlainInstrumented : IPlain
     private readonly IPlain _inner;
     public PlainInstrumented(IPlain inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.ValueTask<global::Quote> QuoteAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.ValueTask<global::Quote> QuoteAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_quote_cost.Enabled)
+        {
+            try
+            {
+                return _inner.QuoteAsync(ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_QuoteAsync_0(_ex);
+            }
+        }
+        return _core_QuoteAsync_0(ct);
+    }
+
+    private async global::System.Threading.Tasks.ValueTask<global::Quote> _core_QuoteAsync_0(global::System.Threading.CancellationToken ct)
     {
         try
         {
@@ -34,7 +50,30 @@ internal sealed class PlainInstrumented : IPlain
         }
     }
 
-    public async global::System.Threading.Tasks.Task<global::SearchPage> SearchAsync(global::System.Threading.CancellationToken ct)
+    private static async global::System.Threading.Tasks.ValueTask<global::Quote> _fault_QuoteAsync_0(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
+    }
+
+    public global::System.Threading.Tasks.Task<global::SearchPage> SearchAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_search_hits.Enabled)
+        {
+            try
+            {
+                return _inner.SearchAsync(ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_SearchAsync_1(_ex);
+            }
+        }
+        return _core_SearchAsync_1(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<global::SearchPage> _core_SearchAsync_1(global::System.Threading.CancellationToken ct)
     {
         try
         {
@@ -50,7 +89,30 @@ internal sealed class PlainInstrumented : IPlain
         }
     }
 
-    public async global::System.Threading.Tasks.Task<int> BatchAsync(global::System.Threading.CancellationToken ct)
+    private static async global::System.Threading.Tasks.Task<global::SearchPage> _fault_SearchAsync_1(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
+    }
+
+    public global::System.Threading.Tasks.Task<int> BatchAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_batch_items.Enabled)
+        {
+            try
+            {
+                return _inner.BatchAsync(ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_BatchAsync_2(_ex);
+            }
+        }
+        return _core_BatchAsync_2(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<int> _core_BatchAsync_2(global::System.Threading.CancellationToken ct)
     {
         try
         {
@@ -64,7 +126,30 @@ internal sealed class PlainInstrumented : IPlain
         }
     }
 
-    public async global::System.Threading.Tasks.Task<int?> MaybeAsync(global::System.Threading.CancellationToken ct)
+    private static async global::System.Threading.Tasks.Task<int> _fault_BatchAsync_2(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
+    }
+
+    public global::System.Threading.Tasks.Task<int?> MaybeAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_maybe_items.Enabled)
+        {
+            try
+            {
+                return _inner.MaybeAsync(ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_MaybeAsync_3(_ex);
+            }
+        }
+        return _core_MaybeAsync_3(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<int?> _core_MaybeAsync_3(global::System.Threading.CancellationToken ct)
     {
         try
         {
@@ -78,5 +163,12 @@ internal sealed class PlainInstrumented : IPlain
         {
             throw;
         }
+    }
+
+    private static async global::System.Threading.Tasks.Task<int?> _fault_MaybeAsync_3(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
     }
 }

@@ -15,7 +15,23 @@ internal sealed class SpansInstrumented : ISpans
     private readonly ISpans _inner;
     public SpansInstrumented(ISpans inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.Task TakeAsync(global::System.ReadOnlyMemory<byte> buffer, global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task TakeAsync(global::System.ReadOnlyMemory<byte> buffer, global::System.Threading.CancellationToken ct)
+    {
+        if (!_activitySource.HasListeners())
+        {
+            try
+            {
+                return _inner.TakeAsync(buffer, ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_TakeAsync_0(_ex);
+            }
+        }
+        return _core_TakeAsync_0(buffer, ct);
+    }
+
+    private async global::System.Threading.Tasks.Task _core_TakeAsync_0(global::System.ReadOnlyMemory<byte> buffer, global::System.Threading.CancellationToken ct)
     {
         using var _activity = _activitySource.StartActivity("spans.take");
         _activity?.SetTag("span.length", buffer.Length);
@@ -28,5 +44,11 @@ internal sealed class SpansInstrumented : ISpans
             _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
             throw;
         }
+    }
+
+    private static async global::System.Threading.Tasks.Task _fault_TakeAsync_0(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
     }
 }

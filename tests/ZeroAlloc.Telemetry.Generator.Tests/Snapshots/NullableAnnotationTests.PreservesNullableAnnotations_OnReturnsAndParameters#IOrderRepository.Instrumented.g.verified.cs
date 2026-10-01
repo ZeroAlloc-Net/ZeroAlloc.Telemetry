@@ -15,7 +15,23 @@ internal sealed class OrderRepositoryInstrumented : IOrderRepository
     private readonly IOrderRepository _inner;
     public OrderRepositoryInstrumented(IOrderRepository inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.Task<global::OrderRow?> GetByIdAsync(int id, global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<global::OrderRow?> GetByIdAsync(int id, global::System.Threading.CancellationToken ct)
+    {
+        if (!_activitySource.HasListeners())
+        {
+            try
+            {
+                return _inner.GetByIdAsync(id, ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_GetByIdAsync_0(_ex);
+            }
+        }
+        return _core_GetByIdAsync_0(id, ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<global::OrderRow?> _core_GetByIdAsync_0(int id, global::System.Threading.CancellationToken ct)
     {
         using var _activity = _activitySource.StartActivity("orders.get_by_id");
         try
@@ -30,7 +46,30 @@ internal sealed class OrderRepositoryInstrumented : IOrderRepository
         }
     }
 
-    public async global::System.Threading.Tasks.Task<global::OrderRow> FindAsync(string? filter, global::System.Threading.CancellationToken ct)
+    private static async global::System.Threading.Tasks.Task<global::OrderRow?> _fault_GetByIdAsync_0(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
+    }
+
+    public global::System.Threading.Tasks.Task<global::OrderRow> FindAsync(string? filter, global::System.Threading.CancellationToken ct)
+    {
+        if (!_activitySource.HasListeners())
+        {
+            try
+            {
+                return _inner.FindAsync(filter, ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_FindAsync_1(_ex);
+            }
+        }
+        return _core_FindAsync_1(filter, ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<global::OrderRow> _core_FindAsync_1(string? filter, global::System.Threading.CancellationToken ct)
     {
         using var _activity = _activitySource.StartActivity("orders.find");
         try
@@ -45,7 +84,30 @@ internal sealed class OrderRepositoryInstrumented : IOrderRepository
         }
     }
 
-    public async global::System.Threading.Tasks.Task<global::OrderRow?> SearchAsync(string? term, string tenant, global::System.Threading.CancellationToken ct)
+    private static async global::System.Threading.Tasks.Task<global::OrderRow> _fault_FindAsync_1(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
+    }
+
+    public global::System.Threading.Tasks.Task<global::OrderRow?> SearchAsync(string? term, string tenant, global::System.Threading.CancellationToken ct)
+    {
+        if (!_activitySource.HasListeners())
+        {
+            try
+            {
+                return _inner.SearchAsync(term, tenant, ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_SearchAsync_2(_ex);
+            }
+        }
+        return _core_SearchAsync_2(term, tenant, ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<global::OrderRow?> _core_SearchAsync_2(string? term, string tenant, global::System.Threading.CancellationToken ct)
     {
         using var _activity = _activitySource.StartActivity("orders.search");
         try
@@ -58,5 +120,12 @@ internal sealed class OrderRepositoryInstrumented : IOrderRepository
             _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
             throw;
         }
+    }
+
+    private static async global::System.Threading.Tasks.Task<global::OrderRow?> _fault_SearchAsync_2(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
     }
 }

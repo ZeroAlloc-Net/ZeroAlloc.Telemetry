@@ -17,7 +17,23 @@ internal sealed class OrdersInstrumented : IOrders
     private readonly IOrders _inner;
     public OrdersInstrumented(IOrders inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.Task<int> CreateAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<int> CreateAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_orders_created.Enabled && !_order_create_ms.Enabled)
+        {
+            try
+            {
+                return _inner.CreateAsync(ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_CreateAsync_0(_ex);
+            }
+        }
+        return _core_CreateAsync_0(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<int> _core_CreateAsync_0(global::System.Threading.CancellationToken ct)
     {
         var _sw = Stopwatch.GetTimestamp();
         try
@@ -34,7 +50,30 @@ internal sealed class OrdersInstrumented : IOrders
         }
     }
 
-    public async global::System.Threading.Tasks.Task<int> CreateAgainAsync(global::System.Threading.CancellationToken ct)
+    private static async global::System.Threading.Tasks.Task<int> _fault_CreateAsync_0(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
+    }
+
+    public global::System.Threading.Tasks.Task<int> CreateAgainAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_orders_created.Enabled && !_order_create_ms.Enabled)
+        {
+            try
+            {
+                return _inner.CreateAgainAsync(ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_CreateAgainAsync_1(_ex);
+            }
+        }
+        return _core_CreateAgainAsync_1(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<int> _core_CreateAgainAsync_1(global::System.Threading.CancellationToken ct)
     {
         var _sw = Stopwatch.GetTimestamp();
         try
@@ -49,5 +88,12 @@ internal sealed class OrdersInstrumented : IOrders
             _order_create_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
             throw;
         }
+    }
+
+    private static async global::System.Threading.Tasks.Task<int> _fault_CreateAgainAsync_1(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
     }
 }

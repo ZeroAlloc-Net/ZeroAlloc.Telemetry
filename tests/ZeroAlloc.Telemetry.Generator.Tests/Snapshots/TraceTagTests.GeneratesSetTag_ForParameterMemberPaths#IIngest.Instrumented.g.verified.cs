@@ -15,7 +15,23 @@ internal sealed class IngestInstrumented : IIngest
     private readonly IIngest _inner;
     public IngestInstrumented(IIngest inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.Task StoreAsync(global::DocumentMetadata metadata, global::System.Collections.Generic.IReadOnlyList<string> chunks, global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task StoreAsync(global::DocumentMetadata metadata, global::System.Collections.Generic.IReadOnlyList<string> chunks, global::System.Threading.CancellationToken ct)
+    {
+        if (!_activitySource.HasListeners())
+        {
+            try
+            {
+                return _inner.StoreAsync(metadata, chunks, ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_StoreAsync_0(_ex);
+            }
+        }
+        return _core_StoreAsync_0(metadata, chunks, ct);
+    }
+
+    private async global::System.Threading.Tasks.Task _core_StoreAsync_0(global::DocumentMetadata metadata, global::System.Collections.Generic.IReadOnlyList<string> chunks, global::System.Threading.CancellationToken ct)
     {
         using var _activity = _activitySource.StartActivity("ingest.store");
         var _tag_metadata = metadata;
@@ -31,5 +47,11 @@ internal sealed class IngestInstrumented : IIngest
             _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
             throw;
         }
+    }
+
+    private static async global::System.Threading.Tasks.Task _fault_StoreAsync_0(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
     }
 }

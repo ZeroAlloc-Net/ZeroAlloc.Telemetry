@@ -25,7 +25,23 @@ internal sealed class StoreInstrumented : IStore
         _spanName_SaveAsync_1 = "store.save." + _implName;
     }
 
-    public async global::System.Threading.Tasks.Task SaveAsync(string key)
+    public global::System.Threading.Tasks.Task SaveAsync(string key)
+    {
+        if (!_activitySource.HasListeners())
+        {
+            try
+            {
+                return _inner.SaveAsync(key);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_SaveAsync_0(_ex);
+            }
+        }
+        return _core_SaveAsync_0(key);
+    }
+
+    private async global::System.Threading.Tasks.Task _core_SaveAsync_0(string key)
     {
         using var _activity = _activitySource.StartActivity(_spanName_SaveAsync_0);
         try
@@ -39,7 +55,29 @@ internal sealed class StoreInstrumented : IStore
         }
     }
 
-    public async global::System.Threading.Tasks.Task SaveAsync(string key, int ttl)
+    private static async global::System.Threading.Tasks.Task _fault_SaveAsync_0(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+    }
+
+    public global::System.Threading.Tasks.Task SaveAsync(string key, int ttl)
+    {
+        if (!_activitySource.HasListeners())
+        {
+            try
+            {
+                return _inner.SaveAsync(key, ttl);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_SaveAsync_1(_ex);
+            }
+        }
+        return _core_SaveAsync_1(key, ttl);
+    }
+
+    private async global::System.Threading.Tasks.Task _core_SaveAsync_1(string key, int ttl)
     {
         using var _activity = _activitySource.StartActivity(_spanName_SaveAsync_1);
         try
@@ -53,7 +91,29 @@ internal sealed class StoreInstrumented : IStore
         }
     }
 
-    public async global::System.Threading.Tasks.Task PurgeAsync()
+    private static async global::System.Threading.Tasks.Task _fault_SaveAsync_1(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+    }
+
+    public global::System.Threading.Tasks.Task PurgeAsync()
+    {
+        if (!_activitySource.HasListeners())
+        {
+            try
+            {
+                return _inner.PurgeAsync();
+            }
+            catch (Exception _ex)
+            {
+                return _fault_PurgeAsync_2(_ex);
+            }
+        }
+        return _core_PurgeAsync_2();
+    }
+
+    private async global::System.Threading.Tasks.Task _core_PurgeAsync_2()
     {
         using var _activity = _activitySource.StartActivity("store.constant");
         try
@@ -65,5 +125,11 @@ internal sealed class StoreInstrumented : IStore
             _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
             throw;
         }
+    }
+
+    private static async global::System.Threading.Tasks.Task _fault_PurgeAsync_2(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
     }
 }

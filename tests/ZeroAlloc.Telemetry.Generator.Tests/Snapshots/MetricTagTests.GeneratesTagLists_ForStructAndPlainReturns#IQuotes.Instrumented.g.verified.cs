@@ -17,7 +17,23 @@ internal sealed class QuotesInstrumented : IQuotes
     private readonly IQuotes _inner;
     public QuotesInstrumented(IQuotes inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.ValueTask<global::Quote> QuoteAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.ValueTask<global::Quote> QuoteAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_quote_cost.Enabled)
+        {
+            try
+            {
+                return _inner.QuoteAsync(ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_QuoteAsync_0(_ex);
+            }
+        }
+        return _core_QuoteAsync_0(ct);
+    }
+
+    private async global::System.Threading.Tasks.ValueTask<global::Quote> _core_QuoteAsync_0(global::System.Threading.CancellationToken ct)
     {
         try
         {
@@ -36,6 +52,13 @@ internal sealed class QuotesInstrumented : IQuotes
         {
             throw;
         }
+    }
+
+    private static async global::System.Threading.Tasks.ValueTask<global::Quote> _fault_QuoteAsync_0(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
     }
 
     public string Status()

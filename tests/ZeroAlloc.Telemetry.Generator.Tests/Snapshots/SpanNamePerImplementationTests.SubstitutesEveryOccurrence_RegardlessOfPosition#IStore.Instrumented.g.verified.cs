@@ -25,7 +25,23 @@ internal sealed class StoreInstrumented : IStore
         _spanName_LoadAsync_1 = "a." + _implName + ".b." + _implName + ".c";
     }
 
-    public async global::System.Threading.Tasks.Task SaveAsync()
+    public global::System.Threading.Tasks.Task SaveAsync()
+    {
+        if (!_activitySource.HasListeners())
+        {
+            try
+            {
+                return _inner.SaveAsync();
+            }
+            catch (Exception _ex)
+            {
+                return _fault_SaveAsync_0(_ex);
+            }
+        }
+        return _core_SaveAsync_0();
+    }
+
+    private async global::System.Threading.Tasks.Task _core_SaveAsync_0()
     {
         using var _activity = _activitySource.StartActivity(_spanName_SaveAsync_0);
         try
@@ -39,7 +55,29 @@ internal sealed class StoreInstrumented : IStore
         }
     }
 
-    public async global::System.Threading.Tasks.Task LoadAsync()
+    private static async global::System.Threading.Tasks.Task _fault_SaveAsync_0(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+    }
+
+    public global::System.Threading.Tasks.Task LoadAsync()
+    {
+        if (!_activitySource.HasListeners())
+        {
+            try
+            {
+                return _inner.LoadAsync();
+            }
+            catch (Exception _ex)
+            {
+                return _fault_LoadAsync_1(_ex);
+            }
+        }
+        return _core_LoadAsync_1();
+    }
+
+    private async global::System.Threading.Tasks.Task _core_LoadAsync_1()
     {
         using var _activity = _activitySource.StartActivity(_spanName_LoadAsync_1);
         try
@@ -51,5 +89,11 @@ internal sealed class StoreInstrumented : IStore
             _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
             throw;
         }
+    }
+
+    private static async global::System.Threading.Tasks.Task _fault_LoadAsync_1(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
     }
 }

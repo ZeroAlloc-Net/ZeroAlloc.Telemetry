@@ -17,7 +17,23 @@ internal sealed class OrdersInstrumented : IOrders
     private readonly IOrders _inner;
     public OrdersInstrumented(IOrders inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.Task<global::Result<string, global::OrderError>> AcceptAsync(string orderId, global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<global::Result<string, global::OrderError>> AcceptAsync(string orderId, global::System.Threading.CancellationToken ct)
+    {
+        if (!_activitySource.HasListeners() && !_orders_accepted.Enabled && !_orders_accept_ms.Enabled)
+        {
+            try
+            {
+                return _inner.AcceptAsync(orderId, ct);
+            }
+            catch (Exception _ex)
+            {
+                return _fault_AcceptAsync_0(_ex);
+            }
+        }
+        return _core_AcceptAsync_0(orderId, ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<global::Result<string, global::OrderError>> _core_AcceptAsync_0(string orderId, global::System.Threading.CancellationToken ct)
     {
         using var _activity = _activitySource.StartActivity("orders.accept");
         var _sw = Stopwatch.GetTimestamp();
@@ -36,5 +52,12 @@ internal sealed class OrdersInstrumented : IOrders
             _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
             throw;
         }
+    }
+
+    private static async global::System.Threading.Tasks.Task<global::Result<string, global::OrderError>> _fault_AcceptAsync_0(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
     }
 }

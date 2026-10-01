@@ -18,7 +18,23 @@ internal sealed class PooledServiceInstrumented : IPooledService
     private readonly IPooledService _inner;
     public PooledServiceInstrumented(IPooledService inner) => _inner = inner;
 
-    public async global::Pooled.PooledTask<global::System.Collections.Generic.List<int>> ListAsync()
+    public global::Pooled.PooledTask<global::System.Collections.Generic.List<int>> ListAsync()
+    {
+        if (!_activitySource.HasListeners() && !_pooled_list_ms.Enabled)
+        {
+            try
+            {
+                return _inner.ListAsync();
+            }
+            catch (Exception _ex)
+            {
+                return _fault_ListAsync_0(_ex);
+            }
+        }
+        return _core_ListAsync_0();
+    }
+
+    private async global::Pooled.PooledTask<global::System.Collections.Generic.List<int>> _core_ListAsync_0()
     {
         using var _activity = _activitySource.StartActivity("pooled.list");
         var _sw = Stopwatch.GetTimestamp();
@@ -36,7 +52,30 @@ internal sealed class PooledServiceInstrumented : IPooledService
         }
     }
 
-    public async global::Pooled.PooledTask<global::System.Collections.Generic.List<int>> CountAsync()
+    private static async global::Pooled.PooledTask<global::System.Collections.Generic.List<int>> _fault_ListAsync_0(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
+    }
+
+    public global::Pooled.PooledTask<global::System.Collections.Generic.List<int>> CountAsync()
+    {
+        if (!_activitySource.HasListeners() && !_pooled_items.Enabled)
+        {
+            try
+            {
+                return _inner.CountAsync();
+            }
+            catch (Exception _ex)
+            {
+                return _fault_CountAsync_1(_ex);
+            }
+        }
+        return _core_CountAsync_1();
+    }
+
+    private async global::Pooled.PooledTask<global::System.Collections.Generic.List<int>> _core_CountAsync_1()
     {
         using var _activity = _activitySource.StartActivity("pooled.count");
         try
@@ -55,7 +94,30 @@ internal sealed class PooledServiceInstrumented : IPooledService
         }
     }
 
-    public async global::Pooled.PooledTask RunAsync()
+    private static async global::Pooled.PooledTask<global::System.Collections.Generic.List<int>> _fault_CountAsync_1(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
+        return default!;
+    }
+
+    public global::Pooled.PooledTask RunAsync()
+    {
+        if (!_activitySource.HasListeners() && !_pooled_run_ms.Enabled)
+        {
+            try
+            {
+                return _inner.RunAsync();
+            }
+            catch (Exception _ex)
+            {
+                return _fault_RunAsync_2(_ex);
+            }
+        }
+        return _core_RunAsync_2();
+    }
+
+    private async global::Pooled.PooledTask _core_RunAsync_2()
     {
         using var _activity = _activitySource.StartActivity("pooled.run");
         var _sw = Stopwatch.GetTimestamp();
@@ -70,5 +132,11 @@ internal sealed class PooledServiceInstrumented : IPooledService
             _pooled_run_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
             throw;
         }
+    }
+
+    private static async global::Pooled.PooledTask _fault_RunAsync_2(Exception _ex)
+    {
+        await global::System.Threading.Tasks.Task.CompletedTask;
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(_ex);
     }
 }
