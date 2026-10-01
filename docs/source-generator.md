@@ -111,7 +111,14 @@ ValueTask<OrderId> CreateOrderAsync(CreateOrderCommand cmd, CancellationToken ct
 
 Output:
 ```csharp
-public async ValueTask<OrderId> CreateOrderAsync(CreateOrderCommand cmd, CancellationToken ct)
+public ValueTask<OrderId> CreateOrderAsync(CreateOrderCommand cmd, CancellationToken ct)
+{
+    if (!_activitySource.HasListeners() && !_orders_created.Enabled)
+        return _inner.CreateOrderAsync(cmd, ct);
+    return _core_CreateOrderAsync_0(cmd, ct);
+}
+
+private async ValueTask<OrderId> _core_CreateOrderAsync_0(CreateOrderCommand cmd, CancellationToken ct)
 {
     using var _activity = _activitySource.StartActivity("order.create");
     try
@@ -128,6 +135,8 @@ public async ValueTask<OrderId> CreateOrderAsync(CreateOrderCommand cmd, Cancell
 }
 ```
 
+An awaitable method's public proxy method is never `async`. When the source has no listener and none of the method's instruments is enabled, it returns the inner call's task as is, so a call adds no allocation even when the inner method completes asynchronously. Otherwise it calls a private `async` core that does the instrumented work. The examples below show only the core.
+
 ### [Trace] + [Histogram]
 
 Input:
@@ -139,7 +148,7 @@ ValueTask<Order> GetOrderAsync(OrderId id, CancellationToken ct);
 
 Output:
 ```csharp
-public async ValueTask<Order> GetOrderAsync(OrderId id, CancellationToken ct)
+private async ValueTask<Order> _core_GetOrderAsync_1(OrderId id, CancellationToken ct)
 {
     using var _activity = _activitySource.StartActivity("order.get");
     var _sw = Stopwatch.GetTimestamp();
@@ -167,13 +176,13 @@ ValueTask DeleteOrderAsync(OrderId id, CancellationToken ct);
 
 Output:
 ```csharp
-public async ValueTask DeleteOrderAsync(OrderId id, CancellationToken ct)
+public ValueTask DeleteOrderAsync(OrderId id, CancellationToken ct)
 {
-    await _inner.DeleteOrderAsync(id, ct);
+    return _inner.DeleteOrderAsync(id, ct);
 }
 ```
 
-No try/catch, no timing, no span.
+No try/catch, no timing, no span, and no state machine: the inner task is returned as is.
 
 ### Result-driven instruments
 
@@ -189,7 +198,7 @@ Output:
 private static readonly Counter<long> _llm_tokens_input = _meter.CreateCounter<long>("llm.tokens.input", unit: "{token}");
 private static readonly Histogram<double> _llm_cost = _meter.CreateHistogram<double>("llm.cost", unit: "USD");
 
-public async Task<Result<TokenUsage, LlmError>> CompleteAsync(string prompt, CancellationToken ct)
+private async Task<Result<TokenUsage, LlmError>> _core_CompleteAsync_0(string prompt, CancellationToken ct)
 {
     try
     {
@@ -255,7 +264,7 @@ Names that would still collide are made distinct with a numeric suffix, in the o
 - A `file` interface, or an interface nested in a `file` type, gets no proxy: **ZTEL014**
 - An interface nested in an interface with an `in` or `out` type parameter gets no proxy, because C# does not allow a class there: **ZTEL017**
 - Sync methods are supported (no `async`/`await` wrapper needed)
-- A method is proxied with `async`/`await` when it returns `Task`, `Task<T>`, `ValueTask`, `ValueTask<T>`, or a task-like type marked `[AsyncMethodBuilder]`, such as PooledAwait's `PooledTask<T>`. For a task-like type, result reads start from what `GetAwaiter().GetResult()` returns
+- A method's instrumentation is awaited, in a private `async` core, when it returns `Task`, `Task<T>`, `ValueTask`, `ValueTask<T>`, or a task-like type marked `[AsyncMethodBuilder]`, such as PooledAwait's `PooledTask<T>`. For a task-like type, result reads start from what `GetAwaiter().GetResult()` returns
 
 ## Diagnostics
 

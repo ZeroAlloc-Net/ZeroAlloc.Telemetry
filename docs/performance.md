@@ -62,6 +62,17 @@ finally
 }
 ```
 
+For a method returning `Task`, `ValueTask` or another awaitable, the proxy goes one step further. Its public method is not `async`: when the source has no listener and none of the method's instruments is enabled, it returns the inner task as is, so no state machine is allocated even when the inner call completes asynchronously. Only when something would record the call does it go through an `async` core:
+
+```csharp
+public ValueTask<OrderId> CreateOrderAsync(CreateOrderCommand cmd, CancellationToken ct)
+{
+    if (!_activitySource.HasListeners() && !_orders_created.Enabled)
+        return _inner.CreateOrderAsync(cmd, ct);
+    return _core_CreateOrderAsync_0(cmd, ct);
+}
+```
+
 Counter/histogram increments go through `Counter<long>.Add(...)` and `Histogram<double>.Record(...)` — these are `Interlocked`-backed on a single field, no per-call allocation.
 
 **3. No `params object[]`**

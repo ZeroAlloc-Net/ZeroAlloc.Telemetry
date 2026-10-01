@@ -23,7 +23,14 @@ internal sealed class StoreInstrumented : IStore
         _spanName_SaveAsync_0 = _implName;
     }
 
-    public async global::System.Threading.Tasks.Task SaveAsync()
+    public global::System.Threading.Tasks.Task SaveAsync()
+    {
+        if (!_activitySource.HasListeners())
+            return _inner.SaveAsync();
+        return _core_SaveAsync_0();
+    }
+
+    private async global::System.Threading.Tasks.Task _core_SaveAsync_0()
     {
         using var _activity = _activitySource.StartActivity(_spanName_SaveAsync_0);
         try

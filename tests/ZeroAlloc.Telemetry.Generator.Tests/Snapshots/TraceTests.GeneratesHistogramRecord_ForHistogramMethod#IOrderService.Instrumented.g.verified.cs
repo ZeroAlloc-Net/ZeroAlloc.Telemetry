@@ -16,7 +16,14 @@ internal sealed class OrderServiceInstrumented : IOrderService
     private readonly IOrderService _inner;
     public OrderServiceInstrumented(IOrderService inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.ValueTask<string> GetOrderAsync(string orderId, global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.ValueTask<string> GetOrderAsync(string orderId, global::System.Threading.CancellationToken ct)
+    {
+        if (!_order_duration_ms.Enabled)
+            return _inner.GetOrderAsync(orderId, ct);
+        return _core_GetOrderAsync_0(orderId, ct);
+    }
+
+    private async global::System.Threading.Tasks.ValueTask<string> _core_GetOrderAsync_0(string orderId, global::System.Threading.CancellationToken ct)
     {
         var _sw = Stopwatch.GetTimestamp();
         try

@@ -23,7 +23,14 @@ internal sealed class VectorStoreInstrumented : IVectorStore
         _spanName_SearchAsync_0 = "vectorstore.search." + _implName;
     }
 
-    public async global::System.Threading.Tasks.Task<global::System.Collections.Generic.IReadOnlyList<string>> SearchAsync(string collection, global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<global::System.Collections.Generic.IReadOnlyList<string>> SearchAsync(string collection, global::System.Threading.CancellationToken ct)
+    {
+        if (!_activitySource.HasListeners())
+            return _inner.SearchAsync(collection, ct);
+        return _core_SearchAsync_0(collection, ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<global::System.Collections.Generic.IReadOnlyList<string>> _core_SearchAsync_0(string collection, global::System.Threading.CancellationToken ct)
     {
         using var _activity = _activitySource.StartActivity(_spanName_SearchAsync_0);
         try

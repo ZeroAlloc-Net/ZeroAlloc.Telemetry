@@ -17,7 +17,14 @@ internal sealed class QuotesInstrumented : IQuotes
     private readonly IQuotes _inner;
     public QuotesInstrumented(IQuotes inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.ValueTask<global::Quote> QuoteAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.ValueTask<global::Quote> QuoteAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_quote_cost.Enabled)
+            return _inner.QuoteAsync(ct);
+        return _core_QuoteAsync_0(ct);
+    }
+
+    private async global::System.Threading.Tasks.ValueTask<global::Quote> _core_QuoteAsync_0(global::System.Threading.CancellationToken ct)
     {
         try
         {

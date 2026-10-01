@@ -25,7 +25,14 @@ internal sealed class StoreInstrumented : IStore
         _spanName_SaveAsync_1 = "store.save." + _implName;
     }
 
-    public async global::System.Threading.Tasks.Task SaveAsync(string key)
+    public global::System.Threading.Tasks.Task SaveAsync(string key)
+    {
+        if (!_activitySource.HasListeners())
+            return _inner.SaveAsync(key);
+        return _core_SaveAsync_0(key);
+    }
+
+    private async global::System.Threading.Tasks.Task _core_SaveAsync_0(string key)
     {
         using var _activity = _activitySource.StartActivity(_spanName_SaveAsync_0);
         try
@@ -39,7 +46,14 @@ internal sealed class StoreInstrumented : IStore
         }
     }
 
-    public async global::System.Threading.Tasks.Task SaveAsync(string key, int ttl)
+    public global::System.Threading.Tasks.Task SaveAsync(string key, int ttl)
+    {
+        if (!_activitySource.HasListeners())
+            return _inner.SaveAsync(key, ttl);
+        return _core_SaveAsync_1(key, ttl);
+    }
+
+    private async global::System.Threading.Tasks.Task _core_SaveAsync_1(string key, int ttl)
     {
         using var _activity = _activitySource.StartActivity(_spanName_SaveAsync_1);
         try
@@ -53,7 +67,14 @@ internal sealed class StoreInstrumented : IStore
         }
     }
 
-    public async global::System.Threading.Tasks.Task PurgeAsync()
+    public global::System.Threading.Tasks.Task PurgeAsync()
+    {
+        if (!_activitySource.HasListeners())
+            return _inner.PurgeAsync();
+        return _core_PurgeAsync_2();
+    }
+
+    private async global::System.Threading.Tasks.Task _core_PurgeAsync_2()
     {
         using var _activity = _activitySource.StartActivity("store.constant");
         try

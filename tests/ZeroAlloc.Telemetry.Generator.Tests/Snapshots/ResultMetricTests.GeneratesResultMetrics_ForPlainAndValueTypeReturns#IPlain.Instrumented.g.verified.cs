@@ -19,7 +19,14 @@ internal sealed class PlainInstrumented : IPlain
     private readonly IPlain _inner;
     public PlainInstrumented(IPlain inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.ValueTask<global::Quote> QuoteAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.ValueTask<global::Quote> QuoteAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_quote_cost.Enabled)
+            return _inner.QuoteAsync(ct);
+        return _core_QuoteAsync_0(ct);
+    }
+
+    private async global::System.Threading.Tasks.ValueTask<global::Quote> _core_QuoteAsync_0(global::System.Threading.CancellationToken ct)
     {
         try
         {
@@ -34,7 +41,14 @@ internal sealed class PlainInstrumented : IPlain
         }
     }
 
-    public async global::System.Threading.Tasks.Task<global::SearchPage> SearchAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<global::SearchPage> SearchAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_search_hits.Enabled)
+            return _inner.SearchAsync(ct);
+        return _core_SearchAsync_1(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<global::SearchPage> _core_SearchAsync_1(global::System.Threading.CancellationToken ct)
     {
         try
         {
@@ -50,7 +64,14 @@ internal sealed class PlainInstrumented : IPlain
         }
     }
 
-    public async global::System.Threading.Tasks.Task<int> BatchAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<int> BatchAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_batch_items.Enabled)
+            return _inner.BatchAsync(ct);
+        return _core_BatchAsync_2(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<int> _core_BatchAsync_2(global::System.Threading.CancellationToken ct)
     {
         try
         {
@@ -64,7 +85,14 @@ internal sealed class PlainInstrumented : IPlain
         }
     }
 
-    public async global::System.Threading.Tasks.Task<int?> MaybeAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<int?> MaybeAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_maybe_items.Enabled)
+            return _inner.MaybeAsync(ct);
+        return _core_MaybeAsync_3(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<int?> _core_MaybeAsync_3(global::System.Threading.CancellationToken ct)
     {
         try
         {

@@ -16,7 +16,14 @@ internal sealed class PlainServiceInstrumented : IPlainService
     private readonly IPlainService _inner;
     public PlainServiceInstrumented(IPlainService inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.Task<string> RunAsync(string arg, global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<string> RunAsync(string arg, global::System.Threading.CancellationToken ct)
+    {
+        if (!_plain_calls.Enabled)
+            return _inner.RunAsync(arg, ct);
+        return _core_RunAsync_0(arg, ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<string> _core_RunAsync_0(string arg, global::System.Threading.CancellationToken ct)
     {
         try
         {

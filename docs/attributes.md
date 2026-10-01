@@ -129,7 +129,7 @@ public VectorStoreInstrumented(IVectorStore inner)
     _spanName_SearchAsync_0 = "vectorstore.search." + _implName;
 }
 
-public async Task<...> SearchAsync(...)
+private async Task<...> _core_SearchAsync_0(...)
 {
     using var _activity = _activitySource.StartActivity(_spanName_SearchAsync_0);
 ```

@@ -15,7 +15,14 @@ internal sealed class OrderRepositoryInstrumented : IOrderRepository
     private readonly IOrderRepository _inner;
     public OrderRepositoryInstrumented(IOrderRepository inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.Task<global::OrderRow?> GetByIdAsync(int id, global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<global::OrderRow?> GetByIdAsync(int id, global::System.Threading.CancellationToken ct)
+    {
+        if (!_activitySource.HasListeners())
+            return _inner.GetByIdAsync(id, ct);
+        return _core_GetByIdAsync_0(id, ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<global::OrderRow?> _core_GetByIdAsync_0(int id, global::System.Threading.CancellationToken ct)
     {
         using var _activity = _activitySource.StartActivity("orders.get_by_id");
         try
@@ -30,7 +37,14 @@ internal sealed class OrderRepositoryInstrumented : IOrderRepository
         }
     }
 
-    public async global::System.Threading.Tasks.Task<global::OrderRow> FindAsync(string? filter, global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<global::OrderRow> FindAsync(string? filter, global::System.Threading.CancellationToken ct)
+    {
+        if (!_activitySource.HasListeners())
+            return _inner.FindAsync(filter, ct);
+        return _core_FindAsync_1(filter, ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<global::OrderRow> _core_FindAsync_1(string? filter, global::System.Threading.CancellationToken ct)
     {
         using var _activity = _activitySource.StartActivity("orders.find");
         try
@@ -45,7 +59,14 @@ internal sealed class OrderRepositoryInstrumented : IOrderRepository
         }
     }
 
-    public async global::System.Threading.Tasks.Task<global::OrderRow?> SearchAsync(string? term, string tenant, global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<global::OrderRow?> SearchAsync(string? term, string tenant, global::System.Threading.CancellationToken ct)
+    {
+        if (!_activitySource.HasListeners())
+            return _inner.SearchAsync(term, tenant, ct);
+        return _core_SearchAsync_2(term, tenant, ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<global::OrderRow?> _core_SearchAsync_2(string? term, string tenant, global::System.Threading.CancellationToken ct)
     {
         using var _activity = _activitySource.StartActivity("orders.search");
         try

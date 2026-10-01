@@ -138,33 +138,106 @@ internal static class ProxyWriter
     {
         sb.AppendLine();
 
-        var asyncKeyword = method.IsAsync ? "async " : string.Empty;
-        var paramList    = string.Join(", ", method.Parameters.Select(p => $"{p.Type} {Id(p.Name)}"));
-        var argList      = string.Join(", ", method.Parameters.Select(p => Id(p.Name)));
+        var paramList = string.Join(", ", method.Parameters.Select(p => $"{p.Type} {Id(p.Name)}"));
+        var argList   = string.Join(", ", method.Parameters.Select(p => Id(p.Name)));
 
-        sb.AppendLine($"    public {asyncKeyword}{method.ReturnType} {Id(method.Name)}{method.TypeParameters}({paramList})");
-        // An implicit implementation of a generic method has to repeat its constraints.
+        var instrumented = method.TraceName is not null
+                        || method.Histogram is not null
+                        || method.Count is not null
+                        || method.ResultMetrics.Count > 0;
+
+        if (!method.IsAsync)
+        {
+            WriteSignature(sb, method, "public ", Id(method.Name), paramList);
+            sb.AppendLine("    {");
+            if (instrumented)
+                WriteInstrumentedPrologueAndBody(sb, method, index, argList, fields);
+            else
+                WritePassthroughBody(sb, method, argList);
+            sb.AppendLine("    }");
+            return;
+        }
+
+        // An awaitable method is never async itself. Awaiting in the public method would allocate
+        // its state machine whenever the inner call completes asynchronously, even with nothing
+        // listening, so the inner task is returned as is unless something would be recorded.
+        WriteSignature(sb, method, "public ", Id(method.Name), paramList);
+        sb.AppendLine("    {");
+        if (!instrumented)
+        {
+            WritePassthroughBody(sb, method, argList);
+            sb.AppendLine("    }");
+            return;
+        }
+
+        var core = CoreMethodName(method, index);
+        sb.AppendLine($"        if ({QuietCondition(method, fields)})");
+        sb.AppendLine($"            return _inner.{Id(method.Name)}{method.TypeParameters}({argList});");
+        sb.AppendLine($"        return {core}{method.TypeParameters}({argList});");
+        sb.AppendLine("    }");
+
+        sb.AppendLine();
+        WriteSignature(sb, method, "private async ", core, paramList);
+        sb.AppendLine("    {");
+        WriteInstrumentedPrologueAndBody(sb, method, index, argList, fields);
+        sb.AppendLine("    }");
+    }
+
+    /// <summary>
+    /// The method's declaration line and, for a generic method, its constraint clauses: an
+    /// implicit implementation of a generic method has to repeat them, and so does the core
+    /// method it calls, whose type parameters must satisfy the inner call's.
+    /// </summary>
+    private static void WriteSignature(StringBuilder sb, MethodModel method, string modifiers, string name, string paramList)
+    {
+        sb.AppendLine($"    {modifiers}{method.ReturnType} {name}{method.TypeParameters}({paramList})");
         foreach (var clause in method.ConstraintClauses)
             sb.AppendLine($"        {clause}");
-        sb.AppendLine("    {");
+    }
 
+    /// <summary>
+    /// The span, the stopwatch and the try block that records the method's instruments.
+    /// </summary>
+    private static void WriteInstrumentedPrologueAndBody(
+        StringBuilder sb, MethodModel method, int index, string argList, MetricFieldTable fields)
+    {
         if (method.TraceName is not null)
             WriteSpanStartAndTags(sb, method, index);
 
         if (method.Histogram is not null)
             sb.AppendLine("        var _sw = Stopwatch.GetTimestamp();");
 
-        var needsTry = method.TraceName is not null
-                    || method.Histogram is not null
-                    || method.Count is not null
-                    || method.ResultMetrics.Count > 0;
+        WriteInstrumentedBody(sb, method, argList, fields);
+    }
 
-        if (needsTry)
-            WriteInstrumentedBody(sb, method, argList, fields);
-        else
-            WritePassthroughBody(sb, method, argList);
+    /// <summary>
+    /// The async method holding an awaitable method's instrumentation. Indexed as well as named,
+    /// so overloads do not collide, and prefixed so it cannot clash with an interface member.
+    /// </summary>
+    private static string CoreMethodName(MethodModel method, int index) =>
+        $"_core_{method.Name}_{index.ToString(CultureInfo.InvariantCulture)}";
 
-        sb.AppendLine("    }");
+    /// <summary>
+    /// True when nothing would observe the call: the source has no listener, for a traced method,
+    /// and none of the method's instruments is enabled. Each check is a field read, so the fast
+    /// path allocates nothing and costs a few branches.
+    /// </summary>
+    private static string QuietCondition(MethodModel method, MetricFieldTable fields)
+    {
+        var checks = new List<string>();
+        if (method.TraceName is not null)
+            checks.Add("!_activitySource.HasListeners()");
+
+        if (method.Count is { } count)
+            checks.Add($"!{fields.FieldFor(count)}.Enabled");
+
+        if (method.Histogram is { } histogram)
+            checks.Add($"!{fields.FieldFor(histogram)}.Enabled");
+
+        foreach (var metric in method.ResultMetrics)
+            checks.Add($"!{fields.FieldFor(metric)}.Enabled");
+
+        return string.Join(" && ", checks);
     }
 
     /// <summary>
@@ -475,11 +548,14 @@ internal static class ProxyWriter
         sb.AppendLine("        }");
     }
 
+    /// <summary>
+    /// Forwards the call. An awaitable result is returned, not awaited, so a method without
+    /// instruments adds no state machine.
+    /// </summary>
     private static void WritePassthroughBody(StringBuilder sb, MethodModel method, string argList)
     {
-        var awaitKeyword  = method.IsAsync ? "await " : string.Empty;
-        var callExpr      = $"{awaitKeyword}_inner.{Id(method.Name)}{method.TypeParameters}({argList})";
-        var returnKeyword = method.ReturnsVoid ? string.Empty : "return ";
+        var callExpr      = $"_inner.{Id(method.Name)}{method.TypeParameters}({argList})";
+        var returnKeyword = method.ReturnsVoid && !method.IsAsync ? string.Empty : "return ";
         sb.AppendLine($"        {returnKeyword}{callExpr};");
     }
 

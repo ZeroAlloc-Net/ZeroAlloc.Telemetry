@@ -17,7 +17,14 @@ internal sealed class OrdersInstrumented : IOrders
     private readonly IOrders _inner;
     public OrdersInstrumented(IOrders inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.Task<global::Result<string, global::OrderError>> AcceptAsync(string orderId, global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<global::Result<string, global::OrderError>> AcceptAsync(string orderId, global::System.Threading.CancellationToken ct)
+    {
+        if (!_activitySource.HasListeners() && !_orders_accepted.Enabled && !_orders_accept_ms.Enabled)
+            return _inner.AcceptAsync(orderId, ct);
+        return _core_AcceptAsync_0(orderId, ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<global::Result<string, global::OrderError>> _core_AcceptAsync_0(string orderId, global::System.Threading.CancellationToken ct)
     {
         using var _activity = _activitySource.StartActivity("orders.accept");
         var _sw = Stopwatch.GetTimestamp();

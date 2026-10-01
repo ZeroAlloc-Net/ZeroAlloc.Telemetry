@@ -16,7 +16,14 @@ internal sealed class OrderServiceInstrumented : IOrderService
     private readonly IOrderService _inner;
     public OrderServiceInstrumented(IOrderService inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.ValueTask CreateOrderAsync(string orderId, global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.ValueTask CreateOrderAsync(string orderId, global::System.Threading.CancellationToken ct)
+    {
+        if (!_orders_created.Enabled)
+            return _inner.CreateOrderAsync(orderId, ct);
+        return _core_CreateOrderAsync_0(orderId, ct);
+    }
+
+    private async global::System.Threading.Tasks.ValueTask _core_CreateOrderAsync_0(string orderId, global::System.Threading.CancellationToken ct)
     {
         try
         {

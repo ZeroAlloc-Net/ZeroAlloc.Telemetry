@@ -19,7 +19,14 @@ internal sealed class ChatInstrumented : IChat
     private readonly IChat _inner;
     public ChatInstrumented(IChat inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.Task<global::Result<global::Reply, global::LlmError>> CompleteAsync(string prompt, global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<global::Result<global::Reply, global::LlmError>> CompleteAsync(string prompt, global::System.Threading.CancellationToken ct)
+    {
+        if (!_activitySource.HasListeners() && !_llm_calls.Enabled && !_llm_duration.Enabled && !_llm_tokens_input.Enabled && !_llm_cost.Enabled)
+            return _inner.CompleteAsync(prompt, ct);
+        return _core_CompleteAsync_0(prompt, ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<global::Result<global::Reply, global::LlmError>> _core_CompleteAsync_0(string prompt, global::System.Threading.CancellationToken ct)
     {
         using var _activity = _activitySource.StartActivity("llm.complete");
         var _sw = Stopwatch.GetTimestamp();

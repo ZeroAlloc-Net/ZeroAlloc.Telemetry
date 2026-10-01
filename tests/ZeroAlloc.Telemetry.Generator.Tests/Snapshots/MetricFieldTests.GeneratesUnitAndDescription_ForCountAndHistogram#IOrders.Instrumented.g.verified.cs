@@ -17,7 +17,14 @@ internal sealed class OrdersInstrumented : IOrders
     private readonly IOrders _inner;
     public OrdersInstrumented(IOrders inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.Task<int> CreateAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<int> CreateAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_orders_created.Enabled && !_order_create_ms.Enabled)
+            return _inner.CreateAsync(ct);
+        return _core_CreateAsync_0(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<int> _core_CreateAsync_0(global::System.Threading.CancellationToken ct)
     {
         var _sw = Stopwatch.GetTimestamp();
         try
@@ -34,7 +41,14 @@ internal sealed class OrdersInstrumented : IOrders
         }
     }
 
-    public async global::System.Threading.Tasks.Task<int> CreateAgainAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<int> CreateAgainAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_orders_created.Enabled && !_order_create_ms.Enabled)
+            return _inner.CreateAgainAsync(ct);
+        return _core_CreateAgainAsync_1(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<int> _core_CreateAgainAsync_1(global::System.Threading.CancellationToken ct)
     {
         var _sw = Stopwatch.GetTimestamp();
         try

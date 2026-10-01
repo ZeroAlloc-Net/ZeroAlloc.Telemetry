@@ -15,7 +15,14 @@ internal sealed class PathsInstrumented : IPaths
     private readonly IPaths _inner;
     public PathsInstrumented(IPaths inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.Task<global::Outer> DeepAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<global::Outer> DeepAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_activitySource.HasListeners())
+            return _inner.DeepAsync(ct);
+        return _core_DeepAsync_0(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<global::Outer> _core_DeepAsync_0(global::System.Threading.CancellationToken ct)
     {
         using var _activity = _activitySource.StartActivity("paths.deep");
         try
@@ -32,7 +39,14 @@ internal sealed class PathsInstrumented : IPaths
         }
     }
 
-    public async global::System.Threading.Tasks.Task<global::Outer> ValueAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<global::Outer> ValueAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_activitySource.HasListeners())
+            return _inner.ValueAsync(ct);
+        return _core_ValueAsync_1(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<global::Outer> _core_ValueAsync_1(global::System.Threading.CancellationToken ct)
     {
         using var _activity = _activitySource.StartActivity("paths.value");
         try

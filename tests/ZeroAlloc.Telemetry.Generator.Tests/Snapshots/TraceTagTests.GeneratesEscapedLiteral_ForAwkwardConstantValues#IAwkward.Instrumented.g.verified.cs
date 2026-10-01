@@ -15,7 +15,14 @@ internal sealed class AwkwardInstrumented : IAwkward
     private readonly IAwkward _inner;
     public AwkwardInstrumented(IAwkward inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.Task<string> RunAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<string> RunAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_activitySource.HasListeners())
+            return _inner.RunAsync(ct);
+        return _core_RunAsync_0(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<string> _core_RunAsync_0(global::System.Threading.CancellationToken ct)
     {
         using var _activity = _activitySource.StartActivity("awkward.run");
         _activity?.SetTag("quote", "he said \"hi\"");

@@ -15,7 +15,14 @@ internal sealed class IngestInstrumented : IIngest
     private readonly IIngest _inner;
     public IngestInstrumented(IIngest inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.Task StoreAsync(string source, global::System.Collections.Generic.IReadOnlyList<string> chunks, global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task StoreAsync(string source, global::System.Collections.Generic.IReadOnlyList<string> chunks, global::System.Threading.CancellationToken ct)
+    {
+        if (!_activitySource.HasListeners())
+            return _inner.StoreAsync(source, chunks, ct);
+        return _core_StoreAsync_0(source, chunks, ct);
+    }
+
+    private async global::System.Threading.Tasks.Task _core_StoreAsync_0(string source, global::System.Collections.Generic.IReadOnlyList<string> chunks, global::System.Threading.CancellationToken ct)
     {
         using var _activity = _activitySource.StartActivity("ingest.store");
         _activity?.SetTag("ingest.source", source);

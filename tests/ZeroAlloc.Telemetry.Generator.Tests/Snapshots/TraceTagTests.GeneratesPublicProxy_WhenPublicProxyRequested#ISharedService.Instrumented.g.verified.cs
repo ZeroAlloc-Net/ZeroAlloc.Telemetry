@@ -15,7 +15,14 @@ public sealed class SharedServiceInstrumented : ISharedService
     private readonly ISharedService _inner;
     public SharedServiceInstrumented(ISharedService inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.ValueTask RunAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.ValueTask RunAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_activitySource.HasListeners())
+            return _inner.RunAsync(ct);
+        return _core_RunAsync_0(ct);
+    }
+
+    private async global::System.Threading.Tasks.ValueTask _core_RunAsync_0(global::System.Threading.CancellationToken ct)
     {
         using var _activity = _activitySource.StartActivity("shared.run");
         try

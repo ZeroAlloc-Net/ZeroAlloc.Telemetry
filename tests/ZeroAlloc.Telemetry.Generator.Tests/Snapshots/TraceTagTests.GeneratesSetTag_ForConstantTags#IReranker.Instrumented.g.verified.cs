@@ -15,7 +15,14 @@ internal sealed class RerankerInstrumented : IReranker
     private readonly IReranker _inner;
     public RerankerInstrumented(IReranker inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.Task<string> RerankAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<string> RerankAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_activitySource.HasListeners())
+            return _inner.RerankAsync(ct);
+        return _core_RerankAsync_0(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<string> _core_RerankAsync_0(global::System.Threading.CancellationToken ct)
     {
         using var _activity = _activitySource.StartActivity("rerank.run");
         _activity?.SetTag("reranker.type", "CohereReranker");

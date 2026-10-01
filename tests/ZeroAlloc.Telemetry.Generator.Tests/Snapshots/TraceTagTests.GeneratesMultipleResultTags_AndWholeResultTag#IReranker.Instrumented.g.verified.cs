@@ -15,7 +15,14 @@ internal sealed class RerankerInstrumented : IReranker
     private readonly IReranker _inner;
     public RerankerInstrumented(IReranker inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.Task<global::RerankOutcome> RerankAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<global::RerankOutcome> RerankAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_activitySource.HasListeners())
+            return _inner.RerankAsync(ct);
+        return _core_RerankAsync_0(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<global::RerankOutcome> _core_RerankAsync_0(global::System.Threading.CancellationToken ct)
     {
         using var _activity = _activitySource.StartActivity("rerank.run");
         try
@@ -33,7 +40,14 @@ internal sealed class RerankerInstrumented : IReranker
         }
     }
 
-    public async global::System.Threading.Tasks.Task<double> ScoreAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<double> ScoreAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_activitySource.HasListeners())
+            return _inner.ScoreAsync(ct);
+        return _core_ScoreAsync_1(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<double> _core_ScoreAsync_1(global::System.Threading.CancellationToken ct)
     {
         using var _activity = _activitySource.StartActivity("rerank.score");
         try

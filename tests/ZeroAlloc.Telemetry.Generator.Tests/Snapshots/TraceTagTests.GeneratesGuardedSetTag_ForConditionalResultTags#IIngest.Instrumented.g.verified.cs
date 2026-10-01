@@ -15,7 +15,14 @@ internal sealed class IngestInstrumented : IIngest
     private readonly IIngest _inner;
     public IngestInstrumented(IIngest inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.Task<global::Result<global::System.Collections.Generic.IReadOnlyList<global::Chunk>, global::RagError>> ChunkAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<global::Result<global::System.Collections.Generic.IReadOnlyList<global::Chunk>, global::RagError>> ChunkAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_activitySource.HasListeners())
+            return _inner.ChunkAsync(ct);
+        return _core_ChunkAsync_0(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<global::Result<global::System.Collections.Generic.IReadOnlyList<global::Chunk>, global::RagError>> _core_ChunkAsync_0(global::System.Threading.CancellationToken ct)
     {
         using var _activity = _activitySource.StartActivity("ingest.chunk");
         try

@@ -18,7 +18,14 @@ internal sealed class PooledServiceInstrumented : IPooledService
     private readonly IPooledService _inner;
     public PooledServiceInstrumented(IPooledService inner) => _inner = inner;
 
-    public async global::Pooled.PooledTask<global::System.Collections.Generic.List<int>> ListAsync()
+    public global::Pooled.PooledTask<global::System.Collections.Generic.List<int>> ListAsync()
+    {
+        if (!_activitySource.HasListeners() && !_pooled_list_ms.Enabled)
+            return _inner.ListAsync();
+        return _core_ListAsync_0();
+    }
+
+    private async global::Pooled.PooledTask<global::System.Collections.Generic.List<int>> _core_ListAsync_0()
     {
         using var _activity = _activitySource.StartActivity("pooled.list");
         var _sw = Stopwatch.GetTimestamp();
@@ -36,7 +43,14 @@ internal sealed class PooledServiceInstrumented : IPooledService
         }
     }
 
-    public async global::Pooled.PooledTask<global::System.Collections.Generic.List<int>> CountAsync()
+    public global::Pooled.PooledTask<global::System.Collections.Generic.List<int>> CountAsync()
+    {
+        if (!_activitySource.HasListeners() && !_pooled_items.Enabled)
+            return _inner.CountAsync();
+        return _core_CountAsync_1();
+    }
+
+    private async global::Pooled.PooledTask<global::System.Collections.Generic.List<int>> _core_CountAsync_1()
     {
         using var _activity = _activitySource.StartActivity("pooled.count");
         try
@@ -55,7 +69,14 @@ internal sealed class PooledServiceInstrumented : IPooledService
         }
     }
 
-    public async global::Pooled.PooledTask RunAsync()
+    public global::Pooled.PooledTask RunAsync()
+    {
+        if (!_activitySource.HasListeners() && !_pooled_run_ms.Enabled)
+            return _inner.RunAsync();
+        return _core_RunAsync_2();
+    }
+
+    private async global::Pooled.PooledTask _core_RunAsync_2()
     {
         using var _activity = _activitySource.StartActivity("pooled.run");
         var _sw = Stopwatch.GetTimestamp();

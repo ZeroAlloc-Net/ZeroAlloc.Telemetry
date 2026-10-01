@@ -15,7 +15,14 @@ internal sealed class VectorStoreInstrumented : IVectorStore
     private readonly IVectorStore _inner;
     public VectorStoreInstrumented(IVectorStore inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.Task<global::System.Collections.Generic.IReadOnlyList<string>> SearchAsync(string collection, int topK, global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<global::System.Collections.Generic.IReadOnlyList<string>> SearchAsync(string collection, int topK, global::System.Threading.CancellationToken ct)
+    {
+        if (!_activitySource.HasListeners())
+            return _inner.SearchAsync(collection, topK, ct);
+        return _core_SearchAsync_0(collection, topK, ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<global::System.Collections.Generic.IReadOnlyList<string>> _core_SearchAsync_0(string collection, int topK, global::System.Threading.CancellationToken ct)
     {
         using var _activity = _activitySource.StartActivity("vectorstore.search");
         _activity?.SetTag("vectorstore.collection", collection);

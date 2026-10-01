@@ -15,7 +15,14 @@ internal sealed class OutcomeInstrumented : IOutcome
     private readonly IOutcome _inner;
     public OutcomeInstrumented(IOutcome inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.ValueTask<global::Outcome> RunAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.ValueTask<global::Outcome> RunAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_activitySource.HasListeners())
+            return _inner.RunAsync(ct);
+        return _core_RunAsync_0(ct);
+    }
+
+    private async global::System.Threading.Tasks.ValueTask<global::Outcome> _core_RunAsync_0(global::System.Threading.CancellationToken ct)
     {
         using var _activity = _activitySource.StartActivity("outcome.run");
         try

@@ -70,7 +70,7 @@ public class MetricTagTests
         Assert.Contains("if (_llm_cost.Enabled && ", generated, StringComparison.Ordinal);
         Assert.Contains("if (_llm_calls.Enabled)", generated, StringComparison.Ordinal);
         Assert.Contains("if (_llm_duration.Enabled)", generated, StringComparison.Ordinal);
-        Assert.Equal(4, CountOccurrences(generated, ".Enabled"));
+        Assert.Equal(4, CountOccurrences(generated, "if (_llm_"));
         Assert.Equal(4, CountOccurrences(generated, "new TagList()"));
     }
 
@@ -81,7 +81,8 @@ public class MetricTagTests
         var generated = RunGeneratorSource(ResultSource.Replace("[MetricTagFromResult", "//", StringComparison.Ordinal));
 
         Assert.DoesNotContain("TagList", generated, StringComparison.Ordinal);
-        Assert.DoesNotContain(".Enabled", generated, StringComparison.Ordinal);
+        // The only Enabled reads left are the no-listener fast path's, which guards no tag list.
+        Assert.DoesNotContain("if (_llm_", generated, StringComparison.Ordinal);
     }
 
     private const string ResultSource = """

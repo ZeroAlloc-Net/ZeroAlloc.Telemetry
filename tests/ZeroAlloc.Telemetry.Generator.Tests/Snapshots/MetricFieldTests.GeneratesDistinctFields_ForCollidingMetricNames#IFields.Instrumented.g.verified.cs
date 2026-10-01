@@ -23,7 +23,14 @@ internal sealed class FieldsInstrumented : IFields
     private readonly IFields _inner;
     public FieldsInstrumented(IFields inner) => _inner = inner;
 
-    public async global::System.Threading.Tasks.Task<int> CountedAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<int> CountedAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_x.Enabled)
+            return _inner.CountedAsync(ct);
+        return _core_CountedAsync_0(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<int> _core_CountedAsync_0(global::System.Threading.CancellationToken ct)
     {
         try
         {
@@ -37,7 +44,14 @@ internal sealed class FieldsInstrumented : IFields
         }
     }
 
-    public async global::System.Threading.Tasks.Task<int> TimedAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<int> TimedAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_x_2.Enabled)
+            return _inner.TimedAsync(ct);
+        return _core_TimedAsync_1(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<int> _core_TimedAsync_1(global::System.Threading.CancellationToken ct)
     {
         var _sw = Stopwatch.GetTimestamp();
         try
@@ -53,7 +67,14 @@ internal sealed class FieldsInstrumented : IFields
         }
     }
 
-    public async global::System.Threading.Tasks.Task<int> DottedAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<int> DottedAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_a_b.Enabled)
+            return _inner.DottedAsync(ct);
+        return _core_DottedAsync_2(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<int> _core_DottedAsync_2(global::System.Threading.CancellationToken ct)
     {
         try
         {
@@ -67,7 +88,14 @@ internal sealed class FieldsInstrumented : IFields
         }
     }
 
-    public async global::System.Threading.Tasks.Task<int> UnderscoredAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<int> UnderscoredAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_a_b_2.Enabled)
+            return _inner.UnderscoredAsync(ct);
+        return _core_UnderscoredAsync_3(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<int> _core_UnderscoredAsync_3(global::System.Threading.CancellationToken ct)
     {
         try
         {
@@ -81,7 +109,14 @@ internal sealed class FieldsInstrumented : IFields
         }
     }
 
-    public async global::System.Threading.Tasks.Task<int> SlashAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<int> SlashAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_http_requests_total.Enabled)
+            return _inner.SlashAsync(ct);
+        return _core_SlashAsync_4(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<int> _core_SlashAsync_4(global::System.Threading.CancellationToken ct)
     {
         try
         {
@@ -95,7 +130,14 @@ internal sealed class FieldsInstrumented : IFields
         }
     }
 
-    public async global::System.Threading.Tasks.Task<int> QuotedAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<int> QuotedAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_say__hi_.Enabled)
+            return _inner.QuotedAsync(ct);
+        return _core_QuotedAsync_5(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<int> _core_QuotedAsync_5(global::System.Threading.CancellationToken ct)
     {
         try
         {
@@ -109,7 +151,14 @@ internal sealed class FieldsInstrumented : IFields
         }
     }
 
-    public async global::System.Threading.Tasks.Task<int> MeterAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<int> MeterAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_metric_meter.Enabled)
+            return _inner.MeterAsync(ct);
+        return _core_MeterAsync_6(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<int> _core_MeterAsync_6(global::System.Threading.CancellationToken ct)
     {
         try
         {
@@ -123,7 +172,14 @@ internal sealed class FieldsInstrumented : IFields
         }
     }
 
-    public async global::System.Threading.Tasks.Task<int> ResultAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<int> ResultAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_metric_result.Enabled)
+            return _inner.ResultAsync(ct);
+        return _core_ResultAsync_7(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<int> _core_ResultAsync_7(global::System.Threading.CancellationToken ct)
     {
         var _sw = Stopwatch.GetTimestamp();
         try
@@ -139,7 +195,14 @@ internal sealed class FieldsInstrumented : IFields
         }
     }
 
-    public async global::System.Threading.Tasks.Task<int> CountedAgainAsync(global::System.Threading.CancellationToken ct)
+    public global::System.Threading.Tasks.Task<int> CountedAgainAsync(global::System.Threading.CancellationToken ct)
+    {
+        if (!_x.Enabled)
+            return _inner.CountedAgainAsync(ct);
+        return _core_CountedAgainAsync_8(ct);
+    }
+
+    private async global::System.Threading.Tasks.Task<int> _core_CountedAgainAsync_8(global::System.Threading.CancellationToken ct)
     {
         try
         {
