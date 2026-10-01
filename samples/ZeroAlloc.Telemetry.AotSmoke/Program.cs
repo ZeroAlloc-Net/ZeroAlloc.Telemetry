@@ -97,6 +97,7 @@ if (!Equals(customer, "cust-7") || !Equals(operation, "quote"))
 // tags the sampler sees.
 Activity? decided = null;
 var samplerSawCustomer = false;
+var samplerSawLength = false;
 string? sourceVersion = null;
 using var spanListener = new ActivityListener
 {
@@ -116,6 +117,8 @@ using var spanListener = new ActivityListener
             {
                 if (string.Equals(tag.Key, "order.customer", StringComparison.Ordinal) && Equals(tag.Value, "cust-9"))
                     samplerSawCustomer = true;
+                if (string.Equals(tag.Key, "order.customer.length", StringComparison.Ordinal) && tag.Value is 6)
+                    samplerSawLength = true;
             }
         }
 
@@ -137,6 +140,7 @@ if (!string.Equals(decided.DisplayName, "decide cust-9", StringComparison.Ordina
 if (decided.Status != ActivityStatusCode.Error || !string.Equals(decided.StatusDescription, "out of stock", StringComparison.Ordinal))
     return Fail($"decide span status expected Error 'out of stock', got {decided.Status} '{decided.StatusDescription}'");
 if (!samplerSawCustomer) return Fail("the sampler did not see the order.customer tag");
+if (!samplerSawLength) return Fail("the sampler did not see the second tag of customerId, order.customer.length");
 
 // The source carries the assembly's informational version (#172).
 var assemblyVersion = typeof(OrderService).Assembly

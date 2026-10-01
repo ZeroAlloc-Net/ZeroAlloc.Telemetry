@@ -697,6 +697,23 @@ Without `[Trace]` there is no span to carry the tag, so the generator reports **
 
 ---
 
+### Several tags from one argument
+
+`[TraceTag]` may be applied more than once, to record several members of one argument:
+
+```csharp
+[Trace("chat", TagsAtStart = true)]
+ValueTask<ChatResponse> ChatAsync(
+    [TraceTag("server.address", "Host")] [TraceTag("server.port", "Port")] Uri endpoint,
+    [TraceTag("gen_ai.request.model", "Model")] [TraceTag("chat.question.count", "Questions.Count")] ChatRequest request,
+    CancellationToken ct);
+```
+
+Each tag is set in attribute order, or passed to `StartActivity` with `TagsAtStart`. A
+null-safe read shares one copy of the argument. Two tags with one name on a span, from any
+`[TraceTag]` or `[TraceTagConstant]` of the method, are reported as **ZTEL026**, and the later
+one is not set.
+
 ## [TraceTagFromResult]
 
 ```csharp

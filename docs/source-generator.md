@@ -323,6 +323,7 @@ Every member an interface can declare either compiles in the proxy or is reporte
 | ZTEL023 | Warning | An instrumentation attribute is on an accessor of a property, indexer or event, or on a method returning by reference. The member is forwarded without instrumentation |
 | ZTEL024 | Warning | A tag or name token reads a parameter value the proxy cannot read: an `out` parameter before the call, a ref struct value, or a ref struct argument of an awaitable method in a `[MetricTag]`. It is left out |
 | ZTEL025 | Error | The interface, or one it extends, has a static abstract member, which a proxy cannot forward. No proxy is generated |
+| ZTEL026 | Warning | Two `[TraceTag]` or `[TraceTagConstant]` of one method set the same tag name on the span. Reported at the later one's tag name, which is not set |
 
 ZTEL007 and ZTEL008 mostly replace what used to be a compile error inside the generated proxy. Two cases compiled on 1.6.4 and are now errors:
 

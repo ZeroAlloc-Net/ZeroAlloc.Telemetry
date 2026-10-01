@@ -540,31 +540,35 @@ internal static class ProxyWriter
 
         foreach (var p in method.Parameters)
         {
-            if (p.TagName is null)
-                continue;
-
             // Read from a copy when the access null-tests the argument: Roslyn would
             // otherwise treat the argument as maybe-null for the rest of the method, and it
             // is forwarded to the inner call — CS8604 in any consumer with nullable warnings.
-            var source = Id(p.Name);
-            if (p.TagNeedsCopy)
+            // One copy serves every tag on the parameter.
+            var copied = false;
+            foreach (var tag in p.Tags)
             {
-                source = $"_tag_{p.Name}";
-                sb.AppendLine($"        var {source} = {Id(p.Name)};");
+                var source = Id(p.Name);
+                if (tag.NeedsCopy)
+                {
+                    source = $"_tag_{p.Name}";
+                    if (!copied)
+                        sb.AppendLine($"        var {source} = {Id(p.Name)};");
+                    copied = true;
+                }
+
+                var access = tag.AccessSuffix is { } suffix
+                    ? source + suffix
+                    : source;
+
+                sb.AppendLine($"        _activity?.SetTag({Literal(tag.TagName)}, {access});");
             }
-
-            var access = p.TagAccessSuffix is { } suffix
-                ? source + suffix
-                : source;
-
-            sb.AppendLine($"        _activity?.SetTag({Literal(p.TagName)}, {access});");
         }
     }
 
     /// <summary>Whether the method passes tags to <c>StartActivity</c>: asked for, and there are some.</summary>
     private static bool HasStartTags(MethodModel method) =>
         method.Trace is { TagsAtStart: true }
-        && (method.ConstantTags.Count > 0 || method.Parameters.Any(static p => p.TagName is not null));
+        && (method.ConstantTags.Count > 0 || method.Parameters.Any(static p => p.Tags.Count > 0));
 
     private static string StartTagsMethodName(MethodModel method, int index) =>
         $"_startTags_{method.Name}_{index.ToString(CultureInfo.InvariantCulture)}";
@@ -608,19 +612,19 @@ internal static class ProxyWriter
         var n = 0;
         foreach (var p in method.Parameters)
         {
-            if (p.TagName is null)
-                continue;
-
-            var access = Id(p.Name) + (p.TagAccessSuffix ?? string.Empty);
-            if (p.TagCanBeNull)
+            foreach (var tag in p.Tags)
             {
-                var local = "_startTag" + (n++).ToString(CultureInfo.InvariantCulture);
-                sb.AppendLine($"        if ({access} is {{ }} {local})");
-                sb.AppendLine($"            _startTags.Add({Literal(p.TagName)}, {local});");
-            }
-            else
-            {
-                sb.AppendLine($"        _startTags.Add({Literal(p.TagName)}, {access});");
+                var access = Id(p.Name) + (tag.AccessSuffix ?? string.Empty);
+                if (tag.CanBeNull)
+                {
+                    var local = "_startTag" + (n++).ToString(CultureInfo.InvariantCulture);
+                    sb.AppendLine($"        if ({access} is {{ }} {local})");
+                    sb.AppendLine($"            _startTags.Add({Literal(tag.TagName)}, {local});");
+                }
+                else
+                {
+                    sb.AppendLine($"        _startTags.Add({Literal(tag.TagName)}, {access});");
+                }
             }
         }
 
