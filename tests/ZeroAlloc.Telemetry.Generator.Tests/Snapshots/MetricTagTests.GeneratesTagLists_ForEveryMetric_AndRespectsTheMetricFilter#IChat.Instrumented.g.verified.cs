@@ -77,8 +77,14 @@ internal sealed class ChatInstrumented : IChat
         }
         catch (Exception _ex)
         {
+            _activity?.SetTag("error.type", _ex.GetType().FullName);
             _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
-            _llm_duration.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
+            if (_llm_duration.Enabled)
+            {
+                var _metricTags4 = new TagList();
+                _metricTags4.Add("error.type", _ex.GetType().FullName);
+                _llm_duration.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds, in _metricTags4);
+            }
             throw;
         }
     }

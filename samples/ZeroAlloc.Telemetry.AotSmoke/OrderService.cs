@@ -39,4 +39,10 @@ public sealed class OrderService : IOrderService
     }
 
     public ValueTask<T> EchoAsync<T>(T value) where T : notnull => ValueTask.FromResult(value);
+
+    public async ValueTask CancelAsync(string orderId)
+    {
+        await Task.Yield();
+        throw new InvalidOperationException($"order {orderId} belongs to a private customer");
+    }
 }

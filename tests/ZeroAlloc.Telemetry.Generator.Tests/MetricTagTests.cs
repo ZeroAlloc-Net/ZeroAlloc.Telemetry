@@ -70,19 +70,25 @@ public class MetricTagTests
         Assert.Contains("if (_llm_cost.Enabled && ", generated, StringComparison.Ordinal);
         Assert.Contains("if (_llm_calls.Enabled)", generated, StringComparison.Ordinal);
         Assert.Contains("if (_llm_duration.Enabled)", generated, StringComparison.Ordinal);
-        Assert.Equal(4, CountOccurrences(generated, "if (_llm_"));
-        Assert.Equal(4, CountOccurrences(generated, "new TagList()"));
+        // Four on success, and the duration again on the throw path, tagged with error.type (#184).
+        Assert.Equal(5, CountOccurrences(generated, "if (_llm_"));
+        Assert.Equal(5, CountOccurrences(generated, "new TagList()"));
     }
 
-    /// <summary>Without <c>[MetricTagFromResult]</c> the emitted code is unchanged: no tag list.</summary>
+    /// <summary>
+    /// Without <c>[MetricTagFromResult]</c> the success path builds no tag list. The throw path
+    /// builds one, for error.type (#184).
+    /// </summary>
     [Fact]
     public void EmitsNoTagList_WithoutMetricTags()
     {
         var generated = RunGeneratorSource(ResultSource.Replace("[MetricTagFromResult", "//", StringComparison.Ordinal));
 
-        Assert.DoesNotContain("TagList", generated, StringComparison.Ordinal);
-        // The only Enabled reads left are the no-listener fast path's, which guards no tag list.
-        Assert.DoesNotContain("if (_llm_", generated, StringComparison.Ordinal);
+        Assert.Equal(1, CountOccurrences(generated, "new TagList()"));
+        Assert.Contains("_metricTags0.Add(\"error.type\", _ex.GetType().FullName);", generated, StringComparison.Ordinal);
+        // The only other Enabled reads are the no-listener fast path's, which guards no tag list.
+        Assert.Equal(1, CountOccurrences(generated, "if (_llm_"));
+        Assert.Contains("if (_llm_duration.Enabled)", generated, StringComparison.Ordinal);
     }
 
     private const string ResultSource = """

@@ -37,7 +37,9 @@ public class MetricConventionsTests
         run.GeneratorDiagnostics.Should().BeEmpty();
         run.Errors.Should().BeEmpty();
         var proxy = Proxy(run, "IOps");
-        CountOccurrences(proxy, "Stopwatch.GetElapsedTime(_sw)." + member + ")").Should().Be(2);
+        // Once on success, once on the throw path, where error.type tags the point (#184).
+        CountOccurrences(proxy, "Stopwatch.GetElapsedTime(_sw)." + member + ")").Should().Be(1);
+        CountOccurrences(proxy, "Stopwatch.GetElapsedTime(_sw)." + member + ", in _metricTags0)").Should().Be(1);
     }
 
     [Fact]
@@ -215,10 +217,13 @@ public class MetricConventionsTests
         proxy.Should().NotContain("_metricTags1.Add(\"gen_ai.token.modality\"");
         proxy.Should().NotContain("\"ignored\"");
 
-        // The throw path: the unguarded duration carries the tags that do not read the result.
-        var catchBlock = proxy[proxy.IndexOf("catch (Exception)", StringComparison.Ordinal)..];
+        // The throw path: the unguarded duration carries the tags that do not read the result, and
+        // error.type from the exception (#184). The core's catch is the last; the public method's
+        // forwarding catch comes before it.
+        var catchBlock = proxy[proxy.LastIndexOf("catch (Exception _ex)", StringComparison.Ordinal)..];
         catchBlock.Should().Contain("_metricTags2.Add(\"gen_ai.operation.name\", \"chat\");");
         catchBlock.Should().Contain("_metricTags2.Add(\"gen_ai.request.model\"");
+        catchBlock.Should().Contain("_metricTags2.Add(\"error.type\", _ex.GetType().FullName);");
         catchBlock.Should().NotContain("gen_ai.response.model");
         catchBlock.Should().Contain("_gen_ai_client_operation_duration.Record(Stopwatch.GetElapsedTime(_sw).TotalSeconds, in _metricTags2);");
     }
@@ -454,7 +459,10 @@ public class MetricConventionsTests
         run.GeneratorDiagnostics.Should().ContainSingle().Which.Id.Should().Be("ZTEL003");
     }
 
-    /// <summary>Interfaces that use none of the new features generate exactly what they did before.</summary>
+    /// <summary>
+    /// Interfaces that use none of the new features generate what they did before, apart from the
+    /// throw path's error.type tag list (#184).
+    /// </summary>
     [Fact]
     public void WithoutTheNewFeatures_NoAdviceNoHelperAndMilliseconds()
     {
@@ -467,7 +475,9 @@ public class MetricConventionsTests
 
         var proxy = Proxy(run, "IOps");
         proxy.Should().Contain("_meter.CreateHistogram<double>(\"d\", unit: \"ms\");");
-        proxy.Should().NotContain("_recordEach").And.NotContain("TagList");
+        proxy.Should().NotContain("_recordEach");
+        CountOccurrences(proxy, "new TagList()").Should().Be(1);
+        proxy.Should().Contain("_metricTags0.Add(\"error.type\", _ex.GetType().FullName);");
     }
 
     private static string Proxy(GeneratorOutput run, string interfaceName) =>

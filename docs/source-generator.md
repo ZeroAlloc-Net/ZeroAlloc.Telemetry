@@ -138,6 +138,7 @@ private async ValueTask<OrderId> _core_CreateOrderAsync_0(CreateOrderCommand cmd
     }
     catch (Exception _ex)
     {
+        _activity?.SetTag("error.type", _ex.GetType().FullName);
         _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
         throw;
     }
@@ -171,8 +172,14 @@ private async ValueTask<Order> _core_GetOrderAsync_1(OrderId id, CancellationTok
     }
     catch (Exception _ex)
     {
+        _activity?.SetTag("error.type", _ex.GetType().FullName);
         _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
-        _order_get_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
+        if (_order_get_ms.Enabled)
+        {
+            var _metricTags0 = new TagList();
+            _metricTags0.Add("error.type", _ex.GetType().FullName);
+            _order_get_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds, in _metricTags0);
+        }
         throw;
     }
 }

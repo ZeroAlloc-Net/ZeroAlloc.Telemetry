@@ -85,9 +85,14 @@ internal sealed class FieldsInstrumented : IFields
             _x_2.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
             return _result;
         }
-        catch (Exception)
+        catch (Exception _ex)
         {
-            _x_2.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
+            if (_x_2.Enabled)
+            {
+                var _metricTags0 = new TagList();
+                _metricTags0.Add("error.type", _ex.GetType().FullName);
+                _x_2.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds, in _metricTags0);
+            }
             throw;
         }
     }
@@ -309,9 +314,14 @@ internal sealed class FieldsInstrumented : IFields
             _metric_result.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
             return _result;
         }
-        catch (Exception)
+        catch (Exception _ex)
         {
-            _metric_result.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
+            if (_metric_result.Enabled)
+            {
+                var _metricTags0 = new TagList();
+                _metricTags0.Add("error.type", _ex.GetType().FullName);
+                _metric_result.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds, in _metricTags0);
+            }
             throw;
         }
     }

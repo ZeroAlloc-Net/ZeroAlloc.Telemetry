@@ -50,6 +50,7 @@ internal sealed class ChatInstrumented : IChat
         }
         catch (Exception _ex)
         {
+            _activity?.SetTag("error.type", _ex.GetType().FullName);
             _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
             throw;
         }

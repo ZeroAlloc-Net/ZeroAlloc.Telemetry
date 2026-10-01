@@ -3,7 +3,8 @@ namespace ZeroAlloc.Telemetry;
 /// <summary>
 /// Wraps the method body in a <see cref="System.Diagnostics.Activity"/> span.
 /// The span is started before the call, stopped in a <c>finally</c>, and marked
-/// <see cref="System.Diagnostics.ActivityStatusCode.Error"/> on exception.
+/// <see cref="System.Diagnostics.ActivityStatusCode.Error"/> with an <c>error.type</c> tag on
+/// exception.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -101,6 +102,23 @@ public sealed class TraceAttribute : Attribute
     /// enumerable; with no listener nothing is allocated.
     /// </remarks>
     public bool TagsAtStart { get; set; }
+
+    /// <summary>
+    /// Whether a span ended by an exception takes the exception's message as its status description.
+    /// Defaults to true. False sets the <see cref="System.Diagnostics.ActivityStatusCode.Error"/>
+    /// status with no description.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// An exception message can carry request or response content, such as a prompt echoed back in
+    /// a provider's error. Set this to false on a method whose telemetry must not contain it.
+    /// </para>
+    /// <para>
+    /// The exception's full type name is set as <c>error.type</c> either way, on the span and on the
+    /// histogram measurement recorded for the failed call, so the failure stays classifiable.
+    /// </para>
+    /// </remarks>
+    public bool ExceptionDescription { get; set; } = true;
 
     /// <summary>Creates a span named <paramref name="name"/>.</summary>
     /// <param name="name">

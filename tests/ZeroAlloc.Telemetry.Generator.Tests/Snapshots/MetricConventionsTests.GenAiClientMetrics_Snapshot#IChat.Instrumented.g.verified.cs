@@ -67,7 +67,7 @@ internal sealed class ChatInstrumented : IChat
             }
             return _result;
         }
-        catch (Exception)
+        catch (Exception _ex)
         {
             if (_gen_ai_client_operation_duration.Enabled)
             {
@@ -75,6 +75,7 @@ internal sealed class ChatInstrumented : IChat
                 _metricTags3.Add("gen_ai.operation.name", "chat");
                 if (model is { } _metricTag3_1)
                     _metricTags3.Add("gen_ai.request.model", _metricTag3_1);
+                _metricTags3.Add("error.type", _ex.GetType().FullName);
                 _gen_ai_client_operation_duration.Record(Stopwatch.GetElapsedTime(_sw).TotalSeconds, in _metricTags3);
             }
             throw;
