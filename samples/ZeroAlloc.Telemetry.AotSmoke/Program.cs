@@ -52,6 +52,12 @@ if (receipt.Lines != 3) return Fail($"ReceiptAsync expected 3 lines, got {receip
 if (lines != 3) return Fail($"orders.lines expected 3, got {lines}");
 if (!Equals(region, "eu-west")) return Fail($"order.region tag expected eu-west, got {region ?? "none"}");
 
+// A generic method, instantiated over a value type and a reference type.
+var echoedInt = await proxy.EchoAsync(7).ConfigureAwait(false);
+var echoedText = await proxy.EchoAsync("seven").ConfigureAwait(false);
+if (echoedInt != 7 || !string.Equals(echoedText, "seven", StringComparison.Ordinal))
+    return Fail($"EchoAsync expected 7 and seven, got {echoedInt} and {echoedText}");
+
 Console.WriteLine("AOT smoke: PASS");
 return 0;
 

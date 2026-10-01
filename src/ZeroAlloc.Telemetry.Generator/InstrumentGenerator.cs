@@ -330,7 +330,9 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 ToEquatable(constantTags),
                 ToEquatable(resultMetrics),
                 ToEquatable(metricTags),
-                BuildTraceNameExpression(traceName)));
+                BuildTraceNameExpression(traceName),
+                TypeDeclarations.TypeParameterList(member.TypeParameters),
+                TypeDeclarations.ConstraintClauses(member.TypeParameters, TypeFormat)));
         }
         return new EquatableArray<MethodModel>(methods.ToImmutable());
     }

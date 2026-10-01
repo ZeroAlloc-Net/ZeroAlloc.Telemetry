@@ -15,4 +15,8 @@ public interface IOrderService
     [CountFromResult("orders.lines", "Lines", Unit = "{line}")]
     [MetricTagFromResult("order.region", "Region")]
     ValueTask<OrderReceipt> ReceiptAsync(string customerId, CancellationToken ct);
+
+    // A generic method: the proxy repeats its type parameter and constraint (#168).
+    [Trace("order.echo")]
+    ValueTask<T> EchoAsync<T>(T value) where T : notnull;
 }

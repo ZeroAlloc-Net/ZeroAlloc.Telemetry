@@ -139,10 +139,13 @@ internal static class ProxyWriter
         sb.AppendLine();
 
         var asyncKeyword = method.IsAsync ? "async " : string.Empty;
-        var paramList    = string.Join(", ", method.Parameters.Select(p => $"{p.Type} {p.Name}"));
-        var argList      = string.Join(", ", method.Parameters.Select(p => p.Name));
+        var paramList    = string.Join(", ", method.Parameters.Select(p => $"{p.Type} {Id(p.Name)}"));
+        var argList      = string.Join(", ", method.Parameters.Select(p => Id(p.Name)));
 
-        sb.AppendLine($"    public {asyncKeyword}{method.ReturnType} {method.Name}({paramList})");
+        sb.AppendLine($"    public {asyncKeyword}{method.ReturnType} {Id(method.Name)}{method.TypeParameters}({paramList})");
+        // An implicit implementation of a generic method has to repeat its constraints.
+        foreach (var clause in method.ConstraintClauses)
+            sb.AppendLine($"        {clause}");
         sb.AppendLine("    {");
 
         if (method.TraceName is not null)
@@ -192,11 +195,11 @@ internal static class ProxyWriter
             // Read from a copy when the access null-tests the argument: Roslyn would
             // otherwise treat the argument as maybe-null for the rest of the method, and it
             // is forwarded to the inner call — CS8604 in any consumer with nullable warnings.
-            var source = p.Name;
+            var source = Id(p.Name);
             if (p.TagNeedsCopy)
             {
                 source = $"_tag_{p.Name}";
-                sb.AppendLine($"        var {source} = {p.Name};");
+                sb.AppendLine($"        var {source} = {Id(p.Name)};");
             }
 
             var access = p.TagAccessSuffix is { } suffix
@@ -213,7 +216,7 @@ internal static class ProxyWriter
         sb.AppendLine("        {");
 
         var awaitKeyword = method.IsAsync ? "await " : string.Empty;
-        var callExpr     = $"{awaitKeyword}_inner.{method.Name}({argList})";
+        var callExpr     = $"{awaitKeyword}_inner.{Id(method.Name)}{method.TypeParameters}({argList})";
 
         if (method.ReturnsVoid)
             sb.AppendLine($"            {callExpr};");
@@ -475,10 +478,13 @@ internal static class ProxyWriter
     private static void WritePassthroughBody(StringBuilder sb, MethodModel method, string argList)
     {
         var awaitKeyword  = method.IsAsync ? "await " : string.Empty;
-        var callExpr      = $"{awaitKeyword}_inner.{method.Name}({argList})";
+        var callExpr      = $"{awaitKeyword}_inner.{Id(method.Name)}{method.TypeParameters}({argList})";
         var returnKeyword = method.ReturnsVoid ? string.Empty : "return ";
         sb.AppendLine($"        {returnKeyword}{callExpr};");
     }
+
+    /// <summary>A method or parameter name as an identifier: a keyword gets the verbatim <c>@</c> prefix.</summary>
+    private static string Id(string name) => TypeDeclarations.Identifier(name);
 
     /// <summary>
     /// A name as a C# string literal, escaped the way the language writes it. A quote or a

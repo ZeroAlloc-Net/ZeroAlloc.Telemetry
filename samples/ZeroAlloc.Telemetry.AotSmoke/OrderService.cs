@@ -15,4 +15,6 @@ public sealed class OrderService : IOrderService
 
     public ValueTask<OrderReceipt> ReceiptAsync(string customerId, CancellationToken ct) =>
         ValueTask.FromResult(new OrderReceipt { Lines = 3, Region = "eu-west" });
+
+    public ValueTask<T> EchoAsync<T>(T value) where T : notnull => ValueTask.FromResult(value);
 }
