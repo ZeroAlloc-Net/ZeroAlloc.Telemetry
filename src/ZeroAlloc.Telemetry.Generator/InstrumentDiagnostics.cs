@@ -97,8 +97,8 @@ internal static class InstrumentDiagnostics
     /// </summary>
     public static readonly DiagnosticDescriptor ParameterTagPathNotFound = new(
         id: "ZTEL010",
-        title: "[TraceTag] member path does not resolve",
-        messageFormat: "'{0}' in the path '{1}' is not a readable instance property or field of '{2}', so [TraceTag] on '{3}' records nothing. Each segment of a member path names a property or field of the type reached so far, starting from the parameter.",
+        title: "Parameter tag member path does not resolve",
+        messageFormat: "'{0}' in the path '{1}' is not a readable instance property or field of '{2}', so [{4}] on '{3}' records nothing. Each segment of a member path names a property or field of the type reached so far, starting from the parameter.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
@@ -106,8 +106,8 @@ internal static class InstrumentDiagnostics
     /// <summary>ZTEL010 for a path with an empty segment; see <see cref="MemberPathEmptySegment"/>.</summary>
     public static readonly DiagnosticDescriptor ParameterTagPathEmptySegment = new(
         id: "ZTEL010",
-        title: "[TraceTag] member path does not resolve",
-        messageFormat: "The path '{0}' has an empty segment, so [TraceTag] on '{1}' records nothing. Each segment of a member path names a property or field of the type reached so far, starting from the parameter.",
+        title: "Parameter tag member path does not resolve",
+        messageFormat: "The path '{0}' has an empty segment, so [{2}] on '{1}' records nothing. Each segment of a member path names a property or field of the type reached so far, starting from the parameter.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
@@ -118,8 +118,8 @@ internal static class InstrumentDiagnostics
     /// </summary>
     public static readonly DiagnosticDescriptor MetricTagUnknownMetric = new(
         id: "ZTEL011",
-        title: "[MetricTagFromResult] is added to no metric",
-        messageFormat: "[MetricTagFromResult({0})] on '{1}.{2}' records nothing — Metric = '{3}' names no metric the method records. Name one of its [Count], [Histogram], [CountFromResult] or [HistogramFromResult] metrics, or remove Metric to tag them all.",
+        title: "Metric tag is added to no metric",
+        messageFormat: "[{4}({0})] on '{1}.{2}' records nothing — Metric = '{3}' names no metric the method records. Name one of its [Count], [Histogram], [CountFromResult] or [HistogramFromResult] metrics, or remove Metric to tag them all.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
@@ -127,8 +127,8 @@ internal static class InstrumentDiagnostics
     /// <summary>ZTEL011 for a method that declares no metric at all.</summary>
     public static readonly DiagnosticDescriptor MetricTagWithoutMetric = new(
         id: "ZTEL011",
-        title: "[MetricTagFromResult] is added to no metric",
-        messageFormat: "[MetricTagFromResult({0})] on '{1}.{2}' records nothing — the method records no metric to carry the tag. Add [Count], [Histogram], [CountFromResult] or [HistogramFromResult], or remove the tag.",
+        title: "Metric tag is added to no metric",
+        messageFormat: "[{3}({0})] on '{1}.{2}' records nothing — the method records no metric to carry the tag. Add [Count], [Histogram], [CountFromResult] or [HistogramFromResult], or remove the tag.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
@@ -139,8 +139,8 @@ internal static class InstrumentDiagnostics
     /// </summary>
     public static readonly DiagnosticDescriptor DuplicateMetricTag = new(
         id: "ZTEL012",
-        title: "Duplicate [MetricTagFromResult] tag name",
-        messageFormat: "The tag '{0}' is already added to '{1}' by another [MetricTagFromResult] on '{2}.{3}'. A measurement carries one value per tag name, so remove or rename one of them.",
+        title: "Duplicate metric tag name",
+        messageFormat: "[{4}] adds the tag '{0}' to '{1}', which another metric tag on '{2}.{3}' already adds. A measurement carries one value per tag name, so remove or rename one of them.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -200,5 +200,53 @@ internal static class InstrumentDiagnostics
         messageFormat: "Instrumented interface '{0}' gets no proxy because its containing interface '{1}' has a variant type parameter, and a class cannot be declared in it",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    /// A <c>[Histogram]</c> unit that is not a time unit the generator can convert the elapsed time
+    /// to. A warning: the duration is still recorded, in milliseconds, as before units were honoured.
+    /// </summary>
+    public static readonly DiagnosticDescriptor UnconvertibleHistogramUnit = new(
+        id: "ZTEL018",
+        title: "[Histogram] unit is not a time unit",
+        messageFormat: "[Histogram(\"{0}\")] has Unit = '{1}', which is not a time unit the generator converts to, so durations are recorded in milliseconds under the unit '{1}'. Use ms, s, us, ns, min or h.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    /// Bucket boundaries that the runtime would reject. <c>InstrumentAdvice</c> throws for them
+    /// when the proxy's static fields are initialised, which would fail every use of the proxy.
+    /// </summary>
+    public static readonly DiagnosticDescriptor InvalidHistogramBuckets = new(
+        id: "ZTEL019",
+        title: "Histogram bucket boundaries are invalid",
+        messageFormat: "Buckets on [{0}(\"{1}\")] {2}. Bucket boundaries must be finite and in strictly increasing order.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    /// Buckets need <c>InstrumentAdvice&lt;T&gt;</c>, which System.Diagnostics.DiagnosticSource added
+    /// in 9.0. The instrument is created without advice.
+    /// </summary>
+    public static readonly DiagnosticDescriptor HistogramBucketsUnavailable = new(
+        id: "ZTEL020",
+        title: "Histogram buckets need System.Diagnostics.DiagnosticSource 9.0",
+        messageFormat: "Buckets on [{0}(\"{1}\")] need System.Diagnostics.Metrics.InstrumentAdvice<T>, which this compilation does not have. Target .NET 9 or later, or reference the System.Diagnostics.DiagnosticSource package 9.0 or later.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    /// A constant tag whose value is an array or a type, which no tag can carry. Before this rule
+    /// such a <c>[TraceTagConstant]</c> was dropped without a word.
+    /// </summary>
+    public static readonly DiagnosticDescriptor UnsupportedConstantTagValue = new(
+        id: "ZTEL021",
+        title: "Constant tag value cannot be recorded",
+        messageFormat: "[{0}(\"{1}\", ...)] on '{2}.{3}' records nothing — its value is an array or a type. A constant tag value must be a string, bool, char, number or enum.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
 }

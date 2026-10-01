@@ -288,21 +288,25 @@ Names that would still collide are made distinct with a numeric suffix, in the o
 |---|---|---|
 | ZTEL001 | Error | `[Instrument]` is on a class, struct or record instead of an interface |
 | ZTEL002 | Error | `[Instrument]` has an empty or whitespace name |
-| ZTEL003 | Warning | `[Trace]`, `[Count]`, `[Histogram]`, `[CountFromResult]`, `[HistogramFromResult]`, `[MetricTagFromResult]`, `[TraceTagFromResult]` or `[TraceTagConstant]` is on a method of a type without `[Instrument]`, so no proxy is generated |
+| ZTEL003 | Warning | `[Trace]`, `[Count]`, `[Histogram]`, `[CountFromResult]`, `[HistogramFromResult]`, `[MetricTagFromResult]`, `[MetricTagConstant]`, `[TraceTagFromResult]` or `[TraceTagConstant]` is on a method of a type without `[Instrument]`, so no proxy is generated |
 | ZTEL004 | Warning | `[TraceTag]`, `[TraceTagFromResult]` or `[TraceTagConstant]` is on a method without `[Trace]` |
 | ZTEL005 | Warning | `[TraceTagFromResult]`, `[CountFromResult]`, `[HistogramFromResult]`, `[MetricTagFromResult]`, or `When` on `[Count]`/`[Histogram]`, is on a method returning `void`, `Task`, `ValueTask`, or a task-like type with no result. The message names the attribute; nothing is recorded |
 | ZTEL006 | Warning | A `[Trace]` name contains a `{token}` other than `{type}` |
 | ZTEL007 | Error | A segment of a member path or `When` names no readable, accessible instance property or field of the type reached so far. Reported at the argument, naming the segment and the type |
 | ZTEL008 | Error | `When` resolves to a member that is not `bool` or `bool?` |
-| ZTEL009 | Error | `[CountFromResult]`'s member does not convert implicitly to `long`, or `[HistogramFromResult]`'s member is not numeric. A member reached through `dynamic` cannot be checked, so it is reported too |
-| ZTEL010 | Warning | A segment of a `[TraceTag(name, member)]` path names no readable, accessible instance property or field of the type reached so far, starting from the parameter. Reported at the argument; no tag is emitted for that parameter |
-| ZTEL011 | Warning | A `[MetricTagFromResult]` is added to no metric: its `Metric` names no metric the method declares, reported at `Metric`, or the method declares no metric at all, reported at the tag name. A metric dropped for its own error still counts as declared |
-| ZTEL012 | Error | Two `[MetricTagFromResult]` add the same tag name to one metric. Reported at the later one's tag name, which is not emitted |
+| ZTEL009 | Error | `[CountFromResult]`'s member does not convert implicitly to `long`, or `[HistogramFromResult]`'s member is not numeric. With `Each = true`, the member is not a span, memory, array or struct-enumerable of numbers, or is a span reached through a value that can be null. A member reached through `dynamic` cannot be checked, so it is reported too |
+| ZTEL010 | Warning | A segment of a `[TraceTag(name, member)]` or `[MetricTag(name, member)]` path names no readable, accessible instance property or field of the type reached so far, starting from the parameter. Reported at the argument; no tag is emitted for that parameter |
+| ZTEL011 | Warning | A `[MetricTagFromResult]`, `[MetricTag]` or `[MetricTagConstant]` is added to no metric: its `Metric` names no metric the method declares, reported at `Metric`, or the method declares no metric at all, reported at the tag name. A metric dropped for its own error still counts as declared |
+| ZTEL012 | Error | Two metric tags, of any kind, add the same tag name to one metric. Reported at the later one's tag name, which is not emitted |
 | ZTEL013 | Warning | A nested interface's containing type is not `partial`, so the proxy cannot be emitted next to it. Reported at the interface's name, naming the outermost containing type that is not `partial`; no proxy is generated |
 | ZTEL014 | Error | The interface, or a type it is nested in, is `file`, so the proxy's file cannot see it. No proxy is generated |
 | ZTEL015 | Error | The interface's file name differs only in case from an earlier interface's, such as `App.IStore` and `App.Istore`. Roslyn compares file names ignoring case. Reported at the later interface, which gets no proxy |
 | ZTEL016 | Error | The interface's proxy has the same name as an earlier interface's proxy, such as `IStore` and `Store`, which both get `StoreInstrumented`. Reported at the later interface, which gets no proxy |
 | ZTEL017 | Error | The interface is nested in an interface with an `in` or `out` type parameter, where C# does not allow a class. No proxy is generated |
+| ZTEL018 | Warning | A `[Histogram]` `Unit` is not `ms`, `s`, `us`, `ns`, `min` or `h`, so the generator cannot convert the elapsed time to it. Reported at `Unit`; the duration is recorded in milliseconds |
+| ZTEL019 | Error | `Buckets` on `[Histogram]` or `[HistogramFromResult]` is empty, not finite, or not strictly increasing. Reported at `Buckets`; the instrument gets no advice |
+| ZTEL020 | Error | `Buckets` is set but the compilation has no `InstrumentAdvice<T>`, which needs System.Diagnostics.DiagnosticSource 9.0. The instrument gets no advice |
+| ZTEL021 | Warning | A `[TraceTagConstant]` or `[MetricTagConstant]` value is an array or a type, which no tag can carry. Reported at the value; no tag is emitted |
 
 ZTEL007 and ZTEL008 mostly replace what used to be a compile error inside the generated proxy. Two cases compiled on 1.6.4 and are now errors:
 

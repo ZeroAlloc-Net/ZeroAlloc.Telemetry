@@ -52,6 +52,45 @@ if (receipt.Lines != 3) return Fail($"ReceiptAsync expected 3 lines, got {receip
 if (lines != 3) return Fail($"orders.lines expected 3, got {lines}");
 if (!Equals(region, "eu-west")) return Fail($"order.region tag expected eu-west, got {region ?? "none"}");
 
+// Metric conventions: seconds, bucket advice, a histogram per element, constant and parameter tags.
+var prices = new System.Collections.Generic.List<double>();
+double quoteSeconds = -1;
+object? customer = null;
+object? operation = null;
+using var quoteListener = new MeterListener();
+quoteListener.InstrumentPublished = (instrument, l) =>
+{
+    if (string.Equals(instrument.Meter.Name, "ZeroAlloc.Telemetry.AotSmoke", StringComparison.Ordinal)
+        && instrument.Name.StartsWith("order.quote.", StringComparison.Ordinal))
+    {
+        l.EnableMeasurementEvents(instrument);
+    }
+};
+quoteListener.SetMeasurementEventCallback<double>((instrument, value, tags, _) =>
+{
+    if (string.Equals(instrument.Name, "order.quote.prices", StringComparison.Ordinal))
+        prices.Add(value);
+    else
+        quoteSeconds = value;
+
+    foreach (ref readonly var tag in tags)
+    {
+        if (string.Equals(tag.Key, "order.customer", StringComparison.Ordinal))
+            customer = tag.Value;
+        else if (string.Equals(tag.Key, "order.operation", StringComparison.Ordinal))
+            operation = tag.Value;
+    }
+});
+quoteListener.Start();
+
+await proxy.QuoteAsync("cust-7", CancellationToken.None).ConfigureAwait(false);
+if (prices.Count != 2 || prices[0] != 9.5 || prices[1] != 12.25)
+    return Fail($"order.quote.prices expected 9.5 and 12.25, got {prices.Count} values");
+if (quoteSeconds < 0 || quoteSeconds > 1)
+    return Fail($"order.quote.duration expected seconds below 1, got {quoteSeconds}");
+if (!Equals(customer, "cust-7") || !Equals(operation, "quote"))
+    return Fail($"quote tags expected cust-7 and quote, got {customer ?? "none"} and {operation ?? "none"}");
+
 // A generic method, instantiated over a value type and a reference type.
 var echoedInt = await proxy.EchoAsync(7).ConfigureAwait(false);
 var echoedText = await proxy.EchoAsync("seven").ConfigureAwait(false);

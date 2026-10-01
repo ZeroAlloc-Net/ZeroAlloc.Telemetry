@@ -818,7 +818,7 @@ public class DiagnosticTests
         Assert.Equal("\"t\"", LocationText(d));
         Assert.Equal(d.Location.SourceSpan.Start, source.IndexOf("\"t\", \"Total\"", StringComparison.Ordinal));
         Assert.Equal(
-            "The tag 't' is already added to 'totals.calls' by another [MetricTagFromResult] on 'ITotals.GetAsync'. A measurement carries one value per tag name, so remove or rename one of them.",
+            "[MetricTagFromResult] adds the tag 't' to 'totals.calls', which another metric tag on 'ITotals.GetAsync' already adds. A measurement carries one value per tag name, so remove or rename one of them.",
             d.GetMessage(CultureInfo.InvariantCulture));
         AssertNoOutputErrors(source);
     }

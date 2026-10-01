@@ -56,6 +56,9 @@ internal static class ProxyWriter
         for (var i = 0; i < model.Methods.Count; i++)
             WriteMethod(sb, model.Methods[i], i, fields);
 
+        if (model.Methods.Any(static m => m.ResultMetrics.Any(static r => r.Each is EachKind.Span or EachKind.Memory)))
+            WriteRecordEachHelpers(sb);
+
         sb.AppendLine("}");
         for (var i = 0; i < model.ContainingTypes.Count; i++)
             sb.AppendLine("}");
@@ -113,11 +116,42 @@ internal static class ProxyWriter
     }
 
     /// <summary>
+    /// Records every element of a span in a histogram. A span cannot be iterated in the proxy's
+    /// async method on every language version the proxy compiles under, so it is handed here.
+    /// </summary>
+    private static void WriteRecordEachHelpers(StringBuilder sb)
+    {
+        sb.AppendLine();
+        sb.AppendLine("    private static void _recordEach(Histogram<double> histogram, ReadOnlySpan<double> values)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        foreach (ref readonly var value in values)");
+        sb.AppendLine("            histogram.Record(value);");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        sb.AppendLine("    private static void _recordEach(Histogram<double> histogram, ReadOnlySpan<double> values, in TagList tags)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        foreach (ref readonly var value in values)");
+        sb.AppendLine("            histogram.Record(value, in tags);");
+        sb.AppendLine("    }");
+    }
+
+    /// <summary>
     /// Arguments to <c>CreateCounter</c>/<c>CreateHistogram</c>. Unit and description are named
     /// and only passed when set, so an instrument without them emits the same call as before.
+    /// Bucket boundaries go through the overload that takes advice, which names every argument.
     /// </summary>
     private static string FactoryArguments(MetricFieldTable.Field field)
     {
+        if (field.Buckets.Count > 0)
+        {
+            return Literal(field.Metric)
+                + ", unit: " + (field.Unit is null ? "null" : Literal(field.Unit))
+                + ", description: " + (field.Description is null ? "null" : Literal(field.Description))
+                + ", tags: null"
+                + ", advice: new InstrumentAdvice<double> { HistogramBucketBoundaries = new double[] { "
+                + string.Join(", ", field.Buckets) + " } }";
+        }
+
         var args = Literal(field.Metric);
         if (field.Unit is not null)
             args += ", unit: " + Literal(field.Unit);
@@ -363,14 +397,14 @@ internal static class ProxyWriter
         {
             WriteMeasurement(
                 sb, method, histogram, fields, Guard(root, histogram.GuardExpression),
-                "Stopwatch.GetElapsedTime(_sw).TotalMilliseconds", root, ref tagLists);
+                Elapsed(histogram), root, ref tagLists);
         }
 
         if (!method.ReturnsVoid)
             sb.AppendLine("            return _result;");
 
         sb.AppendLine("        }");
-        WriteCatchBlock(sb, method, fields);
+        WriteCatchBlock(sb, method, fields, ref tagLists);
     }
 
     /// <summary>
@@ -397,7 +431,7 @@ internal static class ProxyWriter
         var needsCopy = method.ResultCanBeNull
             && (tags.Any(t => !string.IsNullOrEmpty(t.Member) || t.GuardExpression is not null)
                 || method.ResultMetrics.Count > 0
-                || method.MetricTags.Count > 0
+                || method.MetricTags.Any(static t => t.ReadsResult)
                 || method.Count?.GuardExpression is not null
                 || method.Histogram?.GuardExpression is not null);
 
@@ -465,7 +499,7 @@ internal static class ProxyWriter
         if (metric.ValueIsDecimal)
             value = "(double)" + value;
 
-        WriteMeasurement(sb, method, metric, fields, condition, value, root, ref tagLists);
+        WriteMeasurement(sb, method, metric, fields, condition, value, root, ref tagLists, index);
     }
 
     /// <summary>The guard appended to the result root, or null when there is none.</summary>
@@ -474,18 +508,20 @@ internal static class ProxyWriter
 
     /// <summary>
     /// Emits one <c>Add</c> or <c>Record</c> of <paramref name="value"/>, under
-    /// <paramref name="condition"/> when there is one, with the <c>[MetricTagFromResult]</c> tags
-    /// that apply to the metric.
+    /// <paramref name="condition"/> when there is one, with the metric tags that apply to the metric.
     /// </summary>
     /// <remarks>
     /// <para>
     /// With tags, the measurement is behind the instrument's <c>Enabled</c>, checked first. With
     /// no listener the call is skipped before the tag list is built, a member is read or a value
     /// is boxed, so the no-listener path stays allocation-free. Nothing that would have been
-    /// recorded is lost: a disabled instrument drops every measurement anyway.
+    /// recorded is lost: a disabled instrument drops every measurement anyway. A per-element
+    /// histogram is always behind <c>Enabled</c>, so its elements are not iterated for nothing.
     /// </para>
     /// <para>
-    /// Without tags the emitted code is exactly what it was before tags existed.
+    /// A null <paramref name="root"/> means there is no result, as on the throw path: only the
+    /// tags that do not read the result are added. Without tags the emitted code is exactly what
+    /// it was before tags existed.
     /// </para>
     /// </remarks>
     private static void WriteMeasurement(
@@ -495,59 +531,107 @@ internal static class ProxyWriter
         MetricFieldTable fields,
         string? condition,
         string value,
-        string root,
-        ref int tagLists)
+        string? root,
+        ref int tagLists,
+        int index = 0)
     {
         var field = fields.FieldFor(metric);
-        var operation = metric.Kind == MetricKind.Counter ? "Add" : "Record";
 
         List<MetricTagModel>? tags = null;
         foreach (var tag in method.MetricTags)
         {
-            if (tag.AppliesTo(metric))
+            if (tag.AppliesTo(metric) && (root is not null || !tag.ReadsResult))
                 (tags ??= new List<MetricTagModel>()).Add(tag);
         }
 
+        var enabled = field + ".Enabled";
         if (tags is null)
         {
-            var call = $"{field}.{operation}({value});";
+            if (metric.Each != EachKind.None)
+                condition = condition is null ? enabled : enabled + " && " + condition;
+
             if (condition is null)
             {
-                sb.AppendLine($"            {call}");
+                WriteRecord(sb, "            ", metric, field, value, null, index);
             }
             else
             {
                 sb.AppendLine($"            if ({condition})");
-                sb.AppendLine($"                {call}");
+                WriteRecord(sb, "                ", metric, field, value, null, index);
             }
 
             return;
         }
 
-        var index = (tagLists++).ToString(CultureInfo.InvariantCulture);
-        var list = "_metricTags" + index;
-        var enabled = field + ".Enabled";
+        var listIndex = (tagLists++).ToString(CultureInfo.InvariantCulture);
+        var list = "_metricTags" + listIndex;
 
         sb.AppendLine($"            if ({(condition is null ? enabled : enabled + " && " + condition)})");
         sb.AppendLine("            {");
         sb.AppendLine($"                var {list} = new TagList();");
 
         for (var k = 0; k < tags.Count; k++)
-            WriteMetricTag(sb, tags[k], list, $"_metricTag{index}_{k.ToString(CultureInfo.InvariantCulture)}", root);
+            WriteMetricTag(sb, tags[k], list, $"_metricTag{listIndex}_{k.ToString(CultureInfo.InvariantCulture)}", root);
 
-        sb.AppendLine($"                {field}.{operation}({value}, in {list});");
+        WriteRecord(sb, "                ", metric, field, value, list, index);
         sb.AppendLine("            }");
     }
+
+    /// <summary>
+    /// The <c>Add</c> or <c>Record</c> itself: one call, or one per element for a per-element
+    /// histogram. <paramref name="list"/> is the tag list, or null for none.
+    /// </summary>
+    private static void WriteRecord(
+        StringBuilder sb, string indent, MetricModel metric, string field, string value, string? list, int index)
+    {
+        var operation = metric.Kind == MetricKind.Counter ? "Add" : "Record";
+        var tagArgument = list is null ? string.Empty : ", in " + list;
+
+        switch (metric.Each)
+        {
+            case EachKind.Span:
+                sb.AppendLine($"{indent}_recordEach({field}, {value}{tagArgument});");
+                return;
+
+            case EachKind.Memory:
+                sb.AppendLine($"{indent}_recordEach({field}, {value}.Span{tagArgument});");
+                return;
+
+            case EachKind.Enumerable:
+                var element = "_each" + index.ToString(CultureInfo.InvariantCulture);
+                sb.AppendLine($"{indent}foreach (var {element} in {value})");
+                if (metric.ElementCanBeNull)
+                {
+                    var bound = "_eachValue" + index.ToString(CultureInfo.InvariantCulture);
+                    sb.AppendLine($"{indent}    if ({element} is {{ }} {bound})");
+                    sb.AppendLine($"{indent}        {field}.{operation}({Cast(metric, bound)}{tagArgument});");
+                }
+                else
+                {
+                    sb.AppendLine($"{indent}    {field}.{operation}({Cast(metric, element)}{tagArgument});");
+                }
+
+                return;
+
+            default:
+                sb.AppendLine($"{indent}{field}.{operation}({value}{tagArgument});");
+                return;
+        }
+    }
+
+    private static string Cast(MetricModel metric, string element) =>
+        metric.ElementIsDecimal ? "(double)" + element : element;
 
     /// <summary>
     /// Adds one tag to <paramref name="list"/>. The guard comes first and short-circuits, so the
     /// member is not read when it is false. A null value is bound away by the pattern and adds no
     /// tag, as <c>Activity.SetTag</c> adds none for a null.
     /// </summary>
-    private static void WriteMetricTag(StringBuilder sb, MetricTagModel tag, string list, string local, string root)
+    private static void WriteMetricTag(StringBuilder sb, MetricTagModel tag, string list, string local, string? root)
     {
-        var access = root + tag.Access;
-        var guard = Guard(root, tag.GuardExpression);
+        // A constant or a parameter is its own root; only a result tag reads the result.
+        var access = (tag.Root ?? root) + tag.Access;
+        var guard = Guard(root ?? string.Empty, tag.GuardExpression);
 
         string? condition;
         string value;
@@ -575,7 +659,11 @@ internal static class ProxyWriter
         }
     }
 
-    private static void WriteCatchBlock(StringBuilder sb, MethodModel method, MetricFieldTable fields)
+    /// <summary>The elapsed time of the call, in the histogram's unit.</summary>
+    private static string Elapsed(MetricModel histogram) =>
+        "Stopwatch.GetElapsedTime(_sw)." + histogram.ElapsedMember;
+
+    private static void WriteCatchBlock(StringBuilder sb, MethodModel method, MetricFieldTable fields, ref int tagLists)
     {
         // Only the span reads the exception. Declaring the variable otherwise raises CS0168 in
         // the generated file, and that fails every consumer building with TreatWarningsAsErrors.
@@ -590,7 +678,10 @@ internal static class ProxyWriter
         // A guarded histogram records only when its guard holds, and a throw leaves no result to
         // evaluate it against. An unguarded one records on both paths, as it always has.
         if (method.Histogram is { GuardExpression: null } histogram)
-            sb.AppendLine($"            {fields.FieldFor(histogram)}.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);");
+        {
+            WriteMeasurement(
+                sb, method, histogram, fields, null, Elapsed(histogram), root: null, ref tagLists);
+        }
 
         sb.AppendLine("            throw;");
         sb.AppendLine("        }");
