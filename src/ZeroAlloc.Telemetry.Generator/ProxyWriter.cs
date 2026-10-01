@@ -48,6 +48,9 @@ internal static class ProxyWriter
         sb.AppendLine();
         WriteFieldsAndConstructor(sb, model);
 
+        foreach (var property in model.Properties)
+            WriteForwardedMember(sb, property);
+
         for (var i = 0; i < model.Methods.Count; i++)
         {
             WriteMethod(sb, model.Methods[i], i, fields);
@@ -190,8 +193,15 @@ internal static class ProxyWriter
     {
         sb.AppendLine();
 
-        var paramList = string.Join(", ", method.Parameters.Select(p => $"{p.Type} {Id(p.Name)}"));
-        var argList   = string.Join(", ", method.Parameters.Select(p => Id(p.Name)));
+        var paramList = ParamList(method.Parameters);
+        var argList   = ArgList(method.Parameters);
+
+        if (method.RefReturn.Length > 0)
+        {
+            WriteSignature(sb, method, "public " + method.RefReturn, Id(method.Name), paramList);
+            sb.AppendLine($"        => ref {method.Receiver}.{Id(method.Name)}{method.TypeParameters}({argList});");
+            return;
+        }
 
         var instrumented = method.TraceName is not null
                         || method.Histogram is not null
@@ -200,20 +210,23 @@ internal static class ProxyWriter
 
         if (!method.IsAsync)
         {
-            WriteSignature(sb, method, "public ", Id(method.Name), paramList);
-            sb.AppendLine("    {");
-            if (instrumented)
-                WriteInstrumentedPrologueAndBody(sb, method, index, argList, fields);
-            else
-                WritePassthroughBody(sb, method, argList);
-            sb.AppendLine("    }");
+            WriteSyncMethod(sb, method, index, paramList, argList, instrumented, fields);
             return;
         }
 
+        if (method.SplitCall)
+            WriteSplitCall(sb, method, index, paramList, argList, instrumented, fields);
+        else
+            WriteAwaitableMethod(sb, method, index, paramList, argList, instrumented, fields);
+    }
+
+    private static void WriteAwaitableMethod(
+        StringBuilder sb, MethodModel method, int index, string paramList, string argList, bool instrumented, MetricFieldTable fields)
+    {
         // An awaitable method is never async itself. Awaiting in the public method would allocate
         // its state machine whenever the inner call completes asynchronously, even with nothing
         // listening, so the inner task is returned as is unless something would be recorded.
-        var inner = $"_inner.{Id(method.Name)}{method.TypeParameters}({argList})";
+        var inner = $"{method.Receiver}.{Id(method.Name)}{method.TypeParameters}({argList})";
         var fault = FaultMethodName(method, index);
         WriteSignature(sb, method, "public ", Id(method.Name), paramList);
         sb.AppendLine("    {");
@@ -241,6 +254,134 @@ internal static class ProxyWriter
         }
 
         WriteFaultMethod(sb, method, fault);
+    }
+
+    private static void WriteSyncMethod(
+        StringBuilder sb, MethodModel method, int index, string paramList, string argList, bool instrumented, MetricFieldTable fields)
+    {
+        WriteSignature(sb, method, "public ", Id(method.Name), paramList);
+        sb.AppendLine("    {");
+        if (instrumented)
+            WriteInstrumentedPrologueAndBody(sb, method, index, argList, fields);
+        else
+            WritePassthroughBody(sb, method, argList);
+        sb.AppendLine("    }");
+    }
+
+    /// <summary>
+    /// An awaitable method whose parameters an async method cannot take. The public method calls
+    /// the inner method synchronously, while the parameters are in scope, and hands the awaitable
+    /// it returned to the async core. With nothing listening it returns that awaitable as is.
+    /// </summary>
+    /// <remarks>
+    /// The inner method cannot be async either, so an exception it throws before returning its
+    /// awaitable is thrown synchronously, and the proxy rethrows it synchronously with or without
+    /// a listener: there is no async method whose task could have carried it.
+    /// </remarks>
+    private static void WriteSplitCall(
+        StringBuilder sb, MethodModel method, int index, string paramList, string argList, bool instrumented, MetricFieldTable fields)
+    {
+        var inner = $"{method.Receiver}.{Id(method.Name)}{method.TypeParameters}({argList})";
+        WriteSignature(sb, method, "public ", Id(method.Name), paramList);
+        sb.AppendLine("    {");
+        if (!instrumented)
+        {
+            sb.AppendLine($"        return {inner};");
+            sb.AppendLine("    }");
+            return;
+        }
+
+        sb.AppendLine($"        if ({QuietCondition(method, fields)})");
+        sb.AppendLine($"            return {inner};");
+        sb.AppendLine();
+
+        if (method.TraceName is not null)
+            WriteSpanStartAndTags(sb, method, index, "var");
+
+        if (method.Histogram is not null)
+            sb.AppendLine("        var _sw = Stopwatch.GetTimestamp();");
+
+        sb.AppendLine($"        {method.ReturnType} _pending;");
+        sb.AppendLine("        try");
+        sb.AppendLine("        {");
+        sb.AppendLine($"            _pending = {inner};");
+        sb.AppendLine("        }");
+        var tagLists = 0;
+        WriteCatchBlock(sb, method, fields, ref tagLists, disposeSpan: true);
+
+        var coreArguments = new List<string> { "_pending" };
+        if (method.TraceName is not null)
+            coreArguments.Add("_activity");
+        if (method.Histogram is not null)
+            coreArguments.Add("_sw");
+        coreArguments.AddRange(CarriedParameters(method).Select(p => Id(p.Name)));
+        sb.AppendLine($"        return {CoreMethodName(method, index)}{method.TypeParameters}({string.Join(", ", coreArguments)});");
+        sb.AppendLine("    }");
+
+        WriteSplitCore(sb, method, index, fields);
+    }
+
+    /// <summary>
+    /// The async core of a split call. It awaits the awaitable the public method started, then
+    /// records exactly what an ordinary core records. Parameters an async method can hold arrive
+    /// by value, after the call, so an out parameter has its value.
+    /// </summary>
+    private static void WriteSplitCore(StringBuilder sb, MethodModel method, int index, MetricFieldTable fields)
+    {
+        var parameters = new List<string> { $"{method.ReturnType} _pending" };
+        if (method.TraceName is not null)
+            parameters.Add("Activity? _activity");
+        if (method.Histogram is not null)
+            parameters.Add("long _sw");
+        parameters.AddRange(CarriedParameters(method).Select(p => $"{p.Type} {Id(p.Name)}"));
+
+        sb.AppendLine();
+        WriteSignature(sb, method, "private async ", CoreMethodName(method, index), string.Join(", ", parameters));
+        sb.AppendLine("    {");
+        if (method.TraceName is not null)
+            sb.AppendLine("        using var _span = _activity;");
+        WriteInstrumentedBody(sb, method, string.Empty, fields, pending: "_pending");
+        sb.AppendLine("    }");
+    }
+
+    /// <summary>The parameters a split call carries to its async core: those that are not ref structs.</summary>
+    private static IEnumerable<ParameterModel> CarriedParameters(MethodModel method) =>
+        method.Parameters.Where(static p => !p.IsRefLike);
+
+    /// <summary>
+    /// A property, indexer or event, forwarded to the wrapped instance. An init accessor cannot be
+    /// forwarded, since it only runs in an object initializer of the proxy itself, so it throws.
+    /// </summary>
+    private static void WriteForwardedMember(StringBuilder sb, PropertyModel member)
+    {
+        sb.AppendLine();
+        if (member.Kind == PropertyKind.Event)
+        {
+            sb.AppendLine($"    public event {member.Type} {member.Name}");
+            sb.AppendLine("    {");
+            sb.AppendLine($"        add => {member.Receiver}.{member.Name} += value;");
+            sb.AppendLine($"        remove => {member.Receiver}.{member.Name} -= value;");
+            sb.AppendLine("    }");
+            return;
+        }
+
+        var name = member.Kind == PropertyKind.Indexer
+            ? $"this[{ParamList(member.Parameters)}]"
+            : member.Name;
+        var target = member.Kind == PropertyKind.Indexer
+            ? $"{member.Receiver}[{ArgList(member.Parameters)}]"
+            : $"{member.Receiver}.{member.Name}";
+        var refKeyword = member.RefPrefix.Length > 0 ? "ref " : string.Empty;
+
+        sb.AppendLine($"    public {member.RefPrefix}{member.Type} {name}");
+        sb.AppendLine("    {");
+        if (member.HasGetter)
+            sb.AppendLine($"        get => {refKeyword}{target};");
+        if (member.HasSetter && member.InitOnly)
+            sb.AppendLine($"        init => throw new NotSupportedException(\"An init accessor cannot be forwarded to the wrapped instance.\");");
+        else if (member.HasSetter)
+            sb.AppendLine($"        set => {target} = value;");
+        sb.AppendLine("    }");
     }
 
     /// <summary>
@@ -343,7 +484,7 @@ internal static class ProxyWriter
     /// <summary>
     /// Starts the span and sets the tags that are known before the wrapped call runs.
     /// </summary>
-    private static void WriteSpanStartAndTags(StringBuilder sb, MethodModel method, int index)
+    private static void WriteSpanStartAndTags(StringBuilder sb, MethodModel method, int index, string declaration = "using var")
     {
         // A templated name was resolved against the wrapped instance in the constructor; a
         // constant one is emitted inline, so the common case stays a plain string literal.
@@ -357,17 +498,17 @@ internal static class ProxyWriter
         {
             // The tags go to StartActivity, so a sampler sees them. They are only collected when
             // something listens; StartActivity returns null without a listener anyway.
-            sb.AppendLine("        using var _activity = _activitySource.HasListeners()");
-            sb.AppendLine($"            ? _activitySource.StartActivity({spanName}, {trace!.Kind ?? "ActivityKind.Internal"}, default(ActivityContext), {StartTagsMethodName(method, index)}{method.TypeParameters}({ArgList(method)}))");
+            sb.AppendLine($"        {declaration} _activity = _activitySource.HasListeners()");
+            sb.AppendLine($"            ? _activitySource.StartActivity({spanName}, {trace!.Kind ?? "ActivityKind.Internal"}, default(ActivityContext), {StartTagsMethodName(method, index)}{method.TypeParameters}({string.Join(", ", ByValue(method).Select(p => Id(p.Name)))}))");
             sb.AppendLine("            : null;");
         }
         else if (trace?.Kind is { } kind)
         {
-            sb.AppendLine($"        using var _activity = _activitySource.StartActivity({spanName}, {kind});");
+            sb.AppendLine($"        {declaration} _activity = _activitySource.StartActivity({spanName}, {kind});");
         }
         else
         {
-            sb.AppendLine($"        using var _activity = _activitySource.StartActivity({spanName});");
+            sb.AppendLine($"        {declaration} _activity = _activitySource.StartActivity({spanName});");
         }
 
         if (trace?.DisplayName is { } displayName)
@@ -428,8 +569,20 @@ internal static class ProxyWriter
     private static string StartTagsMethodName(MethodModel method, int index) =>
         $"_startTags_{method.Name}_{index.ToString(CultureInfo.InvariantCulture)}";
 
-    private static string ArgList(MethodModel method) =>
-        string.Join(", ", method.Parameters.Select(p => Id(p.Name)));
+    /// <summary>The parameters as declared: modifiers, type and name.</summary>
+    private static string ParamList(EquatableArray<ParameterModel> parameters) =>
+        string.Join(", ", parameters.Select(p => $"{p.Modifier}{p.Type} {Id(p.Name)}"));
+
+    /// <summary>The arguments of a forwarded call, each with its modifier.</summary>
+    private static string ArgList(EquatableArray<ParameterModel> parameters) =>
+        string.Join(", ", parameters.Select(p => p.ArgumentModifier + Id(p.Name)));
+
+    /// <summary>
+    /// The parameters a helper takes by value: every one but an out parameter, which has no value
+    /// to pass.
+    /// </summary>
+    private static IEnumerable<ParameterModel> ByValue(MethodModel method) =>
+        method.Parameters.Where(static p => !p.IsOut);
 
     /// <summary>
     /// Collects the tags passed to <c>StartActivity</c>. A method of its own, so reading an
@@ -439,7 +592,7 @@ internal static class ProxyWriter
     private static void WriteStartTagsMethod(StringBuilder sb, MethodModel method, int index)
     {
         sb.AppendLine();
-        var paramList = string.Join(", ", method.Parameters.Select(p => $"{p.Type} {Id(p.Name)}"));
+        var paramList = string.Join(", ", ByValue(method).Select(p => $"{p.Type} {Id(p.Name)}"));
         sb.AppendLine($"    private static TagList {StartTagsMethodName(method, index)}{method.TypeParameters}({paramList})");
         foreach (var clause in method.ConstraintClauses)
             sb.AppendLine($"        {clause}");
@@ -475,7 +628,8 @@ internal static class ProxyWriter
         sb.AppendLine("    }");
     }
 
-    private static void WriteInstrumentedBody(StringBuilder sb, MethodModel method, string argList, MetricFieldTable fields)
+    private static void WriteInstrumentedBody(
+        StringBuilder sb, MethodModel method, string argList, MetricFieldTable fields, string? pending = null)
     {
         sb.AppendLine("        try");
         sb.AppendLine("        {");
@@ -484,7 +638,8 @@ internal static class ProxyWriter
         // where the awaitable has it.
         var awaitKeyword = method.IsAsync ? "await " : string.Empty;
         var configure    = method.ConfigureAwait ? ".ConfigureAwait(false)" : string.Empty;
-        var callExpr     = $"{awaitKeyword}_inner.{Id(method.Name)}{method.TypeParameters}({argList}){configure}";
+        var call         = pending ?? $"{method.Receiver}.{Id(method.Name)}{method.TypeParameters}({argList})";
+        var callExpr     = $"{awaitKeyword}{call}{configure}";
 
         if (method.ReturnsVoid)
             sb.AppendLine($"            {callExpr};");
@@ -665,7 +820,8 @@ internal static class ProxyWriter
         List<MetricTagModel>? tags = null;
         foreach (var tag in method.MetricTags)
         {
-            if (tag.AppliesTo(metric) && (root is not null || !tag.ReadsResult))
+            // On the throw path there is no result, and an out parameter may have no value.
+            if (tag.AppliesTo(metric) && (root is not null || (!tag.ReadsResult && !tag.RootIsOut)))
                 (tags ??= new List<MetricTagModel>()).Add(tag);
         }
 
@@ -788,7 +944,8 @@ internal static class ProxyWriter
     private static string Elapsed(MetricModel histogram) =>
         "Stopwatch.GetElapsedTime(_sw)." + histogram.ElapsedMember;
 
-    private static void WriteCatchBlock(StringBuilder sb, MethodModel method, MetricFieldTable fields, ref int tagLists)
+    private static void WriteCatchBlock(
+        StringBuilder sb, MethodModel method, MetricFieldTable fields, ref int tagLists, bool disposeSpan = false)
     {
         // Only the span reads the exception. Declaring the variable otherwise raises CS0168 in
         // the generated file, and that fails every consumer building with TreatWarningsAsErrors.
@@ -808,6 +965,10 @@ internal static class ProxyWriter
                 sb, method, histogram, fields, null, Elapsed(histogram), root: null, ref tagLists);
         }
 
+        // A span not declared with using is disposed here, since nothing else will end it.
+        if (disposeSpan && method.TraceName is not null)
+            sb.AppendLine("            _activity?.Dispose();");
+
         sb.AppendLine("            throw;");
         sb.AppendLine("        }");
     }
@@ -815,7 +976,7 @@ internal static class ProxyWriter
     /// <summary>Forwards a synchronous call that has no instruments.</summary>
     private static void WritePassthroughBody(StringBuilder sb, MethodModel method, string argList)
     {
-        var callExpr      = $"_inner.{Id(method.Name)}{method.TypeParameters}({argList})";
+        var callExpr      = $"{method.Receiver}.{Id(method.Name)}{method.TypeParameters}({argList})";
         var returnKeyword = method.ReturnsVoid ? string.Empty : "return ";
         sb.AppendLine($"        {returnKeyword}{callExpr};");
     }

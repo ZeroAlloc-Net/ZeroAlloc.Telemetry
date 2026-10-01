@@ -144,6 +144,12 @@ var assemblyVersion = typeof(OrderService).Assembly
 if (string.IsNullOrEmpty(sourceVersion) || !string.Equals(sourceVersion, assemblyVersion, StringComparison.Ordinal))
     return Fail($"ActivitySource version expected '{assemblyVersion}', got '{sourceVersion}'");
 
+// Member shapes: an out parameter, a span on an awaitable method, and a property.
+if (!proxy.TryFind("o-1", out var found) || found.Lines != 1) return Fail("TryFind did not forward its out parameter");
+var parsed = await proxy.ParseAsync("abc".AsSpan(), out var consumed).ConfigureAwait(false);
+if (parsed != 6 || consumed != 3) return Fail($"ParseAsync expected 6 and 3, got {parsed} and {consumed}");
+if (proxy.Pending != 2) return Fail($"Pending expected 2, got {proxy.Pending}");
+
 // A generic method, instantiated over a value type and a reference type.
 var echoedInt = await proxy.EchoAsync(7).ConfigureAwait(false);
 var echoedText = await proxy.EchoAsync("seven").ConfigureAwait(false);

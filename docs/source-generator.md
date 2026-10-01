@@ -275,10 +275,20 @@ A field name is `_` plus the metric name, with every character that is not a let
 
 Names that would still collide are made distinct with a numeric suffix, in the order the generator visits them: interface members top to bottom, and within a method `[Count]`, then `[Histogram]`, then `[CountFromResult]` and `[HistogramFromResult]` in attribute order. `a.b` then `a_b` give `_a_b` and `_a_b_2`, and a `[Count("x")]` and a `[Histogram("x")]` give `_x` and `_x_2`. A name that would clash with the proxy's own members or locals, such as `meter` or `result`, is prefixed instead: `_metric_meter`, `_metric_result`. Metric, span and tag names are emitted as escaped string literals, so any character is safe.
 
+## Member shapes
+
+Every member an interface can declare either compiles in the proxy or is reported:
+
+- **Parameter modifiers.** `ref`, `out`, `in`, `ref readonly`, `scoped` and `params` are repeated in the proxy method and on the forwarded call, together with the parameter's nullability attributes such as `[NotNullWhen(true)]`, so a `TryGet` keeps its flow analysis. A synchronous method is instrumented as usual.
+- **Awaitable methods whose parameters an async method cannot take.** These are `ref`, `out` and `in` parameters, and ref structs such as `ReadOnlySpan<T>`. The public proxy method starts the span and calls the inner method synchronously, while the parameters are in scope. It then hands the awaitable it returned to the async core, which records everything once it completes. The inner method cannot be async either, so an exception it throws before returning is rethrown synchronously, with or without a listener.
+- **Values that cannot be read where they are needed.** A `[TraceTag]` or name token on an `out` parameter has no value when the span starts. A tag whose value is a ref struct cannot be boxed. A `[MetricTag]` on a ref struct argument of an awaitable method cannot reach the async core. Each of these is reported as **ZTEL024** and left out.
+- **Properties, indexers and events** are forwarded to the wrapped instance, without instrumentation; an instrumentation attribute on one of their accessors is **ZTEL023**. An `init` accessor can only run in an object initializer of the proxy itself, so it throws `NotSupportedException`. A method that returns by reference is forwarded too, and is not instrumented: **ZTEL023**.
+- **Inherited members.** Members of the interfaces the instrumented one extends are implemented too, with their attributes, and forwarded through a cast to the declaring interface, so a member two of them declare is not ambiguous. ZTEL003 is not reported for an interface that an instrumented one extends.
+- **Static members.** A static member with a body needs no implementation and is left alone. A static abstract member would have to be implemented statically, and could not reach the wrapped instance, so the interface gets no proxy: **ZTEL025**.
+
 ## v1 Limitations
 
 - `interface` targets only — `class` is not supported
-- `ref`, `out` and `in` parameters, and properties, are not supported; see [#173](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/173)
 - A `file` interface, or an interface nested in a `file` type, gets no proxy: **ZTEL014**
 - An interface nested in an interface with an `in` or `out` type parameter gets no proxy, because C# does not allow a class there: **ZTEL017**
 - Sync methods are supported (no `async`/`await` wrapper needed)
@@ -310,6 +320,9 @@ Names that would still collide are made distinct with a numeric suffix, in the o
 | ZTEL020 | Error | `Buckets` is set but the compilation has no `InstrumentAdvice<T>`, which needs System.Diagnostics.DiagnosticSource 9.0. The instrument gets no advice |
 | ZTEL021 | Warning | A `[TraceTagConstant]` or `[MetricTagConstant]` value is an array or a type, which no tag can carry. Reported at the value; no tag is emitted |
 | ZTEL022 | Warning | A `{parameter.Member}` token in a `[Trace]` name names no readable member. The token is left out of the span name |
+| ZTEL023 | Warning | An instrumentation attribute is on an accessor of a property, indexer or event, or on a method returning by reference. The member is forwarded without instrumentation |
+| ZTEL024 | Warning | A tag or name token reads a parameter value the proxy cannot read: an `out` parameter before the call, a ref struct value, or a ref struct argument of an awaitable method in a `[MetricTag]`. It is left out |
+| ZTEL025 | Error | The interface, or one it extends, has a static abstract member, which a proxy cannot forward. No proxy is generated |
 
 ZTEL007 and ZTEL008 mostly replace what used to be a compile error inside the generated proxy. Two cases compiled on 1.6.4 and are now errors:
 

@@ -96,22 +96,32 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
 
         // ZTEL003: method-level metric, trace and tag attributes on a method whose containing type
         // lacks [Instrument] are silently ignored. Scan every method carrying any of them and
-        // check the enclosing type.
-        RegisterOrphanDiagnostics(context);
+        // check the enclosing type. An interface extended by an instrumented one is not an
+        // orphan: the proxy implements its members, with their attributes.
+        var instrumentedBases = results
+            .Select(static (r, _) => r.Bases)
+            .Collect()
+            .Select(static (all, _) => new EquatableArray<string>(
+                all.SelectMany(static b => b).Distinct(StringComparer.Ordinal).OrderBy(static b => b, StringComparer.Ordinal).ToImmutableArray()));
+        RegisterOrphanDiagnostics(context, instrumentedBases);
     }
 
-    private static void RegisterOrphanDiagnostics(IncrementalGeneratorInitializationContext context)
+    private static void RegisterOrphanDiagnostics(
+        IncrementalGeneratorInitializationContext context, IncrementalValueProvider<EquatableArray<string>> bases)
     {
-        RegisterMethodAttributeDiagnostic(context, TraceAttributeFqn, "Trace");
-        RegisterMethodAttributeDiagnostic(context, CountAttributeFqn, "Count");
-        RegisterMethodAttributeDiagnostic(context, HistogramAttributeFqn, "Histogram");
-        RegisterMethodAttributeDiagnostic(context, CountFromResultAttrFqn, "CountFromResult");
-        RegisterMethodAttributeDiagnostic(context, HistogramFromResultAttrFqn, "HistogramFromResult");
-        RegisterMethodAttributeDiagnostic(context, MetricTagFromResultAttrFqn, "MetricTagFromResult");
-        RegisterMethodAttributeDiagnostic(context, MetricTagConstantAttrFqn, "MetricTagConstant");
-        RegisterMethodAttributeDiagnostic(context, TraceTagFromResultAttrFqn, "TraceTagFromResult");
-        RegisterMethodAttributeDiagnostic(context, TraceTagConstantAttrFqn, "TraceTagConstant");
+        RegisterMethodAttributeDiagnostic(context, bases, TraceAttributeFqn, "Trace");
+        RegisterMethodAttributeDiagnostic(context, bases, CountAttributeFqn, "Count");
+        RegisterMethodAttributeDiagnostic(context, bases, HistogramAttributeFqn, "Histogram");
+        RegisterMethodAttributeDiagnostic(context, bases, CountFromResultAttrFqn, "CountFromResult");
+        RegisterMethodAttributeDiagnostic(context, bases, HistogramFromResultAttrFqn, "HistogramFromResult");
+        RegisterMethodAttributeDiagnostic(context, bases, MetricTagFromResultAttrFqn, "MetricTagFromResult");
+        RegisterMethodAttributeDiagnostic(context, bases, MetricTagConstantAttrFqn, "MetricTagConstant");
+        RegisterMethodAttributeDiagnostic(context, bases, TraceTagFromResultAttrFqn, "TraceTagFromResult");
+        RegisterMethodAttributeDiagnostic(context, bases, TraceTagConstantAttrFqn, "TraceTagConstant");
     }
+
+    /// <summary>A ZTEL003 candidate and the type it is on, which an instrumented interface may extend.</summary>
+    private readonly record struct Orphan(DiagnosticInfo Diagnostic, string ContainingType);
 
     /// <summary>
     /// The compilation's <c>AssemblyInformationalVersionAttribute</c> value, or null when it has
@@ -134,6 +144,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
 
     private static void RegisterMethodAttributeDiagnostic(
         IncrementalGeneratorInitializationContext context,
+        IncrementalValueProvider<EquatableArray<string>> bases,
         string methodAttrFqn,
         string shortName)
     {
@@ -143,7 +154,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 predicate: static (node, _) => node is MethodDeclarationSyntax,
                 transform: (ctx, _) =>
                 {
-                    if (ctx.TargetSymbol is not IMethodSymbol method) return (DiagnosticInfo?)null;
+                    if (ctx.TargetSymbol is not IMethodSymbol method) return (Orphan?)null;
                     var containing = method.ContainingType;
                     if (containing is null) return null;
                     foreach (var a in containing.GetAttributes())
@@ -152,17 +163,28 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                             return null; // Container has [Instrument] — proxy is generated.
                     }
                     var loc = method.Locations.FirstOrDefault() ?? Location.None;
-                    return DiagnosticInfo.Create(
-                        InstrumentDiagnostics.MethodAttributeWithoutInstrument,
-                        loc,
-                        shortName, containing.Name, method.Name);
+                    return new Orphan(
+                        DiagnosticInfo.Create(
+                            InstrumentDiagnostics.MethodAttributeWithoutInstrument,
+                            loc,
+                            shortName, containing.Name, method.Name),
+                        containing.OriginalDefinition.ToDisplayString());
                 })
             .Where(static d => d is not null)
-            .Select(static (d, _) => d!)
+            .Select(static (d, _) => d!.Value)
             .WithTrackingName(TrackingNames.OrphanDiagnostics);
 
-        context.RegisterSourceOutput(orphans, static (ctx, diag) => ctx.ReportDiagnostic(diag.ToDiagnostic()));
+        context.RegisterSourceOutput(orphans.Combine(bases), static (ctx, pair) =>
+        {
+            var (orphan, instrumentedBases) = pair;
+            if (!instrumentedBases.Contains(orphan.ContainingType, StringComparer.Ordinal))
+                ctx.ReportDiagnostic(orphan.Diagnostic.ToDiagnostic());
+        });
     }
+
+    /// <summary>The result for a target that gets no proxy: only its diagnostics.</summary>
+    private static ParseResult Rejected(ImmutableArray<DiagnosticInfo>.Builder diagnostics) =>
+        new(null, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutable()), null);
 
     private static ParseResult? Parse(GeneratorAttributeSyntaxContext ctx)
     {
@@ -183,7 +205,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 InstrumentDiagnostics.InstrumentOnNonInterface,
                 attrLocation,
                 target.ToDisplayString()));
-            return new ParseResult(null, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutable()), null);
+            return Rejected(diagnostics);
         }
 
         // ZTEL014, ZTEL017 and ZTEL013: the proxy is emitted in a file of its own, next to the
@@ -191,7 +213,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         if (Ungeneratable(target) is { } blocked)
         {
             diagnostics.Add(blocked);
-            return new ParseResult(null, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutable()), null);
+            return Rejected(diagnostics);
         }
 
         // ActivitySource is the first positional constructor argument.
@@ -206,20 +228,22 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 InstrumentDiagnostics.EmptyActivitySource,
                 attrLocation,
                 target.ToDisplayString()));
-            return new ParseResult(null, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutable()), null);
+            return Rejected(diagnostics);
         }
 
         // Named arguments; absent means the default: an internal proxy, the assembly's version.
-        var publicProxy = GetNamedBool(instrumentAttr, "PublicProxy");
-        var version = GetNamedString(instrumentAttr, "Version");
-
         var methods = BuildMethods(target, ctx.SemanticModel.Compilation, diagnostics);
-        var model = BuildModel(target, activitySource, methods, publicProxy) with { Version = version };
+        var model = BuildModel(target, activitySource, methods, GetNamedBool(instrumentAttr, "PublicProxy")) with
+        {
+            Version = GetNamedString(instrumentAttr, "Version"),
+            Properties = ProxyMembers.BuildProperties(target, TypeFormat, diagnostics),
+        };
 
         return new ParseResult(
             model,
             new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutable()),
-            ProxyFileFor(target, model));
+            ProxyFileFor(target, model),
+            new EquatableArray<string>(target.AllInterfaces.Select(static i => i.OriginalDefinition.ToDisplayString()).ToImmutableArray()));
     }
 
     private static InstrumentModel BuildModel(
@@ -270,6 +294,17 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         {
             return DiagnosticInfo.Create(
                 InstrumentDiagnostics.ContainingTypeNotPartial, location, target.ToDisplayString(), notPartial.ToDisplayString());
+        }
+
+        // ZTEL025: a static abstract member has to be implemented as a static member, which
+        // cannot reach the wrapped instance. Reported on the member.
+        if (ProxyMembers.FirstStaticAbstract(target) is { } staticAbstract)
+        {
+            return DiagnosticInfo.Create(
+                InstrumentDiagnostics.StaticAbstractMember,
+                staticAbstract.Locations.FirstOrDefault(static l => l.IsInSource) ?? location,
+                target.ToDisplayString(),
+                staticAbstract.ToDisplayString());
         }
 
         return null;
@@ -323,8 +358,14 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         var methods = ImmutableArray.CreateBuilder<MethodModel>();
-        foreach (var member in target.GetMembers().OfType<IMethodSymbol>())
+        foreach (var member in ProxyMembers.Methods(target))
         {
+            if (member.ReturnsByRef || member.ReturnsByRefReadonly)
+            {
+                methods.Add(ProxyMembers.RefReturning(target, member, TypeFormat, diagnostics));
+                continue;
+            }
+
             var traceName   = GetAttributeFirstArg(member, TraceAttributeFqn);
 
             var returnType  = member.ReturnType.ToDisplayString(TypeFormat);
@@ -364,7 +405,8 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 TypeDeclarations.TypeParameterList(member.TypeParameters),
                 TypeDeclarations.ConstraintClauses(member.TypeParameters, TypeFormat),
                 trace,
-                configurable));
+                configurable,
+                Receiver: ProxyMembers.Receiver(target, member, TypeFormat)));
         }
         return new EquatableArray<MethodModel>(methods.ToImmutable());
     }
@@ -529,7 +571,16 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             return false;
 
         var path = PathResolver.Resolve(compilation, parameter.Type, dot < 0 ? string.Empty : content.Substring(dot + 1));
-        if (path.Resolved)
+        var unreadable = ProxyMembers.UnreadableAtStart(parameter)
+            ?? (path.Resolved && path.FinalType!.IsRefLikeType ? ProxyMembers.RefStructValue : null);
+        if (unreadable is not null)
+        {
+            diagnostics.Add(DiagnosticInfo.Create(
+                InstrumentDiagnostics.UnreadableParameter,
+                member.Locations.FirstOrDefault() ?? target.Locations.FirstOrDefault(),
+                "Trace", parameter.Name, target.Name, member.Name, unreadable));
+        }
+        else if (path.Resolved)
         {
             AppendParameterValue(display, copies, parameter, path.Access!);
         }
@@ -746,31 +797,15 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         for (var i = 0; i < ps.Length; i++)
         {
             var (tagName, member, attr) = GetTraceTag(ps[i]);
+            var tag = tagName is null || untraced
+                ? default
+                : ResolveParameterTag(compilation, method, ps[i], member, attr!, diagnostics);
+            if (tag.Dropped)
+                tagName = null;
 
-            string? accessSuffix = null;
-            var needsCopy = false;
-            var canBeNull = PathResolver.CanBeNull(ps[i].Type);
-
-            if (tagName is not null && !untraced && !string.IsNullOrEmpty(member))
-            {
-                var path = PathResolver.Resolve(compilation, ps[i].Type, member!);
-                if (path.Resolved)
-                {
-                    accessSuffix = path.Access;
-                    canBeNull = path.CanBeNull;
-
-                    // A copy is only needed when the emitted access actually null-tests the
-                    // argument; a plain `.Member` on a non-nullable value leaves its state alone.
-                    needsCopy = path.Access!.StartsWith("?.", StringComparison.Ordinal);
-                }
-                else
-                {
-                    var fallback = ps[i].Locations.FirstOrDefault() ?? MethodLocation(method);
-                    diagnostics.Add(ParameterTagPathNotFound(
-                        AttributeLocations.Positional(attr!, 1, "member", fallback), member!, ps[i].Name, path, "TraceTag"));
-                    tagName = null;
-                }
-            }
+            var accessSuffix = tag.AccessSuffix;
+            var needsCopy = tag.NeedsCopy;
+            var canBeNull = tag.Resolved ? tag.CanBeNull : PathResolver.CanBeNull(ps[i].Type);
 
             result[i] = new ParameterModel(
                 ps[i].Type.ToDisplayString(TypeFormat),
@@ -778,10 +813,69 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 tagName,
                 accessSuffix,
                 needsCopy,
-                canBeNull);
+                canBeNull,
+                ProxyMembers.Modifier(ps[i]),
+                ProxyMembers.ArgumentModifier(ps[i]),
+                ps[i].RefKind == RefKind.Out,
+                ps[i].Type.IsRefLikeType);
         }
 
         return result;
+    }
+
+    /// <summary>How a <c>[TraceTag]</c> reads its parameter, once resolved.</summary>
+    private readonly record struct ParameterTag(bool Dropped, bool Resolved, string? AccessSuffix, bool NeedsCopy, bool CanBeNull);
+
+    /// <summary>
+    /// Resolves a <c>[TraceTag]</c> member path. The tag is dropped, having been reported, when the
+    /// path does not resolve, ZTEL010, or when the value cannot be read at the span's start: an out
+    /// parameter, or a ref struct value, ZTEL024.
+    /// </summary>
+    private static ParameterTag ResolveParameterTag(
+        Compilation compilation,
+        IMethodSymbol method,
+        IParameterSymbol parameter,
+        string? member,
+        AttributeData attr,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
+    {
+        var attrLocation = attr.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? MethodLocation(method);
+        var unreadable = ProxyMembers.UnreadableAtStart(parameter)
+            ?? (string.IsNullOrEmpty(member) && parameter.Type.IsRefLikeType ? ProxyMembers.RefStructValue : null);
+
+        PathResolver.Resolution? path = null;
+        if (unreadable is null && !string.IsNullOrEmpty(member))
+        {
+            path = PathResolver.Resolve(compilation, parameter.Type, member!);
+            if (path.Resolved && path.FinalType!.IsRefLikeType)
+            {
+                unreadable = ProxyMembers.RefStructValue;
+                attrLocation = AttributeLocations.Positional(attr, 1, "member", MethodLocation(method));
+            }
+        }
+
+        if (unreadable is not null)
+        {
+            diagnostics.Add(DiagnosticInfo.Create(
+                InstrumentDiagnostics.UnreadableParameter,
+                attrLocation, "TraceTag", parameter.Name, method.ContainingType.Name, method.Name, unreadable));
+            return new ParameterTag(true, false, null, false, false);
+        }
+
+        if (path is null)
+            return default;
+
+        if (!path.Resolved)
+        {
+            var fallback = parameter.Locations.FirstOrDefault() ?? MethodLocation(method);
+            diagnostics.Add(ParameterTagPathNotFound(
+                AttributeLocations.Positional(attr, 1, "member", fallback), member!, parameter.Name, path, "TraceTag"));
+            return new ParameterTag(true, false, null, false, false);
+        }
+
+        // A copy is only needed when the emitted access actually null-tests the argument; a plain
+        // `.Member` on a non-nullable value leaves its state alone.
+        return new ParameterTag(false, true, path.Access, path.Access!.StartsWith("?.", StringComparison.Ordinal), path.CanBeNull);
     }
 
     private static (string? Name, string? Member, AttributeData? Attribute) GetTraceTag(IParameterSymbol parameter)
@@ -1609,11 +1703,20 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                         _diagnostics.Add(ParameterTagPathNotFound(
                             AttributeLocations.Positional(attr, 1, "member", fallback), member!, parameter.Name, path, "MetricTag"));
                     }
+                    else if (ProxyMembers.UnreadableForMetric(_method, parameter, path.FinalType!) is { } unreadable)
+                    {
+                        _diagnostics.Add(DiagnosticInfo.Create(
+                            InstrumentDiagnostics.UnreadableParameter,
+                            attr.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? fallback,
+                            "MetricTag", parameter.Name, _target.Name, _method.Name, unreadable));
+                        continue;
+                    }
 
                     if (placed && path.Resolved)
                     {
                         Tags.Add(new MetricTagModel(
-                            name, filter, path.Access!, path.CanBeNull, Root: TypeDeclarations.Identifier(parameter.Name)));
+                            name, filter, path.Access!, path.CanBeNull, Root: TypeDeclarations.Identifier(parameter.Name),
+                            RootIsOut: parameter.RefKind == RefKind.Out));
                     }
                 }
             }
@@ -1762,5 +1865,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
     }
 
     /// <param name="File">The proxy as the collision check sees it; null when none is generated.</param>
-    private readonly record struct ParseResult(InstrumentModel? Model, EquatableArray<DiagnosticInfo> Diagnostics, ProxyFile? File);
+    /// <param name="Bases">The interfaces the instrumented interface extends, whose members the proxy implements.</param>
+    private readonly record struct ParseResult(
+        InstrumentModel? Model, EquatableArray<DiagnosticInfo> Diagnostics, ProxyFile? File, EquatableArray<string> Bases = default);
 }

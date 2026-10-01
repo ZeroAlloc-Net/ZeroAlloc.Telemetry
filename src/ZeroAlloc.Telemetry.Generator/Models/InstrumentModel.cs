@@ -14,6 +14,7 @@ namespace ZeroAlloc.Telemetry.Generator.Models;
 /// The <c>Version</c> set on <c>[Instrument]</c>, or null when it is not set and the assembly's
 /// informational version applies.
 /// </param>
+/// <param name="Properties">The interface's properties, indexers and events, which the proxy forwards.</param>
 /// <param name="ContainingTypes">
 /// The partial declarations of the interface's containing types, outermost first, which the
 /// proxy is emitted inside; empty for a top-level interface.
@@ -29,5 +30,6 @@ internal sealed record InstrumentModel(
     string TypeParameters,
     EquatableArray<string> ConstraintClauses,
     EquatableArray<string> ContainingTypes,
-    string? Version = null
+    string? Version = null,
+    EquatableArray<PropertyModel> Properties = default
 );

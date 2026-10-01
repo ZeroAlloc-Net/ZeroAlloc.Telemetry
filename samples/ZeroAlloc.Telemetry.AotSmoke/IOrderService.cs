@@ -1,4 +1,6 @@
+using System;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 using ZeroAlloc.Telemetry;
@@ -29,6 +31,15 @@ public interface IOrderService
     [Trace("decide {customerId}", Kind = ActivityKind.Client, ErrorWhen = "IsRejected", ErrorDescription = "Reason", TagsAtStart = true)]
     [TraceTagConstant("order.channel", "web")]
     ValueTask<OrderDecision> DecideAsync([TraceTag("order.customer")] string customerId, CancellationToken ct);
+
+    // Member shapes (#173): an out parameter, a span on an awaitable method, and a property.
+    [Trace("order.find")]
+    bool TryFind(string id, [NotNullWhen(true)] out OrderReceipt? receipt);
+
+    [Trace("order.parse")]
+    ValueTask<int> ParseAsync(ReadOnlySpan<char> text, out int consumed);
+
+    int Pending { get; }
 
     // A generic method: the proxy repeats its type parameter and constraint (#168).
     [Trace("order.echo")]

@@ -1,3 +1,5 @@
+using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -21,6 +23,20 @@ public sealed class OrderService : IOrderService
 
     public ValueTask<OrderDecision> DecideAsync(string customerId, CancellationToken ct) =>
         ValueTask.FromResult(new OrderDecision { IsRejected = true, Reason = "out of stock" });
+
+    public int Pending => 2;
+
+    public bool TryFind(string id, [NotNullWhen(true)] out OrderReceipt? receipt)
+    {
+        receipt = string.Equals(id, "o-1", StringComparison.Ordinal) ? new OrderReceipt { Lines = 1 } : null;
+        return receipt is not null;
+    }
+
+    public ValueTask<int> ParseAsync(ReadOnlySpan<char> text, out int consumed)
+    {
+        consumed = text.Length;
+        return ValueTask.FromResult(text.Length * 2);
+    }
 
     public ValueTask<T> EchoAsync<T>(T value) where T : notnull => ValueTask.FromResult(value);
 }
