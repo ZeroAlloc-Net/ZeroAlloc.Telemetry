@@ -298,4 +298,17 @@ internal static class InstrumentDiagnostics
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    /// <summary>
+    /// Two span tags with one name, from <c>[TraceTag]</c> or <c>[TraceTagConstant]</c>. A warning,
+    /// not an error like ZTEL012: a span keeps the last value set, so such code ran before, but the
+    /// later tag silently replaced the earlier one.
+    /// </summary>
+    public static readonly DiagnosticDescriptor DuplicateSpanTag = new(
+        id: "ZTEL026",
+        title: "Duplicate span tag name",
+        messageFormat: "[{0}] adds the tag '{1}' to the span of '{2}.{3}', which another tag already sets. A span keeps one value per tag name, so remove or rename one of them; this one is not set.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
 }

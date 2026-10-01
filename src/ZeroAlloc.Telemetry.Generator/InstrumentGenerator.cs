@@ -373,10 +373,11 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             var configurable = isAsync && TaskShapes.HasConfigureAwait(member.ReturnType);
             var returnsVoid = member.ReturnsVoid || TaskShapes.IsVoidAwaitable(member.ReturnType);
 
-            var parameters = BuildParameters(compilation, member, traceName is null, diagnostics);
+            var spanTags = traceName is null ? null : new HashSet<string>(StringComparer.Ordinal);
+            var constantTags = BuildConstantTags(target, member, spanTags, diagnostics);
+            var parameters = BuildParameters(compilation, member, traceName is null, spanTags, diagnostics);
             var resultType = TaskShapes.UnwrapAwaited(member.ReturnType);
             var resultTags = BuildResultTags(compilation, member, resultType, returnsVoid, traceName is null, diagnostics);
-            var constantTags = BuildConstantTags(target, member, diagnostics);
 
             var count         = BuildPlainMetric(compilation, target, member, CountAttributeFqn, "Count", MetricKind.Counter, resultType, returnsVoid, diagnostics);
             var histogram     = BuildPlainMetric(compilation, target, member, HistogramAttributeFqn, "Histogram", MetricKind.Histogram, resultType, returnsVoid, diagnostics);
@@ -744,7 +745,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
 
         if (traceName is null)
         {
-            var hasParamTag = parameters.Any(p => p.TagName is not null);
+            var hasParamTag = parameters.Any(p => p.Tags.Count > 0);
             if (hasParamTag)
             {
                 diagnostics.Add(DiagnosticInfo.Create(
@@ -790,30 +791,38 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         Compilation compilation,
         IMethodSymbol method,
         bool untraced,
+        HashSet<string>? spanTags,
         ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         var ps = method.Parameters;
         var result = new ParameterModel[ps.Length];
         for (var i = 0; i < ps.Length; i++)
         {
-            var (tagName, member, attr) = GetTraceTag(ps[i]);
-            var tag = tagName is null || untraced
-                ? default
-                : ResolveParameterTag(compilation, method, ps[i], member, attr!, diagnostics);
-            if (tag.Dropped)
-                tagName = null;
+            var tags = ImmutableArray.CreateBuilder<TraceTagModel>();
+            foreach (var (tagName, member, attr) in GetTraceTags(ps[i]))
+            {
+                // Without [Trace] nothing is resolved or emitted; the tag is kept for ZTEL004.
+                if (untraced)
+                {
+                    tags.Add(new TraceTagModel(tagName, null, false, false));
+                    continue;
+                }
 
-            var accessSuffix = tag.AccessSuffix;
-            var needsCopy = tag.NeedsCopy;
-            var canBeNull = tag.Resolved ? tag.CanBeNull : PathResolver.CanBeNull(ps[i].Type);
+                var tag = ResolveParameterTag(compilation, method, ps[i], member, attr, diagnostics);
+                if (tag.Dropped || !ClaimSpanTag(spanTags, attr, method, "TraceTag", tagName, diagnostics))
+                    continue;
+
+                tags.Add(new TraceTagModel(
+                    tagName,
+                    tag.AccessSuffix,
+                    tag.NeedsCopy,
+                    tag.Resolved ? tag.CanBeNull : PathResolver.CanBeNull(ps[i].Type)));
+            }
 
             result[i] = new ParameterModel(
                 ps[i].Type.ToDisplayString(TypeFormat),
                 ps[i].Name,
-                tagName,
-                accessSuffix,
-                needsCopy,
-                canBeNull,
+                new EquatableArray<TraceTagModel>(tags.ToImmutable()),
                 ProxyMembers.Modifier(ps[i]),
                 ProxyMembers.ArgumentModifier(ps[i]),
                 ps[i].RefKind == RefKind.Out,
@@ -878,27 +887,24 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         return new ParameterTag(false, true, path.Access, path.Access!.StartsWith("?.", StringComparison.Ordinal), path.CanBeNull);
     }
 
-    private static (string? Name, string? Member, AttributeData? Attribute) GetTraceTag(IParameterSymbol parameter)
+    /// <summary>Every <c>[TraceTag]</c> on the parameter with a name, in attribute order.</summary>
+    private static IEnumerable<(string Name, string? Member, AttributeData Attribute)> GetTraceTags(IParameterSymbol parameter)
     {
         foreach (var attr in parameter.GetAttributes())
         {
             if (!string.Equals(attr.AttributeClass?.ToDisplayString(), TraceTagAttributeFqn, StringComparison.Ordinal))
                 continue;
 
-            if (attr.ConstructorArguments.Length == 0)
+            if (attr.ConstructorArguments.Length == 0 || attr.ConstructorArguments[0].Value is not string name)
                 continue;
-
-            var name = attr.ConstructorArguments[0].Value as string;
 
             // Second positional argument is the optional member path.
             var member = attr.ConstructorArguments.Length > 1
                 ? attr.ConstructorArguments[1].Value as string
                 : null;
 
-            return (name, member, attr);
+            yield return (name, member, attr);
         }
-
-        return (null, null, null);
     }
 
     private static ResultTagModel[] BuildResultTags(
@@ -1097,8 +1103,15 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
     private static Location MethodLocation(IMethodSymbol method) =>
         method.Locations.FirstOrDefault() ?? Location.None;
 
+    /// <param name="spanTags">
+    /// The tag names already set on the span, to report ZTEL026; null without <c>[Trace]</c>, where
+    /// ZTEL004 already reports that no tag is set.
+    /// </param>
     private static ConstantTagModel[] BuildConstantTags(
-        INamedTypeSymbol target, IMethodSymbol method, ImmutableArray<DiagnosticInfo>.Builder diagnostics)
+        INamedTypeSymbol target,
+        IMethodSymbol method,
+        HashSet<string>? spanTags,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         List<ConstantTagModel>? tags = null;
         foreach (var attr in method.GetAttributes())
@@ -1120,6 +1133,9 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                 continue;
             }
 
+            if (!ClaimSpanTag(spanTags, attr, method, "TraceTagConstant", name!, diagnostics))
+                continue;
+
             (tags ??= new List<ConstantTagModel>()).Add(new ConstantTagModel(name!, literal));
         }
 
@@ -1133,6 +1149,28 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             InstrumentDiagnostics.UnsupportedConstantTagValue,
             AttributeLocations.Positional(attr, 1, "value", MethodLocation(method)),
             shortName, name, target.ToDisplayString(), method.Name);
+
+    /// <summary>
+    /// Claims <paramref name="name"/> on the span. False, having reported ZTEL026 at the tag name,
+    /// when an earlier tag of the method already set it.
+    /// </summary>
+    private static bool ClaimSpanTag(
+        HashSet<string>? spanTags,
+        AttributeData attr,
+        IMethodSymbol method,
+        string shortName,
+        string name,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
+    {
+        if (spanTags is null || spanTags.Add(name))
+            return true;
+
+        diagnostics.Add(DiagnosticInfo.Create(
+            InstrumentDiagnostics.DuplicateSpanTag,
+            AttributeLocations.Positional(attr, 0, "name", MethodLocation(method)),
+            shortName, name, method.ContainingType.Name, method.Name));
+        return false;
+    }
 
     private static string? GetAttributeFirstArg(IMethodSymbol method, string attributeFqn)
     {

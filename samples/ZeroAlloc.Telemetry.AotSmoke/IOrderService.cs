@@ -30,7 +30,9 @@ public interface IOrderService
     // tags passed to the sampler.
     [Trace("decide {customerId}", Kind = ActivityKind.Client, ErrorWhen = "IsRejected", ErrorDescription = "Reason", TagsAtStart = true)]
     [TraceTagConstant("order.channel", "web")]
-    ValueTask<OrderDecision> DecideAsync([TraceTag("order.customer")] string customerId, CancellationToken ct);
+    ValueTask<OrderDecision> DecideAsync(
+        [TraceTag("order.customer")] [TraceTag("order.customer.length", "Length")] string customerId,
+        CancellationToken ct);
 
     // Member shapes (#173): an out parameter, a span on an awaitable method, and a property.
     [Trace("order.find")]

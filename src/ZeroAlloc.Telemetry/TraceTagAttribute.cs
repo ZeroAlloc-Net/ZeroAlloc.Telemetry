@@ -18,6 +18,12 @@ namespace ZeroAlloc.Telemetry;
 /// Requires <see cref="TraceAttribute"/> on the same method. Without a span there is nothing to
 /// tag, so the generator reports <c>ZTEL004</c> rather than silently dropping the tag.
 /// </para>
+/// <para>
+/// May be applied more than once, to record several members of one argument, such as
+/// <c>server.address</c> and <c>server.port</c> from one <c>Uri</c>. Two tags with one name on a
+/// span, from any <c>[TraceTag]</c> or <c>[TraceTagConstant]</c> of the method, are reported as
+/// <c>ZTEL026</c>, and the later one is not set.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -28,7 +34,7 @@ namespace ZeroAlloc.Telemetry;
 ///     CancellationToken ct);
 /// </code>
 /// </example>
-[AttributeUsage(AttributeTargets.Parameter)]
+[AttributeUsage(AttributeTargets.Parameter, AllowMultiple = true)]
 public sealed class TraceTagAttribute : Attribute
 {
     /// <summary>The tag key written to the span.</summary>
