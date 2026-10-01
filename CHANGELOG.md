@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.9.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.8.0...v1.9.0) (2026-10-01)
+
+
+### Features
+
+* metric conventions for histogram units, buckets, tags and elements ([#177](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/177)) ([4067f95](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/4067f95515a42ab0ddc6612983fbe4e91b2a41af)), closes [#171](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/171)
+* span kind, error status, parameter name tokens and tags at start ([#178](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/178)) ([f46f92c](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/f46f92c215d83d4f57ef36017f889734033666f2)), closes [#170](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/170)
+* stop generated awaits capturing the context, and version source and meter ([#179](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/179)) ([f1a7be4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/f1a7be4ecdb150b573d5fc10208b6bda863aaceb)), closes [#172](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/172)
+
+
+### Bug Fixes
+
+* emit type parameters and constraints on generic proxy methods ([#174](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/174)) ([1c90011](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/1c90011d332b5736011e663659312caa220181eb)), closes [#168](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/168)
+* every interface member shape compiles in the proxy or is reported ([#180](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/180)) ([c8bc16f](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/c8bc16f46039917cfc6967ea6a2b95339e05a64a)), closes [#173](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/173)
+
+
+### Performance
+
+* return the inner task when nothing listens to an awaitable method ([#176](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/176)) ([df10380](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/df10380909cdf771f233a9e4ca7c4b762f0e5ba7))
+
 ## [1.8.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.7.0...v1.8.0) (2026-09-30)
 
 
