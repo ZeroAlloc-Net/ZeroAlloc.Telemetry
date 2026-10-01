@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.10.0...v1.11.0) (2026-10-01)
+
+
+### Features
+
+* set error.type on the exception path and allow omitting the exception message ([#186](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/186)) ([82af52d](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/82af52ddeb0f885ab1333a7c88029024e9b78d24)), closes [#184](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/184)
+
 ## [1.10.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.9.0...v1.10.0) (2026-10-01)
 
 
