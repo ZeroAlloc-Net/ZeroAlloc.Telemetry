@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.11.0...v1.12.0) (2026-10-10)
+
+
+### Features
+
+* mark ZeroAlloc.Telemetry as AOT-compatible ([#192](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/192)) ([887e315](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/887e3153f1cb5bea27cd092078ff0c54adacaf88))
+
 ## [1.11.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.10.0...v1.11.0) (2026-10-01)
 
 
