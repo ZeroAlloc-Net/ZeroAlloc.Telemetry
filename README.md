@@ -96,15 +96,15 @@ internal sealed class OrderServiceInstrumented : IOrderService
 
 ## Performance
 
-Head-to-head vs hand-written `ActivitySource` + `Meter` instrumentation (no-listeners profile, .NET 10.0.7, BenchmarkDotNet v0.15.4):
+Head-to-head vs hand-written `ActivitySource` + `Meter` instrumentation (no-listeners profile, .NET 10.0.12, BenchmarkDotNet v0.15.8):
 
 | Method | Time | Allocated |
 |---|---:|---:|
-| Direct call (no instrumentation) | 87 ns | 72 B |
-| Hand-written `ActivitySource` + `Counter` + `Histogram` | 201 ns | 72 B |
-| **ZA.Telemetry generated proxy** | **201 ns** | **72 B** |
+| Direct call (no instrumentation) | 3.2 ns | 0 B |
+| Hand-written `ActivitySource` + `Counter` + `Histogram` | 97.7 ns | 0 B |
+| **ZA.Telemetry generated proxy** | **14.6 ns** | **0 B** |
 
-ZA's generated code is **at parity with hand-written instrumentation** (within measurement noise). The value isn't faster instrumentation — it's eliminating the boilerplate so every `[Trace]` / `[Count]` / `[Histogram]`-annotated method gets the same try/finally pattern, with zero risk of forgetting to dispose an Activity or skipping a metric.
+Neither wrapper allocates. The generated proxy is faster than the straightforward hand-written wrapper because, with no listener and no enabled instrument, it returns the inner call's task as is instead of running the instrumented `async` path. And every `[Trace]` / `[Count]` / `[Histogram]`-annotated method gets the same pattern, with zero risk of forgetting to dispose an Activity or skipping a metric.
 
 Full methodology: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/blob/main/docs/performance.md).
 

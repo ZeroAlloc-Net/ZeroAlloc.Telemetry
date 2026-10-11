@@ -13,6 +13,9 @@ namespace ZeroAlloc.Telemetry.Benchmarks;
 //
 // The "no-listeners" path is the common production profile when tracing is sampled
 // away. Baseline: direct call on the underlying service.
+//
+// The benchmark methods return the ValueTask itself rather than awaiting it in an async Task
+// method, whose state machine and Task allocate 72 B per call and would hide what the proxy adds.
 [MemoryDiagnoser]
 [SimpleJob]
 public class InstrumentedProxyBenchmark
@@ -28,12 +31,12 @@ public class InstrumentedProxyBenchmark
     }
 
     [Benchmark(Baseline = true, Description = "direct")]
-    public async Task<int> Direct()
-        => await _direct.CreateAsync("cust-1", CancellationToken.None).ConfigureAwait(false);
+    public ValueTask<int> Direct()
+        => _direct.CreateAsync("cust-1", CancellationToken.None);
 
     [Benchmark(Description = "proxy (no listeners)")]
-    public async Task<int> Proxied()
-        => await _proxy.CreateAsync("cust-1", CancellationToken.None).ConfigureAwait(false);
+    public ValueTask<int> Proxied()
+        => _proxy.CreateAsync("cust-1", CancellationToken.None);
 }
 
 [Instrument("ZeroAlloc.Telemetry.Benchmarks")]

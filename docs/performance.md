@@ -86,24 +86,24 @@ Counter/histogram increments go through `Counter<long>.Add(...)` and `Histogram<
 
 **3. No `params object[]`**
 
-Tags, when present, are emitted as positional `TagList` struct values — allocated on the stack, never boxed. The generator knows the tag names and value types at compile time.
+Tags, when present, go into a `TagList` struct on the stack, never a `params` array or a dictionary, and the generator knows the tag names at compile time. A tag value is an `object?`, so a value-type tag value boxes; strings do not. That happens only when someone is listening: the tag list is built inside the check of the instrument's `Enabled` or the span's existence, so the unsampled path allocates nothing. See [what tags cost](attributes.md#what-tags-cost) for spans and [`[MetricTagFromResult]`](attributes.md#metrictagfromresult) for metrics.
 
 ## Head-to-head vs hand-written ActivitySource
 
 <!-- BENCH:START -->
-_Last refreshed: 2026-05-13_
+_Last refreshed: 2026-10-11_
 
 The realistic alternative to ZA.Telemetry's generator is hand-written `ActivitySource` + `Meter` wrapping — wrapping every instrumented method with `using var activity = source.StartActivity(...); counter.Add(1); histogram.Record(...)`. This benchmark compares the two in the no-listeners profile (the common production case after sampling).
 
-.NET 10.0.7, i9-12900HK, BenchmarkDotNet v0.15.4.
+.NET 10.0.12, i9-12900HK, BenchmarkDotNet v0.15.8. The benchmark methods return the service's `ValueTask<int>` directly, so the rows show only what each wrapper adds.
 
 | Method | Time | Allocated |
 |---|---:|---:|
-| Direct call (no instrumentation) | 87 ns | 72 B |
-| Hand-written `ActivitySource` + `Counter` + `Histogram` | 201 ns | 72 B |
-| **ZA.Telemetry generated proxy** | **201 ns** | **72 B** |
+| Direct call (no instrumentation) | 3.2 ns | 0 B |
+| Hand-written `ActivitySource` + `Counter` + `Histogram` | 97.7 ns | 0 B |
+| **ZA.Telemetry generated proxy** | **14.6 ns** | **0 B** |
 
-ZA.Telemetry's generator produces code **at parity with hand-written instrumentation** (within measurement noise; 0.04% delta). The 72 B in all three rows is the `Task<int>` allocation from the async/await pattern, not from instrumentation. Both wrappers add ~115 ns over the direct call in the no-listeners path — the `Activity.StartActivity` null-check, the `Counter.Add`, and the `Histogram.Record` — all unavoidable if you want the spans + metrics available when a sampler does subscribe.
+Neither wrapper allocates in the no-listeners path. The generated proxy adds about 11 ns over the direct call, against about 95 ns for the straightforward hand-written wrapper. The difference is the short-circuit described above: with no listener on the source and no instrument enabled, the proxy returns the inner `ValueTask` as is, while the hand-written version still runs its `async` state machine, takes two `Stopwatch` timestamps, and calls `Counter.Add` and `Histogram.Record` on instruments nobody is listening to. Hand-written code can do the same, but every method has to remember to.
 
 **The takeaway**: ZA.Telemetry's value isn't faster instrumentation than hand-writing it — it's eliminating the boilerplate so every instrumented method gets the same try/finally + counter + histogram pattern, with zero risk of forgetting to dispose an Activity or skipping a metric.
 <!-- BENCH:END -->
@@ -115,7 +115,14 @@ The [benchmarks/ZeroAlloc.Telemetry.Benchmarks](https://github.com/ZeroAlloc-Net
 - **Baseline**: direct call on the underlying `IOrderService` implementation
 - **Proxy (no listeners)**: the generator-emitted `OrderServiceInstrumented` with no `ActivityListener` subscribed — the production-common path when tracing is sampled away
 
-The claim to verify: the proxy path allocates `0 B/op` when no listener is attached, matching the baseline byte-for-byte. The latency delta measures pure Activity-source-null-check + Meter-add overhead.
+The claim to verify: the proxy path allocates `0 B/op` when no listener is attached, matching the baseline byte-for-byte. The latency delta measures the `HasListeners` and `Enabled` checks the proxy makes before handing the call to the inner service.
+
+Measured on 2026-10-11, .NET 10.0.12, i9-12900HK, BenchmarkDotNet v0.15.8:
+
+| Benchmark | Mean | Allocated |
+|---|---:|---:|
+| direct | 3.6 ns | 0 B |
+| proxy (no listeners) | 15.2 ns | 0 B |
 
 ### Run the benchmark
 
@@ -128,7 +135,7 @@ Results are written to `benchmarks/ZeroAlloc.Telemetry.Benchmarks/BenchmarkDotNe
 ### What to watch
 
 - **Allocated column**: both rows must read `0 B`. A regression here points at a new tag-capture path that escaped into a boxed value or dictionary.
-- **Ratio column**: the proxy row's Mean should stay within a small constant overhead (typically under 10 ns) over the baseline.
+- **Ratio column**: the proxy row's Mean should stay within a small constant overhead over the baseline, about 12 ns on the machine above.
 
 ## When listeners ARE subscribed
 
