@@ -16,6 +16,9 @@ namespace ZeroAlloc.Telemetry.Benchmarks;
 // returns null in that case; the counter increment is a single interlocked
 // add. The question is whether ZA's generated code adds overhead vs the
 // hand-rolled equivalent.
+//
+// The benchmark methods return the ValueTask itself rather than awaiting it in an async Task
+// method, whose state machine and Task allocate 72 B per call and would hide what the proxy adds.
 [MemoryDiagnoser]
 [SimpleJob]
 public class HandWrittenComparisonBenchmark
@@ -39,18 +42,18 @@ public class HandWrittenComparisonBenchmark
 
     [Benchmark(Baseline = true, Description = "Direct call (no instrumentation)")]
     [BenchmarkCategory("NoListeners")]
-    public async Task<int> Direct()
-        => await _direct.CreateAsync("cust-1", CancellationToken.None).ConfigureAwait(false);
+    public ValueTask<int> Direct()
+        => _direct.CreateAsync("cust-1", CancellationToken.None);
 
     [Benchmark(Description = "Hand-written ActivitySource + Counter")]
     [BenchmarkCategory("NoListeners")]
-    public async Task<int> HandWritten()
-        => await _handWritten.CreateAsync("cust-1", CancellationToken.None).ConfigureAwait(false);
+    public ValueTask<int> HandWritten()
+        => _handWritten.CreateAsync("cust-1", CancellationToken.None);
 
     [Benchmark(Description = "ZA.Telemetry generated proxy")]
     [BenchmarkCategory("NoListeners")]
-    public async Task<int> Za_Proxy()
-        => await _zaProxy.CreateAsync("cust-1", CancellationToken.None).ConfigureAwait(false);
+    public ValueTask<int> Za_Proxy()
+        => _zaProxy.CreateAsync("cust-1", CancellationToken.None);
 
     // The hand-written equivalent of what ZA.Telemetry's generator emits:
     // start an Activity, increment a counter, record a histogram, dispose.
