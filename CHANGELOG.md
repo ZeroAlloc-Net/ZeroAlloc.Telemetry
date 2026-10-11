@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.12.0...v1.12.1) (2026-10-11)
+
+
+### Documentation
+
+* measure the instrumented proxy without the benchmark's own Task ([#195](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/195)) ([0a57839](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/0a5783937f74a9fd7fe82f54cd0454b1c4af2e9c)), closes [#194](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/194)
+
 ## [1.12.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.11.0...v1.12.0) (2026-10-10)
 
 
