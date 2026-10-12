@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.12.1...v1.12.2) (2026-10-12)
+
+
+### Refactoring
+
+* remove NetFabric.Hyperlinq.Analyzer and its suppressions ([#198](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/198)) ([f4c2790](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/f4c27905a2ef13851d792288852c72f41a71716e))
+
 ## [1.12.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.12.0...v1.12.1) (2026-10-11)
 
 
