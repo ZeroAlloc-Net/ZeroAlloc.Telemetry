@@ -1,9 +1,8 @@
 using System.Diagnostics;
 using ZeroAlloc.Telemetry;
 
-// xUnit's Assert.Single is not LINQ's Single; ConfigureAwait is irrelevant in xUnit tests and
-// prohibited by xUnit1030 in async test methods.
-#pragma warning disable HLQ005, MA0004
+// ConfigureAwait is irrelevant in xUnit tests and prohibited by xUnit1030 in async test methods.
+#pragma warning disable MA0004
 
 namespace ZeroAlloc.Telemetry.Tests;
 
