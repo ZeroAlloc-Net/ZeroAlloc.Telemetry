@@ -2,7 +2,7 @@
 
 [![NuGet](https://img.shields.io/nuget/v/ZeroAlloc.Telemetry.svg)](https://www.nuget.org/packages/ZeroAlloc.Telemetry)
 [![Build](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/actions/workflows/ci.yml/badge.svg)](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/blob/main/LICENSE)
 [![AOT](https://img.shields.io/badge/AOT--Compatible-passing-brightgreen)](https://learn.microsoft.com/dotnet/core/deploying/native-aot/)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/MarcelRoozekrans?style=flat&logo=githubsponsors&color=ea4aaa&label=Sponsor)](https://github.com/sponsors/MarcelRoozekrans)
 
@@ -118,6 +118,11 @@ Full methodology: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAll
 | `[CountFromResult("metric", "Member")]` | `Counter<long>.Add(value)` | After a successful call, when the member is not null |
 | `[HistogramFromResult("metric", "Member")]` | `Histogram<double>.Record(value)` | After a successful call, when the member is not null |
 | `[MetricTagFromResult("tag", "Member")]` | A tag on the method's metrics | With each measurement, when a listener has enabled the instrument |
+| `[MetricTag("tag")]` on a parameter | The argument, or a member of it, as a tag on the method's metrics | With each measurement, when a listener has enabled the instrument |
+| `[MetricTagConstant("tag", value)]` | A constant tag on the method's metrics | With each measurement, when a listener has enabled the instrument |
+| `[TraceTag("tag")]` on a parameter | `Activity.SetTag` with the argument, or a member of it | Right after the span starts |
+| `[TraceTagFromResult("tag")]` | `Activity.SetTag` with the return value, or a member of it | After the call returns |
+| `[TraceTagConstant("tag", value)]` | `Activity.SetTag` with a constant | Right after the span starts, before the argument tags |
 
 **Metrics from the result.** `[CountFromResult]` and `[HistogramFromResult]` record a value carried by the return value, such as tokens consumed or a confidence score. `When = "IsSuccess"` on any metric records it only when the result says the call succeeded, so a failed `Result<T, E>` is no longer counted as a success. `Unit` and `Description` pass through to the instrument. `[MetricTagFromResult]` adds a dimension read from the result, such as the versioned model id, to every metric the method records, or with `Metric = "name"` to one. The tags are only built when a listener has enabled the instrument, so an unobserved call still allocates nothing.
 
@@ -128,7 +133,7 @@ Full methodology: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAll
 | `ZeroAlloc.Telemetry` | Attributes + bundled generator | `net8.0;net9.0;net10.0` |
 | `ZeroAlloc.Telemetry.Generator` | Roslyn source generator (standalone) | `netstandard2.0` |
 
-The generator is bundled inside `ZeroAlloc.Telemetry` as an analyzer. Install `ZeroAlloc.Telemetry.Generator` separately only if you need the generator without the attribute assembly.
+The generator is bundled inside `ZeroAlloc.Telemetry` as an analyzer, so a single `ZeroAlloc.Telemetry` reference is all you need. The standalone `ZeroAlloc.Telemetry.Generator` package is still published for existing direct references; on its own it does nothing, because it only reacts to the `[Instrument]` attribute from `ZeroAlloc.Telemetry`.
 
 ## AOT Safety
 
@@ -141,11 +146,11 @@ Full docs at [telemetry.zeroalloc.net](https://telemetry.zeroalloc.net).
 | Page | Description |
 |---|---|
 | [Getting Started](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/blob/main/docs/getting-started.md) | Install and instrument your first interface |
-| [Attribute Reference](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/blob/main/docs/attributes.md) | `[Instrument]`, `[Trace]`, `[Count]`, `[Histogram]`, `[CountFromResult]`, `[HistogramFromResult]`, `[TraceTag]`, `[TraceTagFromResult]`, `[TraceTagConstant]` |
+| [Attribute Reference](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/blob/main/docs/attributes.md) | `[Instrument]`, `[Trace]`, `[Count]`, `[Histogram]`, `[CountFromResult]`, `[HistogramFromResult]`, `[MetricTagFromResult]`, `[MetricTag]`, `[MetricTagConstant]`, `[TraceTag]`, `[TraceTagFromResult]`, `[TraceTagConstant]` |
 | [Source Generator](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/blob/main/docs/source-generator.md) | What the generator emits — input/output examples |
 | [Testing](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/blob/main/docs/testing.md) | Assert spans and metrics with BCL listeners |
 | [AOT & Trimming](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/blob/main/docs/aot.md) | Native AOT compatibility |
 
 ## License
 
-MIT
+MIT — see [LICENSE](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/blob/main/LICENSE).
