@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.12.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.12.2...v1.12.3) (2026-10-15)
+
+
+### Documentation
+
+* list every attribute and use absolute links in the README ([#203](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/203)) ([bdfe403](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/bdfe403ead27e65360bc198fa69e809cf22cab0c))
+
+
+### Tests
+
+* move hand-rolled allocation checks onto AllocationGate ([#205](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/205)) ([28c568d](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/28c568df1b3fda4c1662feb8851b4b1a002264a5)), closes [#202](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/202)
+
 ## [1.12.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.12.1...v1.12.2) (2026-10-12)
 
 
