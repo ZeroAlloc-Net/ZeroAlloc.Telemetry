@@ -2,7 +2,7 @@
 id: attributes
 title: Attribute Reference
 slug: /docs/attributes
-description: Reference for [Instrument], [Trace], [Count], [Histogram], [CountFromResult], [HistogramFromResult], [TraceTag], [TraceTagFromResult], and [TraceTagConstant] — the attributes in ZeroAlloc.Telemetry.
+description: Reference for [Instrument], [Trace], [Count], [Histogram], [CountFromResult], [HistogramFromResult], [MetricTagFromResult], [MetricTag], [MetricTagConstant], [TraceTag], [TraceTagFromResult], and [TraceTagConstant] — the attributes in ZeroAlloc.Telemetry.
 sidebar_position: 3
 ---
 
