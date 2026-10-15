@@ -1,3 +1,5 @@
+using ZeroAlloc.TestHelpers;
+
 namespace ZeroAlloc.Telemetry.Generated.Tests;
 
 /// <summary>
@@ -20,16 +22,9 @@ public sealed class MetricTagAllocationTests
             Result = ModelResult.Success(new ModelReply { Model = "gpt-9-2026-09", Tokens = 12, Shard = 3 }),
         });
 
-        // Warm up: JIT, static field initialisation and instrument creation all allocate once.
-        for (var i = 0; i < 100; i++)
-            proxy.Complete("hi");
-
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 1_000; i++)
-            proxy.Complete("hi");
-        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-
-        allocated.Should().Be(0);
+        // The gate's warmup takes the one-off allocations: JIT, static field initialisation and
+        // instrument creation.
+        AllocationGate.AssertBudget(0, 1_000, () => proxy.Complete("hi"), "tagged call with no listener");
     }
 
     /// <summary>

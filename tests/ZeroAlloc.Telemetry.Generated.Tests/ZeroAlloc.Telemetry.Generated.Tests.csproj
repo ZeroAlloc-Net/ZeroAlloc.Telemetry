@@ -8,6 +8,7 @@
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1" PrivateAssets="all" />
     <PackageReference Include="AwesomeAssertions" Version="9.6.0" />
+    <PackageReference Include="ZeroAlloc.TestHelpers" Version="1.7.*" PrivateAssets="all" IncludeAssets="contentfiles;build" />
     <ProjectReference Include="..\..\src\ZeroAlloc.Telemetry\ZeroAlloc.Telemetry.csproj" />
     <!-- The attribute project's own generator reference is PrivateAssets and does not flow, so
          the proxies here come from this reference, as they would for a consumer. -->

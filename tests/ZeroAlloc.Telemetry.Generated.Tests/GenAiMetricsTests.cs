@@ -1,4 +1,5 @@
 using System.Diagnostics.Metrics;
+using ZeroAlloc.TestHelpers;
 
 namespace ZeroAlloc.Telemetry.Generated.Tests;
 
@@ -11,6 +12,10 @@ public sealed class GenAiMetricsTests
 {
     private const string Duration = "gen_ai.client.operation.duration";
     private const string TokenUsage = "gen_ai.client.token.usage";
+    private const int Calls = 1_000;
+
+    // AllocationGate.AssertBudget calls the action twice to warm up before it measures.
+    private const int WarmupCalls = 2;
 
     [Fact]
     public async Task Duration_IsRecordedInSeconds_WithItsBucketAdvice()
@@ -70,9 +75,8 @@ public sealed class GenAiMetricsTests
     public void PerElementHistogram_WithNoListener_AllocatesNothing()
     {
         var proxy = new GenAiClientInstrumented(new GenAiClient());
-        Measure(proxy, 100);
 
-        Measure(proxy, 1_000).Should().Be(0);
+        AllocationGate.AssertBudget(0, Calls, () => proxy.Measure("text-embedding-9"), "per-element histogram with no listener");
     }
 
     /// <summary>
@@ -93,18 +97,10 @@ public sealed class GenAiMetricsTests
         listener.Start();
 
         var proxy = new GenAiClientInstrumented(new GenAiClient());
-        Measure(proxy, 100);
-        recorded = 0;
 
-        Measure(proxy, 1_000).Should().Be(0);
-        recorded.Should().Be(2_000);
-    }
+        AllocationGate.AssertBudget(0, Calls, () => proxy.Measure("text-embedding-9"), "per-element histogram with a listener");
 
-    private static long Measure(GenAiClientInstrumented proxy, int calls)
-    {
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < calls; i++)
-            proxy.Measure("text-embedding-9");
-        return GC.GetAllocatedBytesForCurrentThread() - before;
+        // Two elements per call, over the gate's warmup calls and the measured ones.
+        recorded.Should().Be(2 * (WarmupCalls + Calls));
     }
 }

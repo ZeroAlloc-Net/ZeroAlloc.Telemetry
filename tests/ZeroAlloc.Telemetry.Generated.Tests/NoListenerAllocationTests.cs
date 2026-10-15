@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using ZeroAlloc.TestHelpers;
 
 namespace ZeroAlloc.Telemetry.Generated.Tests;
 
@@ -16,22 +17,25 @@ public sealed class NoListenerAllocationTests
 {
     private const int Calls = 1_000;
 
+    // AllocationGate.AssertBudget calls the action twice to warm up before it measures.
+    private const int WarmupCalls = 2;
+
+    // The synchronous gate on purpose: the returned tasks stay pending until the test completes
+    // them, so what is measured is the proxy call itself, which runs on this thread. An async gate
+    // would await each call and never return.
+
     [Fact]
     public async Task Task_WithNoListener_AddsNoAllocation()
     {
         var inner = new PendingService();
         var proxy = new PendingServiceInstrumented(inner);
-        var tasks = new Task[Calls];
+        var tasks = new Task[WarmupCalls + Calls];
+        var next = 0;
 
-        for (var i = 0; i < 100; i++)
-            _ = proxy.RunAsync(i);
+        AllocationGate.AssertBudget(
+            0, Calls, () => tasks[next] = proxy.RunAsync(next++), "PendingServiceInstrumented.RunAsync with no listener");
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < Calls; i++)
-            tasks[i] = proxy.RunAsync(i);
-        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-
-        allocated.Should().Be(0);
+        next.Should().Be(tasks.Length);
         tasks.Should().OnlyContain(t => !t.IsCompleted);
         inner.Complete(1);
         await Task.WhenAll(tasks).ConfigureAwait(true);
@@ -42,17 +46,13 @@ public sealed class NoListenerAllocationTests
     {
         var inner = new PendingService();
         var proxy = new PendingServiceInstrumented(inner);
-        var tasks = new ValueTask[Calls];
+        var tasks = new ValueTask[WarmupCalls + Calls];
+        var next = 0;
 
-        for (var i = 0; i < 100; i++)
-            _ = proxy.StepAsync(i);
+        AllocationGate.AssertBudget(
+            0, Calls, () => tasks[next] = proxy.StepAsync(next++), "PendingServiceInstrumented.StepAsync with no listener");
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < Calls; i++)
-            tasks[i] = proxy.StepAsync(i);
-        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-
-        allocated.Should().Be(0);
+        next.Should().Be(tasks.Length);
         inner.Complete(1);
         foreach (var task in tasks)
             await task.ConfigureAwait(true);
@@ -63,17 +63,13 @@ public sealed class NoListenerAllocationTests
     {
         var inner = new PendingService();
         var proxy = new PendingServiceInstrumented(inner);
-        var tasks = new ValueTask<int>[Calls];
+        var tasks = new ValueTask<int>[WarmupCalls + Calls];
+        var next = 0;
 
-        for (var i = 0; i < 100; i++)
-            _ = proxy.ReadAsync(i);
+        AllocationGate.AssertBudget(
+            0, Calls, () => tasks[next] = proxy.ReadAsync(next++), "PendingServiceInstrumented.ReadAsync with no listener");
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < Calls; i++)
-            tasks[i] = proxy.ReadAsync(i);
-        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-
-        allocated.Should().Be(0);
+        next.Should().Be(tasks.Length);
         inner.Complete(42);
         foreach (var task in tasks)
             (await task.ConfigureAwait(true)).Should().Be(42);

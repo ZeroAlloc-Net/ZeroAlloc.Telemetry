@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using ZeroAlloc.TestHelpers;
 
 namespace ZeroAlloc.Telemetry.Generated.Tests;
 
@@ -59,22 +60,11 @@ public sealed class GenAiSpanTests
         using var spans = new SpanCapture(ActivitySamplingResult.None);
         var proxy = new GenAiChatInstrumented(new GenAiChat());
 
-        var templated = Measure(() => proxy.Embed("text-embedding-9"));
-        var constant = Measure(() => proxy.EmbedPlain("text-embedding-9"));
+        var templated = AllocationGate.MeasureBytesPerCall(1_000, () => proxy.Embed("text-embedding-9"));
+        var constant = AllocationGate.MeasureBytesPerCall(1_000, () => proxy.EmbedPlain("text-embedding-9"));
 
         templated.Should().Be(constant);
         spans.Stopped.Should().BeEmpty();
-    }
-
-    private static long Measure(Func<int> call)
-    {
-        for (var i = 0; i < 100; i++)
-            call();
-
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 1_000; i++)
-            call();
-        return GC.GetAllocatedBytesForCurrentThread() - before;
     }
 
     [Fact]
