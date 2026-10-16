@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.12.3...v1.12.4) (2026-10-16)
+
+
+### Documentation
+
+* rewrite the readme as a product page ([#208](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/208)) ([d0e18bd](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/d0e18bd2f42641fa36100622dee2d218763151a0))
+
 ## [1.12.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.12.2...v1.12.3) (2026-10-15)
 
 
