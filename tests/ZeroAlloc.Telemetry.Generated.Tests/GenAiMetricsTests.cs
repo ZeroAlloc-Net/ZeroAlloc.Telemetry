@@ -14,9 +14,6 @@ public sealed class GenAiMetricsTests
     private const string TokenUsage = "gen_ai.client.token.usage";
     private const int Calls = 1_000;
 
-    // AllocationGate.AssertBudget calls the action twice to warm up before it measures.
-    private const int WarmupCalls = 2;
-
     [Fact]
     public async Task Duration_IsRecordedInSeconds_WithItsBucketAdvice()
     {
@@ -97,10 +94,20 @@ public sealed class GenAiMetricsTests
         listener.Start();
 
         var proxy = new GenAiClientInstrumented(new GenAiClient());
+        long calls = 0;
 
-        AllocationGate.AssertBudget(0, Calls, () => proxy.Measure("text-embedding-9"), "per-element histogram with a listener");
+        AllocationGate.AssertBudget(
+            0,
+            Calls,
+            () =>
+            {
+                calls++;
+                proxy.Measure("text-embedding-9");
+            },
+            "per-element histogram with a listener");
 
-        // Two elements per call, over the gate's warmup calls and the measured ones.
-        recorded.Should().Be(2 * (WarmupCalls + Calls));
+        // Two elements per call, over every call the gate made, warmup included. Counted rather
+        // than assumed, because how many calls the gate makes is up to the gate.
+        recorded.Should().Be(2 * calls);
     }
 }

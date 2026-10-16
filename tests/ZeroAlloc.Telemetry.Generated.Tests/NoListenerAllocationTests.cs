@@ -17,9 +17,6 @@ public sealed class NoListenerAllocationTests
 {
     private const int Calls = 1_000;
 
-    // AllocationGate.AssertBudget calls the action twice to warm up before it measures.
-    private const int WarmupCalls = 2;
-
     // The synchronous gate on purpose: the returned tasks stay pending until the test completes
     // them, so what is measured is the proxy call itself, which runs on this thread. An async gate
     // would await each call and never return.
@@ -29,7 +26,7 @@ public sealed class NoListenerAllocationTests
     {
         var inner = new PendingService();
         var proxy = new PendingServiceInstrumented(inner);
-        var tasks = new Task[WarmupCalls + Calls];
+        var tasks = new Task[CountGateCalls()];
         var next = 0;
 
         AllocationGate.AssertBudget(
@@ -46,7 +43,7 @@ public sealed class NoListenerAllocationTests
     {
         var inner = new PendingService();
         var proxy = new PendingServiceInstrumented(inner);
-        var tasks = new ValueTask[WarmupCalls + Calls];
+        var tasks = new ValueTask[CountGateCalls()];
         var next = 0;
 
         AllocationGate.AssertBudget(
@@ -63,7 +60,7 @@ public sealed class NoListenerAllocationTests
     {
         var inner = new PendingService();
         var proxy = new PendingServiceInstrumented(inner);
-        var tasks = new ValueTask<int>[WarmupCalls + Calls];
+        var tasks = new ValueTask<int>[CountGateCalls()];
         var next = 0;
 
         AllocationGate.AssertBudget(
@@ -73,6 +70,16 @@ public sealed class NoListenerAllocationTests
         inner.Complete(42);
         foreach (var task in tasks)
             (await task.ConfigureAwait(true)).Should().Be(42);
+    }
+
+    // How many times AllocationGate.AssertBudget calls its action for Calls iterations: its warmup
+    // calls plus every call it measures, one task each. Counted rather than assumed, because the
+    // gate's warmup and number of measured windows are its own business and may change.
+    private static int CountGateCalls()
+    {
+        var calls = 0;
+        AllocationGate.AssertBudget(0, Calls, () => calls++, "counting the gate's calls");
+        return calls;
     }
 
     /// <summary>
