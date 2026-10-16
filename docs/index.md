@@ -19,7 +19,7 @@ Add `[Instrument]` to any interface and the generator emits a sealed proxy class
 | Page | Description |
 |---|---|
 | [Getting Started](getting-started.md) | Install and instrument your first interface |
-| [Attribute Reference](attributes.md) | `[Instrument]`, `[Trace]`, `[Count]`, `[Histogram]`, `[CountFromResult]`, `[HistogramFromResult]`, `[TraceTag]`, `[TraceTagFromResult]`, `[TraceTagConstant]` |
+| [Attribute Reference](attributes.md) | `[Instrument]`, `[Trace]`, `[Count]`, `[Histogram]`, `[CountFromResult]`, `[HistogramFromResult]`, `[MetricTagFromResult]`, `[MetricTag]`, `[MetricTagConstant]`, `[TraceTag]`, `[TraceTagFromResult]`, `[TraceTagConstant]` |
 | [Source Generator](source-generator.md) | What the generator emits — input/output examples |
 | [Testing](testing.md) | Assert spans and metrics with BCL listeners, no exporter needed |
 | [AOT & Trimming](aot.md) | Native AOT compatibility |
@@ -63,3 +63,9 @@ That's all. No OpenTelemetry SDK is required — `ActivitySource` and `Meter` ar
 | `[Histogram("metric")]` | `Histogram<double>` elapsed ms | Every call including on exception, tagged `error.type` there, unless `When` is set |
 | `[CountFromResult("metric", "Member")]` | `Counter<long>` adds the member's value | Success only, when the member is not null |
 | `[HistogramFromResult("metric", "Member")]` | `Histogram<double>` records the member's value | Success only, when the member is not null |
+| `[MetricTagFromResult("tag", "Member")]` | A tag on the method's metrics | With each measurement, when a listener has enabled the instrument |
+| `[MetricTag("tag")]` on a parameter | The argument, or a member of it, as a tag on the method's metrics | With each measurement, when a listener has enabled the instrument |
+| `[MetricTagConstant("tag", value)]` | A constant tag on the method's metrics | With each measurement, when a listener has enabled the instrument |
+| `[TraceTag("tag")]` on a parameter | `Activity.SetTag` with the argument, or a member of it | Right after the span starts |
+| `[TraceTagFromResult("tag")]` | `Activity.SetTag` with the return value, or a member of it | After the call returns |
+| `[TraceTagConstant("tag", value)]` | `Activity.SetTag` with a constant | Right after the span starts, before the argument tags |
