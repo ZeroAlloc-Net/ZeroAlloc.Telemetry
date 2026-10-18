@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.5](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.12.4...v1.12.5) (2026-10-18)
+
+
+### Tests
+
+* count the allocation gate's calls instead of assuming two warmups ([#217](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/217)) ([baf4b63](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/baf4b63887e1ede53117f2b28aac9acb90a7878e))
+
 ## [1.12.4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.12.3...v1.12.4) (2026-10-16)
 
 
