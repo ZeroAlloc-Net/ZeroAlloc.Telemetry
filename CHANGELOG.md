@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.6](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.12.5...v1.12.6) (2026-10-21)
+
+
+### Documentation
+
+* re-run the benchmarks pinned, with three launches ([#225](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/225)) ([46d41dc](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/46d41dcb3a91e507d533219e6db120ed1b6fb6c1))
+
 ## [1.12.5](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.12.4...v1.12.5) (2026-10-18)
 
 
