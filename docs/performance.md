@@ -91,19 +91,20 @@ Tags, when present, go into a `TagList` struct on the stack, never a `params` ar
 ## Head-to-head vs hand-written ActivitySource
 
 <!-- BENCH:START -->
-_Last refreshed: 2026-10-11_
+_Last refreshed: 2026-10-21_
 
 The realistic alternative to ZA.Telemetry's generator is hand-written `ActivitySource` + `Meter` wrapping — wrapping every instrumented method with `using var activity = source.StartActivity(...); counter.Add(1); histogram.Record(...)`. This benchmark compares the two in the no-listeners profile (the common production case after sampling).
 
-.NET 10.0.12, i9-12900HK, BenchmarkDotNet v0.15.8. The benchmark methods return the service's `ValueTask<int>` directly, so the rows show only what each wrapper adds.
+.NET 10.0.13, BenchmarkDotNet v0.15.8, Windows 11 on an otherwise idle i9-12900HK; out of process, three launches, pinned to two performance cores. The benchmark methods return the service's `ValueTask<int>` directly, so the rows show only what each wrapper adds.
 
-| Method | Time | Allocated |
-|---|---:|---:|
-| Direct call (no instrumentation) | 3.2 ns | 0 B |
-| Hand-written `ActivitySource` + `Counter` + `Histogram` | 97.7 ns | 0 B |
-| **ZA.Telemetry generated proxy** | **14.6 ns** | **0 B** |
+> Allocations are exact. Speed is shown as same-run ratios; absolute timings are not published.
 
-Neither wrapper allocates in the no-listeners path. The generated proxy adds about 11 ns over the direct call, against about 95 ns for the straightforward hand-written wrapper. The difference is the short-circuit described above: with no listener on the source and no instrument enabled, the proxy returns the inner `ValueTask` as is, while the hand-written version still runs its `async` state machine, takes two `Stopwatch` timestamps, and calls `Counter.Add` and `Histogram.Record` on instruments nobody is listening to. Hand-written code can do the same, but every method has to remember to.
+| Method | Time vs ZA proxy | Launch range | Allocated |
+|---|---:|---:|---:|
+| Hand-written `ActivitySource` + `Counter` + `Histogram` | **7.51×** | 7.47–7.59 | 0 B |
+| **ZA.Telemetry generated proxy** | **1.00** | | **0 B** |
+
+Neither wrapper allocates in the no-listeners path. Against the uninstrumented direct call, which takes well under a nanosecond, the proxy takes 8.1 times as long and the hand-written wrapper 61 times. The difference is the short-circuit described above: with no listener on the source and no instrument enabled, the proxy returns the inner `ValueTask` as is, while the hand-written version still runs its `async` state machine, takes two `Stopwatch` timestamps, and calls `Counter.Add` and `Histogram.Record` on instruments nobody is listening to. Hand-written code can do the same, but every method has to remember to.
 
 **The takeaway**: ZA.Telemetry's value isn't faster instrumentation than hand-writing it — it's eliminating the boilerplate so every instrumented method gets the same try/finally + counter + histogram pattern, with zero risk of forgetting to dispose an Activity or skipping a metric.
 <!-- BENCH:END -->
@@ -117,17 +118,17 @@ The [benchmarks/ZeroAlloc.Telemetry.Benchmarks](https://github.com/ZeroAlloc-Net
 
 The claim to verify: the proxy path allocates `0 B/op` when no listener is attached, matching the baseline byte-for-byte. The latency delta measures the `HasListeners` and `Enabled` checks the proxy makes before handing the call to the inner service.
 
-Measured on 2026-10-11, .NET 10.0.12, i9-12900HK, BenchmarkDotNet v0.15.8:
+Measured in the same run as the comparison above:
 
-| Benchmark | Mean | Allocated |
+| Benchmark | Ratio | Allocated |
 |---|---:|---:|
-| direct | 3.6 ns | 0 B |
-| proxy (no listeners) | 15.2 ns | 0 B |
+| direct | 1.00 | 0 B |
+| proxy (no listeners) | 7.07 | 0 B |
 
 ### Run the benchmark
 
 ```bash
-dotnet run --project benchmarks/ZeroAlloc.Telemetry.Benchmarks -c Release --filter "*"
+dotnet run --project benchmarks/ZeroAlloc.Telemetry.Benchmarks -c Release -- --filter "*" --launchCount 3
 ```
 
 Results are written to `benchmarks/ZeroAlloc.Telemetry.Benchmarks/BenchmarkDotNet.Artifacts/results/`.
@@ -135,7 +136,7 @@ Results are written to `benchmarks/ZeroAlloc.Telemetry.Benchmarks/BenchmarkDotNe
 ### What to watch
 
 - **Allocated column**: both rows must read `0 B`. A regression here points at a new tag-capture path that escaped into a boxed value or dictionary.
-- **Ratio column**: the proxy row's Mean should stay within a small constant overhead over the baseline, about 12 ns on the machine above.
+- **Ratio column**: the proxy should stay a small constant overhead over the baseline. Because the direct call takes well under a nanosecond, the ratio is large and moves with the machine; compare it within one session.
 
 ## When listeners ARE subscribed
 
