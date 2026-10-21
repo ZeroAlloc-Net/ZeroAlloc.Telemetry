@@ -12,7 +12,7 @@ Put `[Instrument]` on an interface and get OpenTelemetry spans and metrics for e
 ## Why ZeroAlloc.Telemetry
 
 - **0 B per call when nothing listens**, the common production case after sampling. Tests assert it for `Task`, `ValueTask` and `ValueTask<T>` methods, tagged metrics included.
-- **6.7× faster than a straightforward hand-written `ActivitySource` + `Meter` wrapper** with no listener attached, measured in the same run: the proxy skips the instrumented path entirely until something subscribes.
+- **7.5× faster than a straightforward hand-written `ActivitySource` + `Meter` wrapper** with no listener attached, measured in the same run: the proxy skips the instrumented path entirely until something subscribes.
 - **Works under NativeAOT and trimming.** Plain generated code over BCL `ActivitySource` and `Meter`, no reflection and no `params object[]`; CI publishes a NativeAOT app.
 - **Mistakes surface at compile time.** A result member that is not numeric, or a metric attribute on an interface without `[Instrument]`, is a compiler diagnostic.
 
@@ -74,13 +74,13 @@ In an application, register the proxy in DI in place of the implementation, and 
 
 ## Performance
 
-No listener attached, the production case after sampling. .NET 10.0.12, i9-12900HK, BenchmarkDotNet v0.15.8. Time is relative to the uninstrumented call in the same run.
+No listener attached, the production case after sampling. .NET 10.0.13, BenchmarkDotNet v0.15.8. Time is relative to the uninstrumented call in the same run; allocations are exact.
 
 | Method | Time vs direct call | Allocated |
 |---|---:|---:|
 | Direct call, no instrumentation | 1× | 0 B |
-| Hand-written `ActivitySource` + `Counter` + `Histogram` | 30.5× | 0 B |
-| **ZA.Telemetry generated proxy** | **4.6×** | **0 B** |
+| Hand-written `ActivitySource` + `Counter` + `Histogram` | 60.6× | 0 B |
+| **ZA.Telemetry generated proxy** | **8.1×** | **0 B** |
 
 Neither wrapper allocates. The hand-written version still runs its `async` state machine, takes timestamps and calls instruments nobody listens to; the proxy checks for listeners and hands back the inner task as is. Hand-written code can do the same, but every method has to remember to. Methodology: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/blob/main/docs/performance.md).
 
