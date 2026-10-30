@@ -85,6 +85,11 @@ internal sealed class FieldsInstrumented : IFields
             _x_2.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
             return _result;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _x_2.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
+            throw;
+        }
         catch (Exception _ex)
         {
             if (_x_2.Enabled)
@@ -313,6 +318,11 @@ internal sealed class FieldsInstrumented : IFields
             var _result = await _inner.ResultAsync(ct).ConfigureAwait(false);
             _metric_result.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
             return _result;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _metric_result.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
+            throw;
         }
         catch (Exception _ex)
         {

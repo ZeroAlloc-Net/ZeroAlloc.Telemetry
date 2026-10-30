@@ -44,6 +44,12 @@ internal sealed class OrderServiceInstrumented : IOrderService
             _order_create_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
             return _result;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _activity?.SetTag("cancelled", true);
+            _order_create_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
+            throw;
+        }
         catch (Exception _ex)
         {
             _activity?.SetTag("error.type", _ex.GetType().FullName);

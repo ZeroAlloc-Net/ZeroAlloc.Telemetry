@@ -51,6 +51,11 @@ internal sealed class ChatInstrumented : IChat
                 _llm_cost.Record((double)_read2);
             return _result;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _activity?.SetTag("cancelled", true);
+            throw;
+        }
         catch (Exception _ex)
         {
             _activity?.SetTag("error.type", _ex.GetType().FullName);

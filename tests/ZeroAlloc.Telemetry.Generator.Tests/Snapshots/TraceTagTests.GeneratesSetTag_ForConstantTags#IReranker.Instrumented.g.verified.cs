@@ -44,6 +44,11 @@ internal sealed class RerankerInstrumented : IReranker
             var _result = await _inner.RerankAsync(ct).ConfigureAwait(false);
             return _result;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _activity?.SetTag("cancelled", true);
+            throw;
+        }
         catch (Exception _ex)
         {
             _activity?.SetTag("error.type", _ex.GetType().FullName);

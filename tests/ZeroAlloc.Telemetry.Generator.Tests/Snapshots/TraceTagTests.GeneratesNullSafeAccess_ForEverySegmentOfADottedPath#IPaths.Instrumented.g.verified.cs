@@ -41,6 +41,11 @@ internal sealed class PathsInstrumented : IPaths
             _activity?.SetTag("deep.count", _tagged?.Inner?.Items?.Count);
             return _result;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _activity?.SetTag("cancelled", true);
+            throw;
+        }
         catch (Exception _ex)
         {
             _activity?.SetTag("error.type", _ex.GetType().FullName);
@@ -82,6 +87,11 @@ internal sealed class PathsInstrumented : IPaths
             _activity?.SetTag("value.total", _tagged?.Total);
             _activity?.SetTag("value.width", _tagged?.Extent.Width);
             return _result;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _activity?.SetTag("cancelled", true);
+            throw;
         }
         catch (Exception _ex)
         {

@@ -73,6 +73,7 @@ public sealed class TraceAttribute : Attribute
     public string? ErrorDescription { get; set; }
     public bool TagsAtStart { get; set; }
     public bool ExceptionDescription { get; set; } = true;
+    public bool CancellationIsError { get; set; }
     public TraceAttribute(string name);
 }
 ```
@@ -85,6 +86,8 @@ public sealed class TraceAttribute : Attribute
 - Span is stopped automatically via `using` (disposed in `finally`).
 - On exception: `error.type` is set to the exception's full type name, the status to
   `ActivityStatusCode.Error` with the exception's message, then the exception is rethrown.
+- A call the caller cancelled is not an error; see
+  [A cancelled call is not an error](#a-cancelled-call-is-not-an-error).
 
 ```csharp
 [Trace("payment.charge")]
@@ -95,6 +98,11 @@ Generated:
 ```csharp
 using var _activity = _activitySource.StartActivity("payment.charge");
 try { ... }
+catch (OperationCanceledException) when (ct.IsCancellationRequested)
+{
+    _activity?.SetTag("cancelled", true);
+    throw;
+}
 catch (Exception _ex)
 {
     _activity?.SetTag("error.type", _ex.GetType().FullName);
@@ -102,6 +110,30 @@ catch (Exception _ex)
     throw;
 }
 ```
+
+### A cancelled call is not an error
+
+A client that hangs up or a request that is aborted cancels the call through its
+`CancellationToken`. That is not a failure of the operation, so it does not show up
+as one:
+
+- When the call throws an `OperationCanceledException` while one of the method's own
+  `CancellationToken` arguments is cancelled, the span keeps the `Unset` status and is
+  tagged `cancelled = true`. It gets no `error.type`.
+- An unguarded `[Histogram]` records the call without `error.type`.
+- The exception is rethrown.
+
+Any other cancellation is an error as before: a timeout inside the implementation while
+the caller's token is not cancelled, and every cancellation of a method that takes no
+token. `CancellationIsError = true` records a caller's cancellation as an error too:
+
+```csharp
+[Trace("job.run", CancellationIsError = true)]
+Task RunAsync(CancellationToken ct);
+```
+
+On a method with a `[Histogram]` but no `[Trace]`, a caller's cancellation is never an
+error.
 
 ### Keeping the exception message out of the span
 
@@ -352,7 +384,7 @@ public sealed class HistogramAttribute : Attribute
 
 Uses `Stopwatch.GetTimestamp()` before the call and `Stopwatch.GetElapsedTime(ts)` after, so the measurement includes the full method duration regardless of outcome.
 
-The point recorded for a call that throws is tagged `error.type` with the exception's full type name, so an error rate built on the histogram counts thrown calls. A `[MetricTagConstant]` or `[MetricTag]` named `error.type` that applies to the histogram takes its place. A `[MetricTagFromResult]` cannot, since a throw leaves no result.
+The point recorded for a call that throws is tagged `error.type` with the exception's full type name, so an error rate built on the histogram counts thrown calls. A call the caller cancelled is recorded without it; see [A cancelled call is not an error](#a-cancelled-call-is-not-an-error). A `[MetricTagConstant]` or `[MetricTag]` named `error.type` that applies to the histogram takes its place. A `[MetricTagFromResult]` cannot, since a throw leaves no result.
 
 `Unit` decides what is recorded, so the values match the unit the instrument declares:
 

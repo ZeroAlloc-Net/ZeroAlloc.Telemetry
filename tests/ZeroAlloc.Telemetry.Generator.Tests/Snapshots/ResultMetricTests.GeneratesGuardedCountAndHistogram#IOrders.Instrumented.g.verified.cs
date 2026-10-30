@@ -47,6 +47,11 @@ internal sealed class OrdersInstrumented : IOrders
                 _orders_accept_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
             return _result;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _activity?.SetTag("cancelled", true);
+            throw;
+        }
         catch (Exception _ex)
         {
             _activity?.SetTag("error.type", _ex.GetType().FullName);

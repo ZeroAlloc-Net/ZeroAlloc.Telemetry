@@ -978,6 +978,9 @@ internal static class ProxyWriter
         // evaluate it against. An unguarded one records on both paths, as it always has.
         var histogram = method.Histogram is { GuardExpression: null } h ? h : null;
 
+        if (method.TraceName is not null || histogram is not null)
+            WriteCallerCancellationCatch(sb, method, histogram, fields, ref tagLists, disposeSpan);
+
         // Declaring the variable when nothing reads it raises CS0168 in the generated file, and
         // that fails every consumer building with TreatWarningsAsErrors.
         sb.AppendLine(method.TraceName is not null || histogram is not null
@@ -1006,6 +1009,43 @@ internal static class ProxyWriter
         sb.AppendLine("            throw;");
         sb.AppendLine("        }");
     }
+
+    /// <summary>
+    /// Cancellation the caller asked for, through one of the method's own tokens, is not an error of
+    /// the operation. The span keeps its <c>Unset</c> status and is tagged <c>cancelled</c>, and the
+    /// unguarded histogram records the call without <c>error.type</c>. The exception is rethrown.
+    /// Nothing is emitted for a method without a token, or with <c>CancellationIsError = true</c>.
+    /// </summary>
+    private static void WriteCallerCancellationCatch(
+        StringBuilder sb, MethodModel method, MetricModel? histogram, MetricFieldTable fields, ref int tagLists, bool disposeSpan)
+    {
+        if (method.Trace is { CancellationIsError: true })
+            return;
+
+        var tokens = method.Parameters
+            .Where(static p => !p.IsOut && string.Equals(p.Type, CancellationTokenType, StringComparison.Ordinal))
+            .Select(static p => Id(p.Name) + ".IsCancellationRequested")
+            .ToList();
+        if (tokens.Count == 0)
+            return;
+
+        sb.AppendLine($"        catch (OperationCanceledException) when ({string.Join(" || ", tokens)})");
+        sb.AppendLine("        {");
+        if (method.TraceName is not null)
+            sb.AppendLine($"            _activity?.SetTag({Literal(CancelledTag)}, true);");
+        if (histogram is not null)
+            WriteMeasurement(sb, method, histogram, fields, null, Elapsed(histogram), root: null, ref tagLists);
+        if (disposeSpan && method.TraceName is not null)
+            sb.AppendLine("            _activity?.Dispose();");
+        sb.AppendLine("            throw;");
+        sb.AppendLine("        }");
+    }
+
+    /// <summary>A method parameter of this type is a token the caller cancels the call with.</summary>
+    private const string CancellationTokenType = "global::System.Threading.CancellationToken";
+
+    /// <summary>The span tag of a call the caller cancelled.</summary>
+    private const string CancelledTag = "cancelled";
 
     /// <summary>The semantic-conventions attribute naming the class of error an operation ended with.</summary>
     private const string ErrorTypeTag = "error.type";

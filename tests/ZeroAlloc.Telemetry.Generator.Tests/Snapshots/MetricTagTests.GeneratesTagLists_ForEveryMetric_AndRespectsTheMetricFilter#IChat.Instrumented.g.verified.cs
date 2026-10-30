@@ -75,6 +75,12 @@ internal sealed class ChatInstrumented : IChat
             }
             return _result;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _activity?.SetTag("cancelled", true);
+            _llm_duration.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
+            throw;
+        }
         catch (Exception _ex)
         {
             _activity?.SetTag("error.type", _ex.GetType().FullName);

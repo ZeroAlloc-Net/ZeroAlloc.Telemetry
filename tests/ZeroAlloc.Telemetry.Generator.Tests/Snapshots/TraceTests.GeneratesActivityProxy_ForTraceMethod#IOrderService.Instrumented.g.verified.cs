@@ -38,6 +38,11 @@ internal sealed class OrderServiceInstrumented : IOrderService
         {
             await _inner.CreateOrderAsync(orderId, ct).ConfigureAwait(false);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _activity?.SetTag("cancelled", true);
+            throw;
+        }
         catch (Exception _ex)
         {
             _activity?.SetTag("error.type", _ex.GetType().FullName);

@@ -136,6 +136,11 @@ private async ValueTask<OrderId> _core_CreateOrderAsync_0(CreateOrderCommand cmd
         _orders_created.Add(1);
         return _result;
     }
+    catch (OperationCanceledException) when (ct.IsCancellationRequested)
+    {
+        _activity?.SetTag("cancelled", true);
+        throw;
+    }
     catch (Exception _ex)
     {
         _activity?.SetTag("error.type", _ex.GetType().FullName);
@@ -169,6 +174,12 @@ private async ValueTask<Order> _core_GetOrderAsync_1(OrderId id, CancellationTok
         var _result = await _inner.GetOrderAsync(id, ct).ConfigureAwait(false);
         _order_get_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
         return _result;
+    }
+    catch (OperationCanceledException) when (ct.IsCancellationRequested)
+    {
+        _activity?.SetTag("cancelled", true);
+        _order_get_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
+        throw;
     }
     catch (Exception _ex)
     {

@@ -42,6 +42,11 @@ internal sealed class RerankerInstrumented : IReranker
             _activity?.SetTag("rerank.result.count", _tagged?.Kept);
             return _result;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _activity?.SetTag("cancelled", true);
+            throw;
+        }
         catch (Exception _ex)
         {
             _activity?.SetTag("error.type", _ex.GetType().FullName);
@@ -81,6 +86,11 @@ internal sealed class RerankerInstrumented : IReranker
             var _result = await _inner.ScoreAsync(ct).ConfigureAwait(false);
             _activity?.SetTag("rerank.score", _result);
             return _result;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _activity?.SetTag("cancelled", true);
+            throw;
         }
         catch (Exception _ex)
         {
