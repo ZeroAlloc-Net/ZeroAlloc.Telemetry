@@ -72,6 +72,8 @@ ZeroAlloc.Telemetry.MetricTagFromResultAttribute.Name.get -> string!
 ZeroAlloc.Telemetry.MetricTagFromResultAttribute.When.get -> string?
 ZeroAlloc.Telemetry.MetricTagFromResultAttribute.When.set -> void
 ZeroAlloc.Telemetry.TraceAttribute
+ZeroAlloc.Telemetry.TraceAttribute.CancellationIsError.get -> bool
+ZeroAlloc.Telemetry.TraceAttribute.CancellationIsError.set -> void
 ZeroAlloc.Telemetry.TraceAttribute.ErrorDescription.get -> string?
 ZeroAlloc.Telemetry.TraceAttribute.ErrorDescription.set -> void
 ZeroAlloc.Telemetry.TraceAttribute.ErrorWhen.get -> string?
