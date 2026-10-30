@@ -39,6 +39,11 @@ internal sealed class IngestInstrumented : IIngest
         {
             await _inner.StoreAsync(source, chunks, ct).ConfigureAwait(false);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _activity?.SetTag("cancelled", true);
+            throw;
+        }
         catch (Exception _ex)
         {
             _activity?.SetTag("error.type", _ex.GetType().FullName);

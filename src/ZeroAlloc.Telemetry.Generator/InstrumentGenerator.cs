@@ -648,6 +648,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         // Defaults to true, so only an explicit false asks for anything.
         var omitExceptionDescription = attr.NamedArguments.Any(static n =>
             string.Equals(n.Key, "ExceptionDescription", StringComparison.Ordinal) && n.Value.Value is false);
+        var cancellationIsError = GetNamedBool(attr, "CancellationIsError");
         var errorWhen = GetNamedString(attr, "ErrorWhen");
         var errorDescription = GetNamedString(attr, "ErrorDescription");
 
@@ -668,11 +669,13 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             description = ErrorDescriptionAccess(compilation, attr, method, resultType, errorDescription, diagnostics);
         }
 
-        if (kind is null && guard is null && spanName.DisplayName is null && !tagsAtStart && !omitExceptionDescription)
+        if (kind is null && guard is null && spanName.DisplayName is null && !tagsAtStart && !omitExceptionDescription
+            && !cancellationIsError)
             return null;
 
         return new TraceOptions(
-            kind, guard, description, spanName.DisplayName, spanName.Copies, tagsAtStart, omitExceptionDescription);
+            kind, guard, description, spanName.DisplayName, spanName.Copies, tagsAtStart, omitExceptionDescription,
+            cancellationIsError);
     }
 
     /// <summary>The span kind as an expression, or null for the default <c>Internal</c>.</summary>

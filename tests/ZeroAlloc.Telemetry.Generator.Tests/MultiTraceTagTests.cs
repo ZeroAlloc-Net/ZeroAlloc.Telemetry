@@ -74,8 +74,10 @@ public class MultiTraceTagTests
                     if (request?.Questions?.Count is { } _startTag3)
                         _startTags.Add("jev.question.count", _startTag3);
             """.Replace("\r", "", StringComparison.Ordinal));
-        // The exception path's error.type is the only tag set after the span starts (#184).
+        // The exception path's error.type, and the caller cancellation's cancelled, are the only
+        // tags set after the span starts (#184, #233).
         proxy.Replace("_activity?.SetTag(\"error.type\"", "", StringComparison.Ordinal)
+            .Replace("_activity?.SetTag(\"cancelled\"", "", StringComparison.Ordinal)
             .Should().NotContain("_activity?.SetTag(");
     }
 

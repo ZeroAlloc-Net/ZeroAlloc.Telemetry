@@ -41,6 +41,11 @@ internal sealed class ExtentsInstrumented : IExtents
             _activity?.SetTag("extent.width", _tagged?.Width);
             return _result;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _activity?.SetTag("cancelled", true);
+            throw;
+        }
         catch (Exception _ex)
         {
             _activity?.SetTag("error.type", _ex.GetType().FullName);
@@ -82,6 +87,11 @@ internal sealed class ExtentsInstrumented : IExtents
             if (_tagged == true)
                 _activity?.SetTag("extent.flag", _result);
             return _result;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _activity?.SetTag("cancelled", true);
+            throw;
         }
         catch (Exception _ex)
         {

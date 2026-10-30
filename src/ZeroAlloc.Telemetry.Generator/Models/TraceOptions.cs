@@ -28,6 +28,10 @@ namespace ZeroAlloc.Telemetry.Generator.Models;
 /// Whether the exception path sets the error status without the exception's message, for
 /// <c>ExceptionDescription = false</c>.
 /// </param>
+/// <param name="CancellationIsError">
+/// Whether a call cancelled through the method's own <c>CancellationToken</c> still counts as an
+/// error, for <c>CancellationIsError = true</c>.
+/// </param>
 internal sealed record TraceOptions(
     string? Kind,
     string? ErrorGuard,
@@ -35,4 +39,5 @@ internal sealed record TraceOptions(
     string? DisplayName,
     EquatableArray<string> DisplayNameCopies,
     bool TagsAtStart,
-    bool OmitExceptionDescription);
+    bool OmitExceptionDescription,
+    bool CancellationIsError = false);

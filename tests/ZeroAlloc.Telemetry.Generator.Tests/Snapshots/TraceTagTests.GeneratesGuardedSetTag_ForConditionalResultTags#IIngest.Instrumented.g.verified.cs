@@ -42,6 +42,11 @@ internal sealed class IngestInstrumented : IIngest
                 _activity?.SetTag("chunk.count", _tagged?.Value?.Count);
             return _result;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _activity?.SetTag("cancelled", true);
+            throw;
+        }
         catch (Exception _ex)
         {
             _activity?.SetTag("error.type", _ex.GetType().FullName);

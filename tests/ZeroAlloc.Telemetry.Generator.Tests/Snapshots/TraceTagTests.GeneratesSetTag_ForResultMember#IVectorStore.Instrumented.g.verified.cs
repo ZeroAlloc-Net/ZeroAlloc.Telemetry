@@ -41,6 +41,11 @@ internal sealed class VectorStoreInstrumented : IVectorStore
             _activity?.SetTag("vectorstore.result.count", _tagged?.Count);
             return _result;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _activity?.SetTag("cancelled", true);
+            throw;
+        }
         catch (Exception _ex)
         {
             _activity?.SetTag("error.type", _ex.GetType().FullName);

@@ -43,6 +43,11 @@ internal sealed class OrdersInstrumented : IOrders
             _order_create_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
             return _result;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _order_create_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
+            throw;
+        }
         catch (Exception _ex)
         {
             if (_order_create_ms.Enabled)
@@ -87,6 +92,11 @@ internal sealed class OrdersInstrumented : IOrders
             _orders_created.Add(1);
             _order_create_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
             return _result;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _order_create_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
+            throw;
         }
         catch (Exception _ex)
         {

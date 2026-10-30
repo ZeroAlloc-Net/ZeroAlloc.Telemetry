@@ -120,6 +120,26 @@ public sealed class TraceAttribute : Attribute
     /// </remarks>
     public bool ExceptionDescription { get; set; } = true;
 
+    /// <summary>
+    /// Whether a call the caller cancelled counts as an error. Defaults to false.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A call is cancelled by the caller when it throws an <see cref="OperationCanceledException"/>
+    /// while one of the method's own <see cref="System.Threading.CancellationToken"/> arguments is
+    /// cancelled, as when a client hangs up or a request is aborted. By default such a span keeps the
+    /// <see cref="System.Diagnostics.ActivityStatusCode.Unset"/> status and is tagged
+    /// <c>cancelled = true</c>, and the histogram measurement of the call has no <c>error.type</c>.
+    /// The exception is still rethrown.
+    /// </para>
+    /// <para>
+    /// Any other cancellation, such as a timeout inside the implementation while the caller's token
+    /// is not cancelled, is an error as before, and so is every cancellation of a method without a
+    /// token. Set this to true to record a caller's cancellation as an error too.
+    /// </para>
+    /// </remarks>
+    public bool CancellationIsError { get; set; }
+
     /// <summary>Creates a span named <paramref name="name"/>.</summary>
     /// <param name="name">
     /// The span name. May contain <c>{type}</c> to substitute the implementation's type name.

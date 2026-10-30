@@ -286,6 +286,40 @@ public class TraceOptionsTests
     }
 
     /// <summary>
+    /// A caller's cancellation is caught before the error path only for a method that takes a
+    /// token it can read (#233): not for one without a token, not for an <c>out</c> token, which has
+    /// no value on the throw path, and not with <c>CancellationIsError = true</c>. Several tokens
+    /// are each checked.
+    /// </summary>
+    [Fact]
+    public void CallerCancellation_IsCaughtOnlyForAReadableToken_AndNotWhenItIsAnError()
+    {
+        var run = GeneratorCompilation.RunAll("""
+            using System.Threading;
+            using System.Threading.Tasks;
+            using ZeroAlloc.Telemetry;
+            [Instrument("a")]
+            public interface IOps
+            {
+                [Trace("token")] Task TokenAsync(CancellationToken ct);
+                [Trace("two")] Task TwoAsync(CancellationToken first, CancellationToken second);
+                [Trace("none")] Task NoneAsync();
+                [Trace("out")] int Out(out CancellationToken ct);
+                [Trace("strict", CancellationIsError = true)] Task StrictAsync(CancellationToken ct);
+            }
+            """);
+
+        run.GeneratorDiagnostics.Should().BeEmpty();
+        run.Errors.Should().BeEmpty();
+        run.Warnings.Should().BeEmpty();
+        var proxy = Proxy(run, "IOps");
+        CountOf(proxy, "catch (OperationCanceledException) when (ct.IsCancellationRequested)").Should().Be(1);
+        CountOf(proxy, "catch (OperationCanceledException) when (first.IsCancellationRequested || second.IsCancellationRequested)").Should().Be(1);
+        CountOf(proxy, "catch (OperationCanceledException)").Should().Be(2);
+        CountOf(proxy, "_activity?.SetTag(\"cancelled\", true);").Should().Be(2);
+    }
+
+    /// <summary>
     /// The unguarded histogram's throw-path point carries <c>error.type</c> (#184), so it can be told
     /// from a success, even on a method with no span. A declared tag of that name that applies on
     /// the throw path wins, and a guarded histogram still records nothing on a throw.

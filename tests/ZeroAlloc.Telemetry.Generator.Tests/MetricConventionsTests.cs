@@ -221,11 +221,18 @@ public class MetricConventionsTests
         // error.type from the exception (#184). The core's catch is the last; the public method's
         // forwarding catch comes before it.
         var catchBlock = proxy[proxy.LastIndexOf("catch (Exception _ex)", StringComparison.Ordinal)..];
-        catchBlock.Should().Contain("_metricTags2.Add(\"gen_ai.operation.name\", \"chat\");");
-        catchBlock.Should().Contain("_metricTags2.Add(\"gen_ai.request.model\"");
-        catchBlock.Should().Contain("_metricTags2.Add(\"error.type\", _ex.GetType().FullName);");
+        catchBlock.Should().Contain("_metricTags3.Add(\"gen_ai.operation.name\", \"chat\");");
+        catchBlock.Should().Contain("_metricTags3.Add(\"gen_ai.request.model\"");
+        catchBlock.Should().Contain("_metricTags3.Add(\"error.type\", _ex.GetType().FullName);");
         catchBlock.Should().NotContain("gen_ai.response.model");
-        catchBlock.Should().Contain("_gen_ai_client_operation_duration.Record(Stopwatch.GetElapsedTime(_sw).TotalSeconds, in _metricTags2);");
+        catchBlock.Should().Contain("_gen_ai_client_operation_duration.Record(Stopwatch.GetElapsedTime(_sw).TotalSeconds, in _metricTags3);");
+
+        // The caller's cancellation, caught before it, records the same tags without error.type (#233).
+        var start = proxy.LastIndexOf("catch (OperationCanceledException) when (ct.IsCancellationRequested)", StringComparison.Ordinal);
+        var cancelBlock = proxy[start..proxy.LastIndexOf("catch (Exception _ex)", StringComparison.Ordinal)];
+        cancelBlock.Should().Contain("_metricTags2.Add(\"gen_ai.operation.name\", \"chat\");");
+        cancelBlock.Should().NotContain("error.type");
+        cancelBlock.Should().Contain("_gen_ai_client_operation_duration.Record(Stopwatch.GetElapsedTime(_sw).TotalSeconds, in _metricTags2);");
     }
 
     /// <summary>The whole GenAI client shape, as one snapshot.</summary>

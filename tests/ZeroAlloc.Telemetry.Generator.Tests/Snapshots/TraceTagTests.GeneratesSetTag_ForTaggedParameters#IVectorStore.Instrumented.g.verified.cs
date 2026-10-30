@@ -41,6 +41,11 @@ internal sealed class VectorStoreInstrumented : IVectorStore
             var _result = await _inner.SearchAsync(collection, topK, ct).ConfigureAwait(false);
             return _result;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _activity?.SetTag("cancelled", true);
+            throw;
+        }
         catch (Exception _ex)
         {
             _activity?.SetTag("error.type", _ex.GetType().FullName);

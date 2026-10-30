@@ -40,6 +40,11 @@ internal sealed class GraphInstrumented : IGraph
             _activity?.SetTag("graph.community.count", _result.Length);
             return _result;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _activity?.SetTag("cancelled", true);
+            throw;
+        }
         catch (Exception _ex)
         {
             _activity?.SetTag("error.type", _ex.GetType().FullName);
@@ -80,6 +85,11 @@ internal sealed class GraphInstrumented : IGraph
             var _tagged = _result;
             _activity?.SetTag("graph.node.count", _tagged);
             return _result;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _activity?.SetTag("cancelled", true);
+            throw;
         }
         catch (Exception _ex)
         {

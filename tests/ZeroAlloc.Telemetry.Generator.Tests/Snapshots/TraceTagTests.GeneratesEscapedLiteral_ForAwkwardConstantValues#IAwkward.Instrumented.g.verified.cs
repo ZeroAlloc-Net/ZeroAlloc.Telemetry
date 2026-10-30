@@ -41,6 +41,11 @@ internal sealed class AwkwardInstrumented : IAwkward
             var _result = await _inner.RunAsync(ct).ConfigureAwait(false);
             return _result;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _activity?.SetTag("cancelled", true);
+            throw;
+        }
         catch (Exception _ex)
         {
             _activity?.SetTag("error.type", _ex.GetType().FullName);

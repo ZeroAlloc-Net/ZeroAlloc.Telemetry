@@ -58,9 +58,9 @@ That's all. No OpenTelemetry SDK is required — `ActivitySource` and `Meter` ar
 
 | Attribute | What it records | When |
 |---|---|---|
-| `[Trace("name")]` | `Activity` span | Every call — Error status and `error.type` on exception |
+| `[Trace("name")]` | `Activity` span | Every call — Error status and `error.type` on exception, except a caller's cancellation |
 | `[Count("metric")]` | `Counter<long>` +1 | Success only; with `When`, only when the guard is true |
-| `[Histogram("metric")]` | `Histogram<double>` elapsed ms | Every call including on exception, tagged `error.type` there, unless `When` is set |
+| `[Histogram("metric")]` | `Histogram<double>` elapsed ms | Every call including on exception, tagged `error.type` there except for a caller's cancellation, unless `When` is set |
 | `[CountFromResult("metric", "Member")]` | `Counter<long>` adds the member's value | Success only, when the member is not null |
 | `[HistogramFromResult("metric", "Member")]` | `Histogram<double>` records the member's value | Success only, when the member is not null |
 | `[MetricTagFromResult("tag", "Member")]` | A tag on the method's metrics | With each measurement, when a listener has enabled the instrument |

@@ -39,6 +39,11 @@ internal sealed class OrderRepositoryInstrumented : IOrderRepository
             var _result = await _inner.GetByIdAsync(id, ct).ConfigureAwait(false);
             return _result;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _activity?.SetTag("cancelled", true);
+            throw;
+        }
         catch (Exception _ex)
         {
             _activity?.SetTag("error.type", _ex.GetType().FullName);
@@ -78,6 +83,11 @@ internal sealed class OrderRepositoryInstrumented : IOrderRepository
             var _result = await _inner.FindAsync(filter, ct).ConfigureAwait(false);
             return _result;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _activity?.SetTag("cancelled", true);
+            throw;
+        }
         catch (Exception _ex)
         {
             _activity?.SetTag("error.type", _ex.GetType().FullName);
@@ -116,6 +126,11 @@ internal sealed class OrderRepositoryInstrumented : IOrderRepository
         {
             var _result = await _inner.SearchAsync(term, tenant, ct).ConfigureAwait(false);
             return _result;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _activity?.SetTag("cancelled", true);
+            throw;
         }
         catch (Exception _ex)
         {
