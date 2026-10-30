@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.7](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.12.6...v1.12.7) (2026-10-30)
+
+
+### Bug Fixes
+
+* stop recording a caller's cancellation as an error ([#234](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/234)) ([bad779c](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/bad779c56cf8ff3747453655b744837779111aad)), closes [#233](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/233)
+
 ## [1.12.6](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.12.5...v1.12.6) (2026-10-21)
 
 
