@@ -61,6 +61,10 @@
     <WarningsAsErrors>$(WarningsAsErrors);RS0016;RS0017</WarningsAsErrors>
     <!-- Runs IDE code-style rules at build time, so .editorconfig can enforce IDE0250/IDE0251. -->
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- NuGetAudit as ci-baseline runs it, so a local restore shows the same advisories as CI. -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>moderate</NuGetAuditLevel>
 
     <!-- NuGet package metadata (shared across all packable projects) -->
     <Authors>Marcel Roozekrans</Authors>
