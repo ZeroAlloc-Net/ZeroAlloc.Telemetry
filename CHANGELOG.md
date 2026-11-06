@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.13.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.12.7...v1.13.0) (2026-11-06)
+
+
+### Features
+
+* let a Histogram opt in to counting caller cancellation as an error ([#242](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/242)) ([ea07fdd](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/ea07fdd8b5bdb20f796e7f562754096cc89cbe7f)), closes [#236](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/236)
+* record one measurement per element of a collection of records ([#243](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/243)) ([0c157f3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/0c157f39b42ea408922be3742e0d00b8ec8ea9e8)), closes [#241](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/241)
+
 ## [1.12.7](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.12.6...v1.12.7) (2026-10-30)
 
 
