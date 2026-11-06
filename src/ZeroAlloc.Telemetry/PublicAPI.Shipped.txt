@@ -12,6 +12,10 @@ ZeroAlloc.Telemetry.CountFromResultAttribute
 ZeroAlloc.Telemetry.CountFromResultAttribute.CountFromResultAttribute(string! metric, string! member) -> void
 ZeroAlloc.Telemetry.CountFromResultAttribute.Description.get -> string?
 ZeroAlloc.Telemetry.CountFromResultAttribute.Description.set -> void
+ZeroAlloc.Telemetry.CountFromResultAttribute.Each.get -> bool
+ZeroAlloc.Telemetry.CountFromResultAttribute.Each.set -> void
+ZeroAlloc.Telemetry.CountFromResultAttribute.ElementMember.get -> string?
+ZeroAlloc.Telemetry.CountFromResultAttribute.ElementMember.set -> void
 ZeroAlloc.Telemetry.CountFromResultAttribute.Member.get -> string!
 ZeroAlloc.Telemetry.CountFromResultAttribute.Metric.get -> string!
 ZeroAlloc.Telemetry.CountFromResultAttribute.Unit.get -> string?
@@ -21,6 +25,8 @@ ZeroAlloc.Telemetry.CountFromResultAttribute.When.set -> void
 ZeroAlloc.Telemetry.HistogramAttribute
 ZeroAlloc.Telemetry.HistogramAttribute.Buckets.get -> double[]?
 ZeroAlloc.Telemetry.HistogramAttribute.Buckets.set -> void
+ZeroAlloc.Telemetry.HistogramAttribute.CancellationIsError.get -> bool
+ZeroAlloc.Telemetry.HistogramAttribute.CancellationIsError.set -> void
 ZeroAlloc.Telemetry.HistogramAttribute.Description.get -> string?
 ZeroAlloc.Telemetry.HistogramAttribute.Description.set -> void
 ZeroAlloc.Telemetry.HistogramAttribute.HistogramAttribute(string! metric) -> void
@@ -36,6 +42,8 @@ ZeroAlloc.Telemetry.HistogramFromResultAttribute.Description.get -> string?
 ZeroAlloc.Telemetry.HistogramFromResultAttribute.Description.set -> void
 ZeroAlloc.Telemetry.HistogramFromResultAttribute.Each.get -> bool
 ZeroAlloc.Telemetry.HistogramFromResultAttribute.Each.set -> void
+ZeroAlloc.Telemetry.HistogramFromResultAttribute.ElementMember.get -> string?
+ZeroAlloc.Telemetry.HistogramFromResultAttribute.ElementMember.set -> void
 ZeroAlloc.Telemetry.HistogramFromResultAttribute.HistogramFromResultAttribute(string! metric, string! member) -> void
 ZeroAlloc.Telemetry.HistogramFromResultAttribute.Member.get -> string!
 ZeroAlloc.Telemetry.HistogramFromResultAttribute.Metric.get -> string!
@@ -64,6 +72,8 @@ ZeroAlloc.Telemetry.MetricTagConstantAttribute.MetricTagConstantAttribute(string
 ZeroAlloc.Telemetry.MetricTagConstantAttribute.Name.get -> string!
 ZeroAlloc.Telemetry.MetricTagConstantAttribute.Value.get -> object?
 ZeroAlloc.Telemetry.MetricTagFromResultAttribute
+ZeroAlloc.Telemetry.MetricTagFromResultAttribute.FromElement.get -> bool
+ZeroAlloc.Telemetry.MetricTagFromResultAttribute.FromElement.set -> void
 ZeroAlloc.Telemetry.MetricTagFromResultAttribute.Member.get -> string!
 ZeroAlloc.Telemetry.MetricTagFromResultAttribute.Metric.get -> string?
 ZeroAlloc.Telemetry.MetricTagFromResultAttribute.Metric.set -> void
