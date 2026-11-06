@@ -7,3 +7,5 @@ ZeroAlloc.Telemetry.CountFromResultAttribute.ElementMember.get -> string?
 ZeroAlloc.Telemetry.CountFromResultAttribute.ElementMember.set -> void
 ZeroAlloc.Telemetry.MetricTagFromResultAttribute.FromElement.get -> bool
 ZeroAlloc.Telemetry.MetricTagFromResultAttribute.FromElement.set -> void
+ZeroAlloc.Telemetry.HistogramAttribute.CancellationIsError.get -> bool
+ZeroAlloc.Telemetry.HistogramAttribute.CancellationIsError.set -> void

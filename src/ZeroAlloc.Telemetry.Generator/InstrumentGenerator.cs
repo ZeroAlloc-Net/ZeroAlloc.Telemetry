@@ -387,6 +387,7 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             ReportTagDiagnostics(diagnostics, target, member, parameters, resultTags, constantTags, traceName, returnsVoid);
             var spanName = ParseSpanName(compilation, target, member, traceName, diagnostics);
             var trace = BuildTraceOptions(compilation, target, member, resultType, returnsVoid, spanName, diagnostics);
+            ReportCancellationConflict(diagnostics, target, member);
 
             methods.Add(new MethodModel(
                 member.Name,
@@ -1195,6 +1196,41 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
     }
 
     /// <summary>
+    /// Reports ZTEL027 when <c>[Trace]</c> and <c>[Histogram]</c> of one method set
+    /// <c>CancellationIsError</c> to different values, one of them explicitly false. The setting
+    /// applies to the whole method and true wins, so the false one would be ignored.
+    /// </summary>
+    private static void ReportCancellationConflict(
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics, INamedTypeSymbol target, IMethodSymbol method)
+    {
+        if (FindAttribute(method, TraceAttributeFqn) is not { } trace
+            || FindAttribute(method, HistogramAttributeFqn) is not { } histogram)
+            return;
+
+        var traceSet = GetNamedBoolOrNull(trace, "CancellationIsError");
+        var histogramSet = GetNamedBoolOrNull(histogram, "CancellationIsError");
+        if (traceSet is { } fromTrace && histogramSet is { } fromHistogram && fromTrace != fromHistogram)
+        {
+            diagnostics.Add(DiagnosticInfo.Create(
+                InstrumentDiagnostics.ConflictingCancellationIsError,
+                MethodLocation(method),
+                target.ToDisplayString(),
+                method.Name));
+        }
+    }
+
+    private static bool? GetNamedBoolOrNull(AttributeData attr, string name)
+    {
+        foreach (var named in attr.NamedArguments)
+        {
+            if (string.Equals(named.Key, name, StringComparison.Ordinal))
+                return named.Value.Value as bool?;
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Builds the model for <c>[Count]</c> or <c>[Histogram]</c>. Null when the method has none, or
     /// when its <c>When</c> guard cannot be emitted.
     /// </summary>
@@ -1245,7 +1281,8 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             GetNamedString(attr, "Description"),
             guard,
             ElapsedMember: ElapsedMember(attr, method, metric, unit, diagnostics),
-            Buckets: BuildBuckets(compilation, attr, method, shortName, metric, diagnostics));
+            Buckets: BuildBuckets(compilation, attr, method, shortName, metric, diagnostics),
+            CancellationIsError: GetNamedBool(attr, "CancellationIsError"));
     }
 
     /// <summary>

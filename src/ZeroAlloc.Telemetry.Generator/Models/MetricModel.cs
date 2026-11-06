@@ -37,6 +37,10 @@ namespace ZeroAlloc.Telemetry.Generator.Models;
 /// to read the value, such as <c>.InputTokens</c>; null when the element is the value.
 /// </param>
 /// <param name="ElementValueCanBeNull">Whether that value can be null and is skipped.</param>
+/// <param name="CancellationIsError">
+/// For <c>[Histogram]</c>, whether a caller's cancellation is recorded with <c>error.type</c>, for
+/// <c>CancellationIsError = true</c>.
+/// </param>
 /// <param name="ElementCanBeNull">For <see cref="EachKind.Enumerable"/>, whether an element can be null and is skipped.</param>
 /// <param name="ElementIsDecimal">For <see cref="EachKind.Enumerable"/>, whether an element is cast from decimal.</param>
 internal sealed record MetricModel(
@@ -54,4 +58,5 @@ internal sealed record MetricModel(
     bool ElementCanBeNull = false,
     bool ElementIsDecimal = false,
     string? ElementValueAccess = null,
-    bool ElementValueCanBeNull = false);
+    bool ElementValueCanBeNull = false,
+    bool CancellationIsError = false);

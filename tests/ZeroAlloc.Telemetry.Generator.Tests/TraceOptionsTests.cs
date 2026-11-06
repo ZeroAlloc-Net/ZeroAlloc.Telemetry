@@ -320,6 +320,45 @@ public class TraceOptionsTests
     }
 
     /// <summary>
+    /// <c>[Histogram(CancellationIsError = true)]</c> skips the caller-cancellation catch on a method
+    /// without <c>[Trace]</c> (#236), and a method whose two attributes disagree gets ZTEL027.
+    /// </summary>
+    [Fact]
+    public void HistogramCancellationIsError_SkipsTheCatch_AndAConflictIsReported()
+    {
+        var run = GeneratorCompilation.RunAll("""
+            using System.Threading;
+            using System.Threading.Tasks;
+            using ZeroAlloc.Telemetry;
+            [Instrument("a")]
+            public interface IOps
+            {
+                [Histogram("plain")] Task PlainAsync(CancellationToken ct);
+                [Histogram("strict", CancellationIsError = true)] Task StrictAsync(CancellationToken ct);
+                [Trace("both"), Histogram("both.duration", CancellationIsError = true)] Task BothAsync(CancellationToken ct);
+            }
+            """);
+
+        run.GeneratorDiagnostics.Should().BeEmpty();
+        var proxy = Proxy(run, "IOps");
+        CountOf(proxy, "catch (OperationCanceledException) when (ct.IsCancellationRequested)").Should().Be(1);
+
+        var conflict = GeneratorCompilation.RunAll("""
+            using System.Threading;
+            using System.Threading.Tasks;
+            using ZeroAlloc.Telemetry;
+            [Instrument("a")]
+            public interface IOps
+            {
+                [Trace("both", CancellationIsError = false), Histogram("both.duration", CancellationIsError = true)]
+                Task BothAsync(CancellationToken ct);
+            }
+            """);
+
+        conflict.GeneratorDiagnostics.Should().ContainSingle(d => d.Id == "ZTEL027");
+    }
+
+    /// <summary>
     /// The unguarded histogram's throw-path point carries <c>error.type</c> (#184), so it can be told
     /// from a success, even on a method with no span. A declared tag of that name that applies on
     /// the throw path wins, and a guarded histogram still records nothing on a throw.

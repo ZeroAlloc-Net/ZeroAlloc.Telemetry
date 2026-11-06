@@ -6,3 +6,4 @@
 Rule ID | Category            | Severity | Notes
 --------|---------------------|----------|-------------------------------------------------------------------------
 ZTEL028 | ZeroAlloc.Telemetry | Error    | A per-element metric or a FromElement tag cannot be emitted
+ZTEL027 | ZeroAlloc.Telemetry | Warning  | [Trace] and [Histogram] of one method set CancellationIsError differently

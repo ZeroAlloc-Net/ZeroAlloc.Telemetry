@@ -324,4 +324,16 @@ internal static class InstrumentDiagnostics
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    /// <summary>
+    /// <c>[Trace]</c> and <c>[Histogram]</c> of one method set <c>CancellationIsError</c> to different
+    /// values. The setting is one per method, and true wins.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ConflictingCancellationIsError = new(
+        id: "ZTEL027",
+        title: "Conflicting CancellationIsError",
+        messageFormat: "'{0}.{1}' sets CancellationIsError differently on [Trace] and [Histogram]. The setting applies to the whole method and true wins, so remove the false one.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
 }

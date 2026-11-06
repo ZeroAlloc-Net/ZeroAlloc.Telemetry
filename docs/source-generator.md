@@ -343,6 +343,7 @@ Every member an interface can declare either compiles in the proxy or is reporte
 | ZTEL025 | Error | The interface, or one it extends, has a static abstract member, which a proxy cannot forward. No proxy is generated |
 | ZTEL026 | Warning | Two `[TraceTag]` or `[TraceTagConstant]` of one method set the same tag name on the span. Reported at the later one's tag name, which is not set |
 | ZTEL028 | Error | A per-element metric or a `FromElement` tag cannot be emitted: `ElementMember` without `Each = true`, a path that does not resolve on the element, or a `FromElement` tag on a metric that is not a per-element one or with `When` |
+| ZTEL027 | Warning | `[Trace]` and `[Histogram]` of one method set `CancellationIsError` to different values. The setting applies to the whole method and `true` wins |
 
 ZTEL007 and ZTEL008 mostly replace what used to be a compile error inside the generated proxy. Two cases compiled on 1.6.4 and are now errors:
 
