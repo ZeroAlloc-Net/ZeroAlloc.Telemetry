@@ -1435,24 +1435,9 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
         var memberLocation = AttributeLocations.Positional(attr, 1, "member", MethodLocation(method));
 
         var path = PathResolver.Resolve(compilation, resultType, member);
-        var valueOk = path.Resolved;
-        var each = kind == MetricKind.Histogram && GetNamedBool(attr, "Each");
-        var eachShape = default(EachShape);
-        if (!valueOk)
-        {
-            diagnostics.Add(PathNotFound(memberLocation, member, path));
-        }
-        else if (MisfitReason(compilation, kind, each, path, out eachShape) is { } reason)
-        {
-            diagnostics.Add(DiagnosticInfo.Create(
-                InstrumentDiagnostics.MemberDoesNotFitInstrument,
-                memberLocation,
-                each ? shortName + "(Each = true)" : shortName,
-                member.Length == 0 ? "the return value" : $"'{member}'",
-                path.FinalType!.ToDisplayString(),
-                reason));
-            valueOk = false;
-        }
+        var each = GetNamedBool(attr, "Each");
+        var valueOk = ResolveResultValue(
+            compilation, attr, method, kind, shortName, member, memberLocation, each, path, out var eachShape, diagnostics);
 
         // Checked even after a bad member, so one build reports every error on the attribute.
         var guardOk = TryBuildGuard(
@@ -1477,27 +1462,151 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             Buckets: buckets,
             Each: eachShape.Kind,
             ElementCanBeNull: eachShape.ElementCanBeNull,
-            ElementIsDecimal: eachShape.ElementIsDecimal);
+            ElementIsDecimal: eachShape.ElementIsDecimal,
+            ElementValueAccess: eachShape.ValueAccess,
+            ElementValueCanBeNull: eachShape.ValueCanBeNull);
+    }
+
+    /// <summary>
+    /// Checks the member a result-driven instrument reads, and for <c>Each</c> the element it iterates.
+    /// False, having reported the problem, when the instrument cannot be emitted.
+    /// </summary>
+    private static bool ResolveResultValue(
+        Compilation compilation,
+        AttributeData attr,
+        IMethodSymbol method,
+        MetricKind kind,
+        string shortName,
+        string member,
+        Location memberLocation,
+        bool each,
+        PathResolver.Resolution path,
+        out EachShape eachShape,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
+    {
+        var valueOk = path.Resolved;
+        var elementMember = GetNamedString(attr, "ElementMember");
+        eachShape = default;
+        if (!valueOk)
+        {
+            diagnostics.Add(PathNotFound(memberLocation, member, path));
+        }
+        else if (!each && elementMember is not null)
+        {
+            diagnostics.Add(DiagnosticInfo.Create(
+                InstrumentDiagnostics.ElementMetricProblem,
+                AttributeLocations.Named(attr, "ElementMember", MethodLocation(method)),
+                shortName, method.ContainingType.ToDisplayString(), method.Name,
+                "ElementMember reads a member of each element, so it needs Each = true"));
+            valueOk = false;
+        }
+        else if (MisfitReason(compilation, kind, each, elementMember, path, out eachShape, out var elementType) is { } reason)
+        {
+            diagnostics.Add(DiagnosticInfo.Create(
+                InstrumentDiagnostics.MemberDoesNotFitInstrument,
+                memberLocation,
+                each ? shortName + "(Each = true)" : shortName,
+                member.Length == 0 ? "the return value" : $"'{member}'",
+                path.FinalType!.ToDisplayString(),
+                reason));
+            valueOk = false;
+        }
+        else if (each && elementMember is not null && elementType is not null
+            && !TryResolveElementValue(compilation, kind, attr, method, shortName, elementMember, elementType, ref eachShape, diagnostics))
+        {
+            valueOk = false;
+        }
+
+        return valueOk;
     }
 
     /// <summary>
     /// Why the resolved member cannot go to the instrument, for ZTEL009, or null when it fits.
     /// </summary>
     private static string? MisfitReason(
-        Compilation compilation, MetricKind kind, bool each, PathResolver.Resolution path, out EachShape eachShape)
+        Compilation compilation,
+        MetricKind kind,
+        bool each,
+        string? elementMember,
+        PathResolver.Resolution path,
+        out EachShape eachShape,
+        out ITypeSymbol? elementType)
     {
         eachShape = default;
+        elementType = null;
         if (!each)
             return Fits(kind, path.FinalType!) ? null : FitReason(kind, path.FinalType!);
 
-        eachShape = ClassifyEach(compilation, path.FinalType!, path.CanBeNull, out var reason);
+        eachShape = ClassifyEach(compilation, kind, path.FinalType!, path.CanBeNull, elementMember is not null, out var reason, out elementType);
         return eachShape.Kind == EachKind.None ? reason : null;
     }
 
-    private readonly record struct EachShape(EachKind Kind, bool ElementCanBeNull, bool ElementIsDecimal);
+    /// <summary>
+    /// Resolves the <c>ElementMember</c> path against the element type and checks its type fits the
+    /// instrument. False, having reported ZTEL028 or ZTEL009, when it cannot be emitted.
+    /// </summary>
+    private static bool TryResolveElementValue(
+        Compilation compilation,
+        MetricKind kind,
+        AttributeData attr,
+        IMethodSymbol method,
+        string shortName,
+        string elementMember,
+        ITypeSymbol elementType,
+        ref EachShape shape,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
+    {
+        var location = AttributeLocations.Named(attr, "ElementMember", MethodLocation(method));
+        var path = PathResolver.Resolve(compilation, ElementRoot(elementType), elementMember);
+        if (!path.Resolved)
+        {
+            var problem = string.IsNullOrEmpty(path.MissingSegment)
+                ? $"the ElementMember path '{elementMember}' has an empty segment"
+                : $"'{path.MissingSegment}' in the ElementMember path '{elementMember}' is not a readable instance property or field of '{path.MissingOn?.ToDisplayString()}', the element type";
+            diagnostics.Add(DiagnosticInfo.Create(
+                InstrumentDiagnostics.ElementMetricProblem, location, shortName, method.ContainingType.ToDisplayString(), method.Name, problem));
+            return false;
+        }
+
+        if (!Fits(kind, path.FinalType!))
+        {
+            diagnostics.Add(DiagnosticInfo.Create(
+                InstrumentDiagnostics.MemberDoesNotFitInstrument,
+                location,
+                shortName + "(Each = true)",
+                $"'{elementMember}' of each element",
+                path.FinalType!.ToDisplayString(),
+                FitReason(kind, path.FinalType!)));
+            return false;
+        }
+
+        shape = shape with
+        {
+            ElementIsDecimal = PathResolver.UnwrapNullable(path.FinalType!).SpecialType == SpecialType.System_Decimal,
+            ValueAccess = path.Access,
+            ValueCanBeNull = path.CanBeNull,
+        };
+        return true;
+    }
+
+    /// <summary>
+    /// The type an element path starts from. The proxy binds a null element away before it reads
+    /// anything, so the element is not null where its members are read.
+    /// </summary>
+    private static ITypeSymbol ElementRoot(ITypeSymbol element) =>
+        PathResolver.UnwrapNullable(element).WithNullableAnnotation(NullableAnnotation.NotAnnotated);
+
+    private readonly record struct EachShape(
+        EachKind Kind, bool ElementCanBeNull, bool ElementIsDecimal, string? ValueAccess = null, bool ValueCanBeNull = false);
 
     private const string EachTypesReason =
         "With Each = true the member must be a ReadOnlySpan<double>, Span<double>, ReadOnlyMemory<double>, Memory<double>, an array, or a type whose GetEnumerator() returns a struct, with numeric elements";
+
+    private const string EachCounterTypesReason =
+        "With Each = true the member must be an array or a type whose GetEnumerator() returns a struct, with integer elements";
+
+    private const string EachElementMemberTypesReason =
+        "With Each = true and an ElementMember the member must be an array or a type whose GetEnumerator() returns a struct";
 
     private const string EachSpanThroughNullReason =
         "A span cannot be read through a value that can be null; reach it through members that cannot be null, or expose it as a ReadOnlyMemory<double>";
@@ -1506,12 +1615,22 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
     /// How a per-element histogram iterates <paramref name="type"/>, or <see cref="EachKind.None"/>
     /// with the reason when it cannot without allocating.
     /// </summary>
-    private static EachShape ClassifyEach(Compilation compilation, ITypeSymbol type, bool canBeNull, out string reason)
+    private static EachShape ClassifyEach(
+        Compilation compilation,
+        MetricKind kind,
+        ITypeSymbol type,
+        bool canBeNull,
+        bool hasElementMember,
+        out string reason,
+        out ITypeSymbol? elementType)
     {
-        reason = EachTypesReason;
+        reason = hasElementMember ? EachElementMemberTypesReason : kind == MetricKind.Counter ? EachCounterTypesReason : EachTypesReason;
+        elementType = null;
         var underlying = PathResolver.UnwrapNullable(type);
 
-        if (underlying is INamedTypeSymbol { TypeArguments.Length: 1 } named
+        if (!hasElementMember
+            && kind == MetricKind.Histogram
+            && underlying is INamedTypeSymbol { TypeArguments.Length: 1 } named
             && named.TypeArguments[0].SpecialType == SpecialType.System_Double
             && string.Equals(named.ContainingNamespace?.ToDisplayString(), "System", StringComparison.Ordinal))
         {
@@ -1535,9 +1654,10 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             ? array.ElementType
             : StructEnumeratorElement(compilation, underlying);
 
-        if (element is null || !Fits(MetricKind.Histogram, element))
+        if (element is null || (!hasElementMember && !Fits(kind, element)))
             return default;
 
+        elementType = element;
         return new EachShape(
             EachKind.Enumerable,
             PathResolver.CanBeNull(element),
@@ -1790,6 +1910,12 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
                     continue;
 
                 var filter = GetNamedString(attr, "Metric");
+                if (GetNamedBool(attr, "FromElement"))
+                {
+                    AddElementTag(attr, name, filter, resultType);
+                    continue;
+                }
+
                 var placed = Place(attr, "MetricTagFromResult", name, filter, MethodLocation(_method));
 
                 var member = attr.ConstructorArguments[1].Value as string ?? string.Empty;
@@ -1808,6 +1934,61 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             }
         }
 
+        /// <summary>
+        /// A <c>FromElement</c> tag: read from the element of each per-element metric it goes on, so one
+        /// model is made per metric, with the path resolved against that metric's element type. Every
+        /// metric it would go on must be a per-element one with an <c>ElementMember</c>, ZTEL028 otherwise.
+        /// </summary>
+        private void AddElementTag(AttributeData attr, string name, string? filter, ITypeSymbol resultType)
+        {
+            var location = AttributeLocations.Positional(attr, 1, "member", MethodLocation(_method));
+            _declared ??= DeclaredMetrics(_method);
+            var applies = ApplicableMetrics(attr, _target, _method, "MetricTagFromResult", name, filter, _declared, MethodLocation(_method), _diagnostics);
+            if (applies.Length == 0)
+                return;
+
+            if (GetNamedString(attr, "When") is not null)
+            {
+                ReportElementTag(location, "When is not read for a FromElement tag, which has no result to test; remove it");
+                return;
+            }
+
+            var member = attr.ConstructorArguments[1].Value as string ?? string.Empty;
+            var models = new List<MetricTagModel>();
+            foreach (var metric in applies)
+            {
+                if (ElementTypeOf(_compilation, _method, resultType, metric) is not { } element)
+                {
+                    ReportElementTag(
+                        location,
+                        $"it goes on the metric '{metric}', which is not a per-element one; per-element metrics set Each = true and an ElementMember, and a tag for another metric names it with Metric");
+                    return;
+                }
+
+                var path = PathResolver.Resolve(_compilation, ElementRoot(element), member);
+                if (!path.Resolved)
+                {
+                    ReportElementTag(
+                        location,
+                        string.IsNullOrEmpty(path.MissingSegment)
+                            ? $"the path '{member}' has an empty segment"
+                            : $"'{path.MissingSegment}' in the path '{member}' is not a readable instance property or field of '{path.MissingOn?.ToDisplayString()}', the element type of '{metric}'");
+                    return;
+                }
+
+                models.Add(new MetricTagModel(name, metric, path.Access!, path.CanBeNull, FromElement: true));
+            }
+
+            if (!IsUniqueOnItsMetrics(attr, _target, _method, "MetricTagFromResult", name, applies, _taken, MethodLocation(_method), _diagnostics))
+                return;
+
+            Tags.AddRange(models);
+        }
+
+        private void ReportElementTag(Location location, string problem) =>
+            _diagnostics.Add(DiagnosticInfo.Create(
+                InstrumentDiagnostics.ElementMetricProblem, location, "MetricTagFromResult", _target.ToDisplayString(), _method.Name, problem));
+
         private static string? Name(AttributeData attr) =>
             attr.ConstructorArguments.Length > 0 && attr.ConstructorArguments[0].Value is string { Length: > 0 } name
                 ? name
@@ -1821,6 +2002,43 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             var unique = IsUniqueOnItsMetrics(attr, _target, _method, shortName, name, applies, _taken, fallback, _diagnostics);
             return applies.Length > 0 && unique;
         }
+    }
+
+    /// <summary>
+    /// The element type of the per-element metric <paramref name="metric"/> of the method: a
+    /// <c>[CountFromResult]</c> or <c>[HistogramFromResult]</c> with <c>Each = true</c> and an
+    /// <c>ElementMember</c>. Null for any other metric, or when its member does not resolve, which its own
+    /// diagnostic reports.
+    /// </summary>
+    private static ITypeSymbol? ElementTypeOf(Compilation compilation, IMethodSymbol method, ITypeSymbol resultType, string metric)
+    {
+        foreach (var attr in method.GetAttributes())
+        {
+            MetricKind kind;
+            if (IsAttribute(attr, CountFromResultAttrFqn))
+                kind = MetricKind.Counter;
+            else if (IsAttribute(attr, HistogramFromResultAttrFqn))
+                kind = MetricKind.Histogram;
+            else
+                continue;
+
+            if (attr.ConstructorArguments.Length < 2
+                || !string.Equals(attr.ConstructorArguments[0].Value as string, metric, StringComparison.Ordinal)
+                || !GetNamedBool(attr, "Each")
+                || GetNamedString(attr, "ElementMember") is null)
+            {
+                continue;
+            }
+
+            var path = PathResolver.Resolve(compilation, resultType, attr.ConstructorArguments[1].Value as string ?? string.Empty);
+            if (!path.Resolved)
+                return null;
+
+            ClassifyEach(compilation, kind, path.FinalType!, path.CanBeNull, hasElementMember: true, out _, out var element);
+            return element;
+        }
+
+        return null;
     }
 
     /// <summary>

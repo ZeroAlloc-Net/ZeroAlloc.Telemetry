@@ -319,6 +319,102 @@ public class MetricConventionsTests
         proxy.Should().Contain("_recordEach(_sync, _result.Span, in _metricTags0);");
     }
 
+    [Fact]
+    public void EachWithAnElementMember_RecordsEachElementWithItsOwnTags_BehindEnabled()
+    {
+        var run = GeneratorCompilation.RunAll("""
+            using System.Collections.Immutable;
+            using System.Threading.Tasks;
+            using ZeroAlloc.Telemetry;
+            public sealed record Call(string? Model, long? Input, decimal Cost);
+            public sealed record Reply(ImmutableArray<Call?> Calls);
+            [Instrument("a")]
+            public interface IOps
+            {
+                [HistogramFromResult("usage", "Calls", Each = true, ElementMember = "Input")]
+                [CountFromResult("tokens", "Calls", Each = true, ElementMember = "Input")]
+                [HistogramFromResult("cost", "Calls", Each = true, ElementMember = "Cost")]
+                [MetricTagFromResult("model", "Model", FromElement = true, Metric = "usage")]
+                [MetricTagConstant("kind", "input", Metric = "usage")]
+                Task<Reply> RunAsync();
+            }
+            """);
+
+        run.GeneratorDiagnostics.Should().BeEmpty();
+        run.Errors.Should().BeEmpty();
+        run.Warnings.Should().BeEmpty();
+        var proxy = Proxy(run, "IOps");
+        proxy.Should().Contain("_usage.Enabled");
+        proxy.Should().Contain("foreach (var _each0 in");
+        proxy.Should().Contain("_each0 is { } _eachElement0 && _eachElement0?.Input is { } _eachValue0");
+        proxy.Should().Contain("_usage.Record(_eachValue0, in _metricTags0);");
+        proxy.Should().Contain("_tokens.Add(_eachValue1);");
+        proxy.Should().Contain("_eachElement2?.Cost is { } _eachValue2");
+        proxy.Should().Contain("_cost.Record((double)_eachValue2);");
+        // The element tag is added for one measurement and taken off again.
+        proxy.Should().Contain("_metricTags0.RemoveAt(_metricTags0.Count - 1);");
+        proxy.Split("RemoveAt").Length.Should().Be(2);
+    }
+
+    [Theory]
+    [InlineData(
+        "[HistogramFromResult(\"m\", \"Calls\", ElementMember = \"Input\")]",
+        "ElementMember reads a member of each element, so it needs Each = true")]
+    [InlineData(
+        "[HistogramFromResult(\"m\", \"Calls\", Each = true, ElementMember = \"Nope\")]",
+        "'Nope' in the ElementMember path 'Nope' is not a readable instance property or field of 'Call', the element type")]
+    [InlineData(
+        "[HistogramFromResult(\"m\", \"Calls\", Each = true, ElementMember = \"Input\")]\n"
+            + "[MetricTagFromResult(\"t\", \"Model\", FromElement = true, Metric = \"plain\")]\n"
+            + "[Count(\"plain\")]",
+        "it goes on the metric 'plain', which is not a per-element one")]
+    [InlineData(
+        "[HistogramFromResult(\"m\", \"Calls\", Each = true, ElementMember = \"Input\")]\n"
+            + "[MetricTagFromResult(\"t\", \"Model\", FromElement = true, When = \"X\")]",
+        "When is not read for a FromElement tag")]
+    [InlineData(
+        "[HistogramFromResult(\"m\", \"Calls\", Each = true, ElementMember = \"Input\")]\n"
+            + "[MetricTagFromResult(\"t\", \"Nope\", FromElement = true)]",
+        "'Nope' in the path 'Nope' is not a readable instance property or field of 'Call', the element type of 'm'")]
+    public void ElementMetricMisuse_ReportsZtel028(string attributes, string problem)
+    {
+        var run = GeneratorCompilation.RunAll($$"""
+            using System.Collections.Immutable;
+            using ZeroAlloc.Telemetry;
+            public sealed record Call(string? Model, long? Input);
+            public sealed record Reply(ImmutableArray<Call> Calls);
+            [Instrument("a")]
+            public interface IOps
+            {
+                {{attributes}}
+                Reply Run();
+            }
+            """);
+
+        var d = run.GeneratorDiagnostics.Should().ContainSingle().Subject;
+        d.Id.Should().Be("ZTEL028");
+        d.GetMessage(CultureInfo.InvariantCulture).Should().Contain(problem);
+        run.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void CountWithEach_OverAMemberThatIsNotIntegers_ReportsZtel009()
+    {
+        var run = GeneratorCompilation.RunAll("""
+            using ZeroAlloc.Telemetry;
+            public sealed class Shapes { public double[] Scores { get; init; } = []; }
+            [Instrument("a")]
+            public interface IOps
+            {
+                [CountFromResult("m", "Scores", Each = true)] Shapes Run();
+            }
+            """);
+
+        var d = run.GeneratorDiagnostics.Should().ContainSingle().Subject;
+        d.Id.Should().Be("ZTEL009");
+        d.GetMessage(CultureInfo.InvariantCulture).Should().Contain("integer elements");
+    }
+
     [Theory]
     [InlineData("Plain", "double", "With Each = true the member must be")]
     [InlineData("Enumerable", "System.Collections.Generic.IEnumerable<double>", "With Each = true the member must be")]

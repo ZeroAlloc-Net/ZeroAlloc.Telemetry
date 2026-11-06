@@ -22,6 +22,10 @@ namespace ZeroAlloc.Telemetry.Generator.Models;
 /// <param name="RootIsOut">
 /// Whether the root is an <c>out</c> parameter, which has no value on the throw path.
 /// </param>
+/// <param name="FromElement">
+/// Whether <see cref="Access"/> is read from the current element of a per-element metric, and the tag is
+/// added to that element's measurement only.
+/// </param>
 /// <param name="Root">
 /// What <see cref="Access"/> is appended to: the parameter for a <c>[MetricTag]</c>, or the
 /// literal for a <c>[MetricTagConstant]</c>. Null for a <c>[MetricTagFromResult]</c>, which reads
@@ -34,7 +38,8 @@ internal sealed record MetricTagModel(
     bool ValueCanBeNull,
     string? GuardExpression = null,
     string? Root = null,
-    bool RootIsOut = false)
+    bool RootIsOut = false,
+    bool FromElement = false)
 {
     /// <summary>Whether the tag reads the result, so it can only be added after a call that returned.</summary>
     public bool ReadsResult => Root is null;

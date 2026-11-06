@@ -485,6 +485,8 @@ public sealed class CountFromResultAttribute : Attribute
     public string Member { get; }
     public string? When { get; set; }
     public string? Unit { get; set; }
+    public bool Each { get; set; }
+    public string? ElementMember { get; set; }
     public string? Description { get; set; }
     public CountFromResultAttribute(string metric, string member);
 }
@@ -529,6 +531,7 @@ public sealed class HistogramFromResultAttribute : Attribute
     public string? Unit { get; set; }
     public double[]? Buckets { get; set; }
     public bool Each { get; set; }
+    public string? ElementMember { get; set; }
     public string? Description { get; set; }
     public HistogramFromResultAttribute(string metric, string member);
 }
@@ -576,6 +579,25 @@ if (_rag_document_score.Enabled)
 
 The elements are only iterated when a listener has enabled the instrument, and iterating allocates nothing. A null element is skipped. Tags are built once and shared by every element's measurement.
 
+### One measurement per record, with its own tags
+
+When the member is a collection of records, `ElementMember` is a dotted path from each element to the number to record, and `[MetricTagFromResult(..., FromElement = true)]` reads a tag from the same element. `[CountFromResult]` takes `Each` and `ElementMember` the same way, for integers. This keeps one span and one metric set per logical call while a call that fans out to several backends reports each backend's tokens under its own model:
+
+```csharp
+public sealed record Call(string Model, long? InputTokens, long? OutputTokens);
+public sealed record Response(ImmutableArray<Call> Calls);
+
+[HistogramFromResult("gen_ai.client.token.usage", "Calls", Each = true, ElementMember = "InputTokens", Unit = "{token}")]
+[MetricTagFromResult("gen_ai.response.model", "Model", FromElement = true, Metric = "gen_ai.client.token.usage")]
+[MetricTagConstant("gen_ai.token.type", "input", Metric = "gen_ai.client.token.usage")]
+Response Evaluate(Request request);
+```
+
+- The collection is an array or a type whose `GetEnumerator()` returns a struct, such as `ImmutableArray<T>` or `List<T>`. A span, an `IEnumerable<T>` or anything else whose enumerator would be allocated is reported as **ZTEL009**.
+- A null element, and an element whose value is null, are skipped. A null tag value adds no tag; the measurement is still recorded.
+- A `FromElement` tag goes on that element's measurement only. Other tags, constants and result tags are built once and shared. It applies only to metrics with `Each = true` and an `ElementMember`; name the metric with `Metric` when the method records others. Anything else, `ElementMember` without `Each`, a path that does not resolve on the element, or `When` on a `FromElement` tag is reported as **ZTEL028**.
+- Nothing is iterated while the instrument is disabled, and the call allocates nothing without a listener.
+
 ## [MetricTagFromResult]
 
 ```csharp
@@ -586,6 +608,7 @@ public sealed class MetricTagFromResultAttribute : Attribute
     public string Member { get; }
     public string? When { get; set; }
     public string? Metric { get; set; }
+    public bool FromElement { get; set; }
     public MetricTagFromResultAttribute(string name, string member);
 }
 ```

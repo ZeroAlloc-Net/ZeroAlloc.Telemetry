@@ -32,6 +32,11 @@ namespace ZeroAlloc.Telemetry.Generator.Models;
 /// For <c>[HistogramFromResult(Each = true)]</c>, how the member is iterated; otherwise
 /// <see cref="EachKind.None"/>.
 /// </param>
+/// <param name="ElementValueAccess">
+/// For <see cref="EachKind.Enumerable"/> with an <c>ElementMember</c>, the access to append to an element
+/// to read the value, such as <c>.InputTokens</c>; null when the element is the value.
+/// </param>
+/// <param name="ElementValueCanBeNull">Whether that value can be null and is skipped.</param>
 /// <param name="ElementCanBeNull">For <see cref="EachKind.Enumerable"/>, whether an element can be null and is skipped.</param>
 /// <param name="ElementIsDecimal">For <see cref="EachKind.Enumerable"/>, whether an element is cast from decimal.</param>
 internal sealed record MetricModel(
@@ -47,4 +52,6 @@ internal sealed record MetricModel(
     EquatableArray<string> Buckets = default,
     EachKind Each = EachKind.None,
     bool ElementCanBeNull = false,
-    bool ElementIsDecimal = false);
+    bool ElementIsDecimal = false,
+    string? ElementValueAccess = null,
+    bool ElementValueCanBeNull = false);
