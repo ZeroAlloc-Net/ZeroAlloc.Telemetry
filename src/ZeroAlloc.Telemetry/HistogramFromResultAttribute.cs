@@ -72,6 +72,20 @@ public sealed class HistogramFromResultAttribute : Attribute
     /// </remarks>
     public bool Each { get; set; }
 
+    /// <summary>
+    /// With <see cref="Each"/>, a dotted path from each element of <see cref="Member"/> to the number to
+    /// record, e.g. <c>InputTokens</c>, so the member can be a collection of records. Each element is one
+    /// measurement. A null element or a null value is skipped. Null records the elements themselves.
+    /// </summary>
+    /// <remarks>
+    /// The collection must be an array or a type whose <c>GetEnumerator()</c> returns a struct, such as
+    /// <c>ImmutableArray&lt;T&gt;</c> or <c>List&lt;T&gt;</c>. Tags that read the same element, with
+    /// <see cref="MetricTagFromResultAttribute.FromElement"/>, are added to that element's measurement
+    /// only. Setting this without <see cref="Each"/>, or a path that does not resolve, is reported as
+    /// <c>ZTEL028</c>.
+    /// </remarks>
+    public string? ElementMember { get; set; }
+
     /// <summary>The instrument's description. Null passes none.</summary>
     public string? Description { get; set; }
 

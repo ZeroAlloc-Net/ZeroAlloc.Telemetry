@@ -311,4 +311,17 @@ internal static class InstrumentDiagnostics
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
+
+    /// <summary>
+    /// A per-element metric or a <c>FromElement</c> tag that cannot be emitted: an <c>ElementMember</c>
+    /// without <c>Each</c>, one that does not resolve on the element, or an element tag on a metric that
+    /// is not a per-element one.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ElementMetricProblem = new(
+        id: "ZTEL028",
+        title: "Per-element metric problem",
+        messageFormat: "[{0}] on '{1}.{2}' records nothing for this part: {3}",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }

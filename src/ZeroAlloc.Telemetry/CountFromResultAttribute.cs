@@ -53,6 +53,22 @@ public sealed class CountFromResultAttribute : Attribute
     /// <summary>The instrument's unit, e.g. <c>{token}</c>. Null passes no unit.</summary>
     public string? Unit { get; set; }
 
+    /// <summary>
+    /// Adds every element of <see cref="Member"/> instead of the member itself, one measurement each, as
+    /// <see cref="HistogramFromResultAttribute.Each"/> does. The member must be an array or a type whose
+    /// <c>GetEnumerator()</c> returns a struct, with integer elements, or with <see cref="ElementMember"/>
+    /// naming the integer to add. The elements are only iterated when a listener has enabled the
+    /// instrument, and iterating allocates nothing.
+    /// </summary>
+    public bool Each { get; set; }
+
+    /// <summary>
+    /// With <see cref="Each"/>, a dotted path from each element of <see cref="Member"/> to the integer to add,
+    /// e.g. <c>InputTokens</c>. A null element or a null value is skipped. The rules of
+    /// <see cref="HistogramFromResultAttribute.ElementMember"/> apply.
+    /// </summary>
+    public string? ElementMember { get; set; }
+
     /// <summary>The instrument's description. Null passes none.</summary>
     public string? Description { get; set; }
 

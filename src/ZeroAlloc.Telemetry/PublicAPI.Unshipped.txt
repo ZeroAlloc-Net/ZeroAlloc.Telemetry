@@ -1,1 +1,9 @@
 #nullable enable
+ZeroAlloc.Telemetry.HistogramFromResultAttribute.ElementMember.get -> string?
+ZeroAlloc.Telemetry.HistogramFromResultAttribute.ElementMember.set -> void
+ZeroAlloc.Telemetry.CountFromResultAttribute.Each.get -> bool
+ZeroAlloc.Telemetry.CountFromResultAttribute.Each.set -> void
+ZeroAlloc.Telemetry.CountFromResultAttribute.ElementMember.get -> string?
+ZeroAlloc.Telemetry.CountFromResultAttribute.ElementMember.set -> void
+ZeroAlloc.Telemetry.MetricTagFromResultAttribute.FromElement.get -> bool
+ZeroAlloc.Telemetry.MetricTagFromResultAttribute.FromElement.set -> void

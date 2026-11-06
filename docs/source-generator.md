@@ -324,7 +324,7 @@ Every member an interface can declare either compiles in the proxy or is reporte
 | ZTEL006 | Warning | A `[Trace]` name contains a `{token}` that is neither `{type}` nor a parameter of the method |
 | ZTEL007 | Error | A segment of a member path or `When` names no readable, accessible instance property or field of the type reached so far. Reported at the argument, naming the segment and the type |
 | ZTEL008 | Error | `When`, or `ErrorWhen` on `[Trace]`, resolves to a member that is not `bool` or `bool?` |
-| ZTEL009 | Error | `[CountFromResult]`'s member does not convert implicitly to `long`, or `[HistogramFromResult]`'s member is not numeric. With `Each = true`, the member is not a span, memory, array or struct-enumerable of numbers, or is a span reached through a value that can be null. A member reached through `dynamic` cannot be checked, so it is reported too |
+| ZTEL009 | Error | `[CountFromResult]`'s member does not convert implicitly to `long`, or `[HistogramFromResult]`'s member is not numeric. With `Each = true`, the member is not a span, memory, array or struct-enumerable of numbers (integers for `[CountFromResult]`, which takes no span or memory), or is a span reached through a value that can be null. A member reached through `dynamic` cannot be checked, so it is reported too |
 | ZTEL010 | Warning | A segment of a `[TraceTag(name, member)]` or `[MetricTag(name, member)]` path names no readable, accessible instance property or field of the type reached so far, starting from the parameter. Reported at the argument; no tag is emitted for that parameter |
 | ZTEL011 | Warning | A `[MetricTagFromResult]`, `[MetricTag]` or `[MetricTagConstant]` is added to no metric: its `Metric` names no metric the method declares, reported at `Metric`, or the method declares no metric at all, reported at the tag name. A metric dropped for its own error still counts as declared |
 | ZTEL012 | Error | Two metric tags, of any kind, add the same tag name to one metric. Reported at the later one's tag name, which is not emitted |
@@ -342,6 +342,7 @@ Every member an interface can declare either compiles in the proxy or is reporte
 | ZTEL024 | Warning | A tag or name token reads a parameter value the proxy cannot read: an `out` parameter before the call, a ref struct value, or a ref struct argument of an awaitable method in a `[MetricTag]`. It is left out |
 | ZTEL025 | Error | The interface, or one it extends, has a static abstract member, which a proxy cannot forward. No proxy is generated |
 | ZTEL026 | Warning | Two `[TraceTag]` or `[TraceTagConstant]` of one method set the same tag name on the span. Reported at the later one's tag name, which is not set |
+| ZTEL028 | Error | A per-element metric or a `FromElement` tag cannot be emitted: `ElementMember` without `Each = true`, a path that does not resolve on the element, or a `FromElement` tag on a metric that is not a per-element one or with `When` |
 
 ZTEL007 and ZTEL008 mostly replace what used to be a compile error inside the generated proxy. Two cases compiled on 1.6.4 and are now errors:
 

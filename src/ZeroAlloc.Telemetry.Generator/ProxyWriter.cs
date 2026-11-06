@@ -827,17 +827,24 @@ internal static class ProxyWriter
         var field = fields.FieldFor(metric);
 
         List<MetricTagModel>? tags = null;
+        List<MetricTagModel>? elementTags = null;
         foreach (var tag in method.MetricTags)
         {
             // On the throw path there is no result, and an out parameter may have no value.
-            if (tag.AppliesTo(metric) && (root is not null || (!tag.ReadsResult && !tag.RootIsOut)))
+            if (!tag.AppliesTo(metric) || (root is null && (tag.ReadsResult || tag.RootIsOut)))
+                continue;
+
+            // A tag read from the element goes on that element's measurement only.
+            if (tag.FromElement)
+                (elementTags ??= new List<MetricTagModel>()).Add(tag);
+            else
                 (tags ??= new List<MetricTagModel>()).Add(tag);
         }
 
         // A declared error.type tag that applies on this path wins over the exception's type.
         var addErrorType = errorType
             && (tags is null || !tags.Any(static t => string.Equals(t.TagName, ErrorTypeTag, StringComparison.Ordinal)));
-        if (addErrorType)
+        if (addErrorType || elementTags is not null)
             tags ??= new List<MetricTagModel>();
 
         var enabled = field + ".Enabled";
@@ -872,7 +879,7 @@ internal static class ProxyWriter
         if (addErrorType)
             sb.AppendLine($"                {list}.Add({Literal(ErrorTypeTag)}, {ErrorTypeValue});");
 
-        WriteRecord(sb, "                ", metric, field, value, list, index);
+        WriteRecord(sb, "                ", metric, field, value, list, index, elementTags);
         sb.AppendLine("            }");
     }
 
@@ -881,7 +888,14 @@ internal static class ProxyWriter
     /// histogram. <paramref name="list"/> is the tag list, or null for none.
     /// </summary>
     private static void WriteRecord(
-        StringBuilder sb, string indent, MetricModel metric, string field, string value, string? list, int index)
+        StringBuilder sb,
+        string indent,
+        MetricModel metric,
+        string field,
+        string value,
+        string? list,
+        int index,
+        List<MetricTagModel>? elementTags = null)
     {
         var operation = metric.Kind == MetricKind.Counter ? "Add" : "Record";
         var tagArgument = list is null ? string.Empty : ", in " + list;
@@ -894,6 +908,10 @@ internal static class ProxyWriter
 
             case EachKind.Memory:
                 sb.AppendLine($"{indent}_recordEach({field}, {value}.Span{tagArgument});");
+                return;
+
+            case EachKind.Enumerable when metric.ElementValueAccess is not null:
+                WriteElementRecords(sb, indent, metric, field, value, list, index, elementTags);
                 return;
 
             case EachKind.Enumerable:
@@ -915,6 +933,89 @@ internal static class ProxyWriter
             default:
                 sb.AppendLine($"{indent}{field}.{operation}({value}{tagArgument});");
                 return;
+        }
+    }
+
+    /// <summary>
+    /// One measurement per element of a collection of records: the element and its value are bound by
+    /// patterns, so a null element or a null value is skipped, the tags that read the element are added
+    /// to the shared list for that one measurement and taken off again, and nothing is allocated.
+    /// </summary>
+    private static void WriteElementRecords(
+        StringBuilder sb,
+        string indent,
+        MetricModel metric,
+        string field,
+        string value,
+        string? list,
+        int index,
+        List<MetricTagModel>? elementTags)
+    {
+        var operation = metric.Kind == MetricKind.Counter ? "Add" : "Record";
+        var n = index.ToString(CultureInfo.InvariantCulture);
+        var each = "_each" + n;
+        var element = each;
+        var conditions = new List<string>();
+        if (metric.ElementCanBeNull)
+        {
+            element = "_eachElement" + n;
+            conditions.Add($"{each} is {{ }} {element}");
+        }
+
+        var number = element + metric.ElementValueAccess;
+        if (metric.ElementValueCanBeNull)
+        {
+            number = "_eachValue" + n;
+            conditions.Add($"{element}{metric.ElementValueAccess} is {{ }} {number}");
+        }
+
+        sb.AppendLine($"{indent}foreach (var {each} in {value})");
+        var body = indent + "    ";
+        if (conditions.Count > 0)
+        {
+            sb.AppendLine($"{body}if ({string.Join(" && ", conditions)})");
+            sb.AppendLine($"{body}{{");
+            body += "    ";
+        }
+        else
+        {
+            sb.AppendLine($"{body}{{");
+            body += "    ";
+        }
+
+        var measured = Cast(metric, number);
+        if (list is null || elementTags is null)
+        {
+            sb.AppendLine($"{body}{field}.{operation}({measured}{(list is null ? string.Empty : ", in " + list)});");
+        }
+        else
+        {
+            var kept = "_eachTags" + n;
+            sb.AppendLine($"{body}var {kept} = {list}.Count;");
+            for (var k = 0; k < elementTags.Count; k++)
+                WriteElementTag(sb, body, elementTags[k], list, element, $"_eachTag{n}_{k.ToString(CultureInfo.InvariantCulture)}");
+
+            sb.AppendLine($"{body}{field}.{operation}({measured}, in {list});");
+            sb.AppendLine($"{body}while ({list}.Count > {kept})");
+            sb.AppendLine($"{body}    {list}.RemoveAt({list}.Count - 1);");
+        }
+
+        sb.AppendLine($"{indent}    }}");
+    }
+
+    /// <summary>Adds one tag read from the current element; a null value adds no tag.</summary>
+    private static void WriteElementTag(
+        StringBuilder sb, string indent, MetricTagModel tag, string list, string element, string local)
+    {
+        var access = element + tag.Access;
+        if (tag.ValueCanBeNull)
+        {
+            sb.AppendLine($"{indent}if ({access} is {{ }} {local})");
+            sb.AppendLine($"{indent}    {list}.Add({Literal(tag.TagName)}, {local});");
+        }
+        else
+        {
+            sb.AppendLine($"{indent}{list}.Add({Literal(tag.TagName)}, {access});");
         }
     }
 

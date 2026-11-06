@@ -62,6 +62,19 @@ public sealed class MetricTagFromResultAttribute : Attribute
     /// </summary>
     public string? Metric { get; set; }
 
+    /// <summary>
+    /// Reads <see cref="Member"/> from the current element of the per-element metric it goes on, instead of
+    /// from the return value. The tag is then added to that element's measurement only, so each element can
+    /// carry its own dimension, such as the model that used the tokens.
+    /// </summary>
+    /// <remarks>
+    /// It applies only to metrics declared with <c>Each = true</c> and an <c>ElementMember</c>, and the path
+    /// is resolved against their element type. Set <see cref="Metric"/> when the method also records other
+    /// metrics. Any other metric it would go on, <see cref="When"/> being set, or a path that does not
+    /// resolve is reported as <c>ZTEL028</c>. A null value adds no tag.
+    /// </remarks>
+    public bool FromElement { get; set; }
+
     /// <summary>Adds <paramref name="member"/> of the return value as the tag <paramref name="name"/>.</summary>
     /// <param name="name">The tag key.</param>
     /// <param name="member">Dotted path from the awaited return value.</param>
