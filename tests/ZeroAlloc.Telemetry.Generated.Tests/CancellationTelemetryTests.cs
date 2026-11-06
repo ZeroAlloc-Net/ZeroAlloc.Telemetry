@@ -65,6 +65,20 @@ public sealed class CancellationTelemetryTests
             .Which.Should().Equal(new Dictionary<string, object?>(StringComparer.Ordinal) { ["error.type"] = ErrorType });
     }
 
+    // A [Histogram] with no [Trace] has no other way to opt in (#236).
+    [Fact]
+    public async Task HistogramCancellationIsErrorTrue_RecordsTheCallersCancellationAsAnError()
+    {
+        using var metrics = new MetricCapture(CancellableOperations.SourceName);
+        var proxy = new CancellableOperationsInstrumented(new CancellableOperations());
+
+        var call = () => proxy.HistogramOnlyAsync(new CancellationToken(canceled: true));
+
+        await call.Should().ThrowAsync<OperationCanceledException>().ConfigureAwait(true);
+        metrics.TagsOf("cancellable.histogram.duration").Should().ContainSingle()
+            .Which.Should().Equal(new Dictionary<string, object?>(StringComparer.Ordinal) { ["error.type"] = ErrorType });
+    }
+
     [Fact]
     public void ASynchronousCallerCancellation_LeavesTheDurationPointWithoutErrorType()
     {

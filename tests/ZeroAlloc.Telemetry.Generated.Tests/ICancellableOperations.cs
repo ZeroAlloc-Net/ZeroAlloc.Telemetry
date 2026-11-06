@@ -15,6 +15,9 @@ public interface ICancellableOperations
     [Histogram("cancellable.strict.duration")]
     Task StrictAsync(CancellationToken ct);
 
+    [Histogram("cancellable.histogram.duration", CancellationIsError = true)]
+    Task HistogramOnlyAsync(CancellationToken ct);
+
     [Histogram("cancellable.sync.duration")]
     int Run(CancellationToken ct);
 

@@ -21,6 +21,12 @@ public sealed class CancellableOperations : ICancellableOperations
         Cancel(ct);
     }
 
+    public async Task HistogramOnlyAsync(CancellationToken ct)
+    {
+        await Task.Yield();
+        Cancel(ct);
+    }
+
     public int Run(CancellationToken ct)
     {
         Cancel(ct);

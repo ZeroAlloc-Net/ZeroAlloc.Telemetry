@@ -1115,12 +1115,13 @@ internal static class ProxyWriter
     /// Cancellation the caller asked for, through one of the method's own tokens, is not an error of
     /// the operation. The span keeps its <c>Unset</c> status and is tagged <c>cancelled</c>, and the
     /// unguarded histogram records the call without <c>error.type</c>. The exception is rethrown.
-    /// Nothing is emitted for a method without a token, or with <c>CancellationIsError = true</c>.
+    /// Nothing is emitted for a method without a token, or with <c>CancellationIsError = true</c> on its
+    /// <c>[Trace]</c> or its <c>[Histogram]</c>.
     /// </summary>
     private static void WriteCallerCancellationCatch(
         StringBuilder sb, MethodModel method, MetricModel? histogram, MetricFieldTable fields, ref int tagLists, bool disposeSpan)
     {
-        if (method.Trace is { CancellationIsError: true })
+        if (method.Trace is { CancellationIsError: true } || histogram is { CancellationIsError: true })
             return;
 
         var tokens = method.Parameters

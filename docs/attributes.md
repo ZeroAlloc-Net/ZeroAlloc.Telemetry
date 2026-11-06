@@ -132,8 +132,16 @@ token. `CancellationIsError = true` records a caller's cancellation as an error 
 Task RunAsync(CancellationToken ct);
 ```
 
-On a method with a `[Histogram]` but no `[Trace]`, a caller's cancellation is never an
-error.
+On a method with a `[Histogram]` but no `[Trace]`, set it on the histogram:
+
+```csharp
+[Histogram("job.duration", CancellationIsError = true)]
+Task RunAsync(CancellationToken ct);
+```
+
+The setting is one per method: `true` on either attribute makes a caller's cancellation an
+error for the span and the histogram alike. Set to different values on both, `true` wins and the
+generator reports `ZTEL027`.
 
 ### Keeping the exception message out of the span
 
@@ -374,6 +382,7 @@ public sealed class HistogramAttribute : Attribute
     public string? Unit { get; set; }
     public string? Description { get; set; }
     public double[]? Buckets { get; set; }
+    public bool CancellationIsError { get; set; }
     public HistogramAttribute(string metric);
 }
 ```

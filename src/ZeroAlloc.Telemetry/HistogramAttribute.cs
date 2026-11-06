@@ -54,6 +54,20 @@ public sealed class HistogramAttribute : Attribute
     /// </remarks>
     public double[]? Buckets { get; set; }
 
+    /// <summary>
+    /// Records a cancellation the caller asked for as an error, with <c>error.type</c>.
+    /// </summary>
+    /// <remarks>
+    /// By default a call that throws an <see cref="System.OperationCanceledException"/> while one of
+    /// the method's own <see cref="System.Threading.CancellationToken"/> arguments is cancelled is
+    /// recorded without <c>error.type</c>, as it is not a failure of the operation. Set this to true
+    /// on a method that has no <see cref="TraceAttribute"/> to count such calls as failures in an
+    /// error rate. It has the same meaning as <see cref="TraceAttribute.CancellationIsError"/> and
+    /// applies to the whole method, its span as well: setting it on either attribute is enough. Set
+    /// differently on both, <c>true</c> wins and the generator reports <c>ZTEL027</c>.
+    /// </remarks>
+    public bool CancellationIsError { get; set; }
+
     /// <summary>The instrument's description. Null passes none.</summary>
     public string? Description { get; set; }
 
