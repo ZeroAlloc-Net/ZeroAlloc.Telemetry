@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.14.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.13.0...v1.14.0) (2026-11-11)
+
+
+### Features
+
+* add .NET 11 support ([#252](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/252)) ([cb61e92](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/cb61e9263b80baaa3e27b82f31aee1c32eaa2122))
+
+
+### Documentation
+
+* add context7.json to claim the library on Context7 ([#249](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/249)) ([f64d39c](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/f64d39cdfe295440d15536eb601b1f51fc709417))
+
 ## [1.13.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.12.7...v1.13.0) (2026-11-06)
 
 
