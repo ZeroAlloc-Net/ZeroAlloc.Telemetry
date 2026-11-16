@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.14.0...v1.14.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* embed PDBs so Go to Definition shows the package source ([#264](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/264)) ([d01a352](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/d01a35224e3ed9998e36969bb1e2568b59bbb005))
+
 ## [1.14.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.13.0...v1.14.0) (2026-11-11)
 
 
