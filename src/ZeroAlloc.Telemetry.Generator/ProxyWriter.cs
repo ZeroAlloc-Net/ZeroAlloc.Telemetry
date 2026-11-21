@@ -77,7 +77,7 @@ internal static class ProxyWriter
         // then rethrows with a bare `throw;`. Nothing is swallowed, so the diagnostic is a
         // false positive; suppressing it here spares every adopter their own <NoWarn>.
         // File-scoped, so it cannot leak into consumer-authored code.
-        sb.AppendLine("#pragma warning disable EPC12 // catch reads _ex for span status, then rethrows");
+        sb.AppendLine("#pragma warning disable EPC12 // catch reads _ex for error.type and the opt-in status message, then rethrows");
         sb.AppendLine("#nullable enable");
         sb.AppendLine();
         sb.AppendLine("using System;");
