@@ -161,7 +161,7 @@ if (echoedInt != 7 || !string.Equals(echoedText, "seven", StringComparison.Ordin
     return Fail($"EchoAsync expected 7 and seven, got {echoedInt} and {echoedText}");
 
 // The exception path: error.type names the exception on the span and on the duration point, and
-// ExceptionDescription = false keeps the exception's message out of the span.
+// by default the exception's message stays out of the span.
 Activity? cancelled = null;
 object? cancelErrorType = null;
 using var cancelSpans = new ActivityListener

@@ -518,6 +518,7 @@ public class MetricConventionsTests
 
         var d = run.GeneratorDiagnostics.Should().ContainSingle().Subject;
         d.Id.Should().Be("ZTEL010");
+        d.Severity.Should().Be(DiagnosticSeverity.Error);
         d.GetMessage(CultureInfo.InvariantCulture).Should().StartWith(
             "'Modle' in the path 'Modle' is not a readable instance property or field of 'Request', so [MetricTag] on 'request' records nothing.");
         Text(source, d).Should().Be("\"Modle\"");

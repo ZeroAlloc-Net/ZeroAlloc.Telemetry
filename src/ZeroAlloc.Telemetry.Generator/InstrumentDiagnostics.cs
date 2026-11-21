@@ -91,16 +91,16 @@ internal static class InstrumentDiagnostics
         isEnabledByDefault: true);
 
     /// <summary>
-    /// The <c>[TraceTag]</c> counterpart of ZTEL007. A warning, not an error: before this rule a
-    /// bad parameter path compiled and tagged the whole argument, so an error would break builds
-    /// that work today. The tag is not emitted, so this warning is the only sign of the typo.
+    /// The <c>[TraceTag]</c> counterpart of ZTEL007, and an error like it: the tag is not emitted,
+    /// so a build that passed would ship a span missing a tag its code asks for. It was a warning
+    /// until 2.0, because before the rule such a path compiled and tagged the whole argument.
     /// </summary>
     public static readonly DiagnosticDescriptor ParameterTagPathNotFound = new(
         id: "ZTEL010",
         title: "Parameter tag member path does not resolve",
         messageFormat: "'{0}' in the path '{1}' is not a readable instance property or field of '{2}', so [{4}] on '{3}' records nothing. Each segment of a member path names a property or field of the type reached so far, starting from the parameter.",
         category: Category,
-        defaultSeverity: DiagnosticSeverity.Warning,
+        defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
     /// <summary>ZTEL010 for a path with an empty segment; see <see cref="MemberPathEmptySegment"/>.</summary>
@@ -109,7 +109,7 @@ internal static class InstrumentDiagnostics
         title: "Parameter tag member path does not resolve",
         messageFormat: "The path '{0}' has an empty segment, so [{2}] on '{1}' records nothing. Each segment of a member path names a property or field of the type reached so far, starting from the parameter.",
         category: Category,
-        defaultSeverity: DiagnosticSeverity.Warning,
+        defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
     /// <summary>
@@ -147,14 +147,15 @@ internal static class InstrumentDiagnostics
 
     /// <summary>
     /// A nested interface's proxy is emitted inside partial declarations of its containing types,
-    /// so each of them must be partial.
+    /// so each of them must be partial. An error: no proxy is generated, so the code that asked for
+    /// one silently does not exist. It was a warning until 2.0.
     /// </summary>
     public static readonly DiagnosticDescriptor ContainingTypeNotPartial = new(
         id: "ZTEL013",
         title: "Instrumented interface inside a containing type that is not partial",
         messageFormat: "Instrumented interface '{0}' gets no proxy because its containing type '{1}' is not partial",
         category: Category,
-        defaultSeverity: DiagnosticSeverity.Warning,
+        defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
     /// <summary>A file-local interface is visible only in its own file, not in the proxy's.</summary>
@@ -300,16 +301,17 @@ internal static class InstrumentDiagnostics
         isEnabledByDefault: true);
 
     /// <summary>
-    /// Two span tags with one name, from <c>[TraceTag]</c> or <c>[TraceTagConstant]</c>. A warning,
-    /// not an error like ZTEL012: a span keeps the last value set, so such code ran before, but the
-    /// later tag silently replaced the earlier one.
+    /// Two span tags with one name, from <c>[TraceTag]</c> or <c>[TraceTagConstant]</c>. An error,
+    /// like ZTEL012: the later tag is not set, so one of the values the code asks for is lost. It
+    /// was a warning until 2.0, because before the rule such code compiled and the later tag
+    /// silently replaced the earlier one.
     /// </summary>
     public static readonly DiagnosticDescriptor DuplicateSpanTag = new(
         id: "ZTEL026",
         title: "Duplicate span tag name",
         messageFormat: "[{0}] adds the tag '{1}' to the span of '{2}.{3}', which another tag already sets. A span keeps one value per tag name, so remove or rename one of them; this one is not set.",
         category: Category,
-        defaultSeverity: DiagnosticSeverity.Warning,
+        defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
     /// <summary>

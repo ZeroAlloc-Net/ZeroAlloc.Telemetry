@@ -193,13 +193,13 @@ public class DiagnosticTests
     }
 
     [Fact]
-    public void ZTEL010_UnresolvedTraceTagPath_IsWarningAtTheArgument()
+    public void ZTEL010_UnresolvedTraceTagPath_IsErrorAtTheArgument()
     {
         var source = ChunksSource("[TraceTag(\"batch.size\", \"Cuont\")]");
         var diagnostics = RunAndCollectDiagnostics(source);
 
         var d = Single(diagnostics, "ZTEL010");
-        Assert.Equal(DiagnosticSeverity.Warning, d.Severity);
+        Assert.Equal(DiagnosticSeverity.Error, d.Severity);
         Assert.Equal("\"Cuont\"", LocationText(d));
         Assert.Equal(
             "'Cuont' in the path 'Cuont' is not a readable instance property or field of 'System.Collections.Generic.IReadOnlyList<string>', so [TraceTag] on 'chunks' records nothing. " + ParameterPathTail,
@@ -229,7 +229,7 @@ public class DiagnosticTests
         var diagnostics = RunAndCollectDiagnostics(source);
 
         var d = Single(diagnostics, "ZTEL010");
-        Assert.Equal(DiagnosticSeverity.Warning, d.Severity);
+        Assert.Equal(DiagnosticSeverity.Error, d.Severity);
         Assert.Equal("\"Count..Digits\"", LocationText(d));
         Assert.Equal(
             "The path 'Count..Digits' has an empty segment, so [TraceTag] on 'chunks' records nothing. " + ParameterPathTail,
@@ -273,8 +273,8 @@ public class DiagnosticTests
     }
 
     /// <summary>
-    /// ZTEL010 is a warning on code that built before it existed, so it has to be suppressible
-    /// where it is reported, as any other warning is.
+    /// ZTEL010 is an error since 2.0, but it stays suppressible where it is reported, so a consumer
+    /// who knowingly keeps such a tag can still silence it for that code alone.
     /// </summary>
     [Fact]
     public void ZTEL010_IsSuppressedByPragma()

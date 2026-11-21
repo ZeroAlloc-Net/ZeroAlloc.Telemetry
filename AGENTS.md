@@ -2,7 +2,7 @@
 
 A source generator plus a small attribute library. `[Instrument]` on an interface makes the generator
 emit a `<Name>Instrumented` proxy that wraps each call in an `Activity` span and `Meter` instruments.
-Two NuGet packages ship: `ZeroAlloc.Telemetry` (attributes, `net8.0` to `net11.0`, bundles the
+Two NuGet packages ship: `ZeroAlloc.Telemetry` (attributes, `net10.0` and `net11.0`, bundles the
 generator under `analyzers/dotnet/cs`) and `ZeroAlloc.Telemetry.Generator` (the same generator,
 standalone, `netstandard2.0`).
 
@@ -18,9 +18,8 @@ standalone, `netstandard2.0`).
 
 ## Build and test
 
-Prerequisites: `global.json` pins SDK 11.0.100 with `rollForward: latestFeature`. The test projects
-target `net9.0` and `net11.0`, so they need the .NET 9 and .NET 11 runtimes. The library also builds
-for `net8.0` and `net10.0`, but no test project targets those two.
+Prerequisites: `global.json` pins SDK 11.0.100 with `rollForward: latestFeature`. The library and the test
+projects target `net10.0` and `net11.0`, so they need the .NET 10 and .NET 11 runtimes.
 
 CI job `build` in `.github/workflows/ci.yml`:
 

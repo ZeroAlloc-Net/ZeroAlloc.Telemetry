@@ -51,7 +51,8 @@ public class SpanNamePerImplementationBehaviorTests
             }
             catch (Exception _ex)
             {
-                _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
+                _activity?.SetTag("error.type", _ex.GetType().FullName);
+                _activity?.SetStatus(ActivityStatusCode.Error);
                 throw;
             }
         }

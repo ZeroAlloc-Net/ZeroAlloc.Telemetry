@@ -44,7 +44,8 @@ public class GeneratedProxyBehaviorTests
             }
             catch (Exception _ex)
             {
-                _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
+                _activity?.SetTag("error.type", _ex.GetType().FullName);
+                _activity?.SetStatus(ActivityStatusCode.Error);
                 throw;
             }
         }
@@ -61,7 +62,8 @@ public class GeneratedProxyBehaviorTests
             }
             catch (Exception _ex)
             {
-                _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
+                _activity?.SetTag("error.type", _ex.GetType().FullName);
+                _activity?.SetStatus(ActivityStatusCode.Error);
                 _simple_get_ms.Record(Stopwatch.GetElapsedTime(_sw).TotalMilliseconds);
                 throw;
             }

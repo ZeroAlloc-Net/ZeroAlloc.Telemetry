@@ -144,7 +144,7 @@ private async ValueTask<OrderId> _core_CreateOrderAsync_0(CreateOrderCommand cmd
     catch (Exception _ex)
     {
         _activity?.SetTag("error.type", _ex.GetType().FullName);
-        _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
+        _activity?.SetStatus(ActivityStatusCode.Error);
         throw;
     }
 }
@@ -184,7 +184,7 @@ private async ValueTask<Order> _core_GetOrderAsync_1(OrderId id, CancellationTok
     catch (Exception _ex)
     {
         _activity?.SetTag("error.type", _ex.GetType().FullName);
-        _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
+        _activity?.SetStatus(ActivityStatusCode.Error);
         if (_order_get_ms.Enabled)
         {
             var _metricTags0 = new TagList();
@@ -325,10 +325,10 @@ Every member an interface can declare either compiles in the proxy or is reporte
 | ZTEL007 | Error | A segment of a member path or `When` names no readable, accessible instance property or field of the type reached so far. Reported at the argument, naming the segment and the type |
 | ZTEL008 | Error | `When`, or `ErrorWhen` on `[Trace]`, resolves to a member that is not `bool` or `bool?` |
 | ZTEL009 | Error | `[CountFromResult]`'s member does not convert implicitly to `long`, or `[HistogramFromResult]`'s member is not numeric. With `Each = true`, the member is not a span, memory, array or struct-enumerable of numbers (integers for `[CountFromResult]`, which takes no span or memory), or is a span reached through a value that can be null. A member reached through `dynamic` cannot be checked, so it is reported too |
-| ZTEL010 | Warning | A segment of a `[TraceTag(name, member)]` or `[MetricTag(name, member)]` path names no readable, accessible instance property or field of the type reached so far, starting from the parameter. Reported at the argument; no tag is emitted for that parameter |
+| ZTEL010 | Error | A segment of a `[TraceTag(name, member)]` or `[MetricTag(name, member)]` path names no readable, accessible instance property or field of the type reached so far, starting from the parameter. Reported at the argument; no tag is emitted for that parameter |
 | ZTEL011 | Warning | A `[MetricTagFromResult]`, `[MetricTag]` or `[MetricTagConstant]` is added to no metric: its `Metric` names no metric the method declares, reported at `Metric`, or the method declares no metric at all, reported at the tag name. A metric dropped for its own error still counts as declared |
 | ZTEL012 | Error | Two metric tags, of any kind, add the same tag name to one metric. Reported at the later one's tag name, which is not emitted |
-| ZTEL013 | Warning | A nested interface's containing type is not `partial`, so the proxy cannot be emitted next to it. Reported at the interface's name, naming the outermost containing type that is not `partial`; no proxy is generated |
+| ZTEL013 | Error | A nested interface's containing type is not `partial`, so the proxy cannot be emitted next to it. Reported at the interface's name, naming the outermost containing type that is not `partial`; no proxy is generated |
 | ZTEL014 | Error | The interface, or a type it is nested in, is `file`, so the proxy's file cannot see it. No proxy is generated |
 | ZTEL015 | Error | The interface's file name differs only in case from an earlier interface's, such as `App.IStore` and `App.Istore`. Roslyn compares file names ignoring case. Reported at the later interface, which gets no proxy |
 | ZTEL016 | Error | The interface's proxy has the same name as an earlier interface's proxy, such as `IStore` and `Store`, which both get `StoreInstrumented`. Reported at the later interface, which gets no proxy |
@@ -341,7 +341,7 @@ Every member an interface can declare either compiles in the proxy or is reporte
 | ZTEL023 | Warning | An instrumentation attribute is on an accessor of a property, indexer or event, or on a method returning by reference. The member is forwarded without instrumentation |
 | ZTEL024 | Warning | A tag or name token reads a parameter value the proxy cannot read: an `out` parameter before the call, a ref struct value, or a ref struct argument of an awaitable method in a `[MetricTag]`. It is left out |
 | ZTEL025 | Error | The interface, or one it extends, has a static abstract member, which a proxy cannot forward. No proxy is generated |
-| ZTEL026 | Warning | Two `[TraceTag]` or `[TraceTagConstant]` of one method set the same tag name on the span. Reported at the later one's tag name, which is not set |
+| ZTEL026 | Error | Two `[TraceTag]` or `[TraceTagConstant]` of one method set the same tag name on the span. Reported at the later one's tag name, which is not set |
 | ZTEL028 | Error | A per-element metric or a `FromElement` tag cannot be emitted: `ElementMember` without `Each = true`, a path that does not resolve on the element, or a `FromElement` tag on a metric that is not a per-element one or with `When` |
 | ZTEL027 | Warning | `[Trace]` and `[Histogram]` of one method set `CancellationIsError` to different values. The setting applies to the whole method and `true` wins |
 
@@ -352,9 +352,11 @@ ZTEL007 and ZTEL008 mostly replace what used to be a compile error inside the ge
 
 In both cases, expose a `bool` or an instance member on the result type. A path through `dynamic` still compiles; see [Member paths and When](attributes.md#member-paths-and-when).
 
-ZTEL013 to ZTEL017 replace what used to be a compile error inside the generated proxy, or for ZTEL015 a CS8785 that dropped every proxy in the project. ZTEL013 is a warning, so under `TreatWarningsAsErrors` it fails the build; make every containing type `partial`. Proxy names are unchanged, so a `PublicProxy` keeps its public name.
+ZTEL013 to ZTEL017 replace what used to be a compile error inside the generated proxy, or for ZTEL015 a CS8785 that dropped every proxy in the project. ZTEL013 is an error since 2.0; it was a warning before. Make every containing type `partial`. Proxy names are unchanged, so a `PublicProxy` keeps its public name.
 
-ZTEL010 is the parameter-side counterpart of ZTEL007, and a warning rather than an error. Before it existed, a `[TraceTag]` path that did not resolve compiled and tagged the whole argument, so an error would break builds that work today. The generator now emits no tag for that parameter, so the warning is the only signal and the span never carries the argument under a name that promises one of its members. Without `[Trace]` the path is not checked, since ZTEL004 already reports that the tag records nothing.
+ZTEL010 is the parameter-side counterpart of ZTEL007, and an error like it since 2.0. Before the rule existed, a `[TraceTag]` path that did not resolve compiled and tagged the whole argument, so it shipped as a warning first. The generator emits no tag for that parameter, so the span never carries the argument under a name that promises one of its members. Fix the path to name a member of the parameter's type, or remove the tag. Without `[Trace]` the path is not checked, since ZTEL004 already reports that the tag records nothing.
+
+ZTEL026 is an error since 2.0, like ZTEL012 for metrics; it was a warning because such code compiled before the rule and the later tag silently replaced the earlier one. Remove or rename one of the two tags.
 
 ## Release tracking
 

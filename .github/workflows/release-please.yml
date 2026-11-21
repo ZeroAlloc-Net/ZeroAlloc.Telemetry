@@ -85,7 +85,6 @@ jobs:
       solution: ZeroAlloc.Telemetry.slnx
       # Runtimes the tests target, besides the SDK that global.json pins.
       dotnet-version: |
-        9.0.x
         10.0.x
         11.0.x
       # nuget.org, plus GitHub Packages and the GitHub release, as before the shared workflow.
@@ -136,7 +135,6 @@ jobs:
         with:
           global-json-file: global.json
           dotnet-version: |
-            9.0.x
             10.0.x
 
       - name: Build the release tag
