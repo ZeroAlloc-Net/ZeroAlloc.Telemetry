@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.0.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.14.1...v2.0.0) (2026-11-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* net8.0 and net9.0 assets are no longer shipped; [Trace] no longer copies the exception message into the span unless ExceptionDescription = true is set; ZTEL013, ZTEL010 and ZTEL026 are now errors. See the Behaviour change section of the pull request for the migration steps.
+
+### Features
+
+* default [Trace] ExceptionDescription to false so exception messages stay out of spans ([466cef8](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/466cef8ba218d55c1da1a1d0f9530408f619e23d))
+* target net10.0 and net11.0, drop net8.0 and net9.0 ([466cef8](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/466cef8ba218d55c1da1a1d0f9530408f619e23d))
+
+
+### Bug Fixes
+
+* report ZTEL010 as an error when a tag member path names no property or field ([466cef8](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/466cef8ba218d55c1da1a1d0f9530408f619e23d))
+* report ZTEL013 as an error when a containing type of an instrumented interface is not partial ([466cef8](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/466cef8ba218d55c1da1a1d0f9530408f619e23d))
+* report ZTEL026 as an error when two span tags of one method share a name ([466cef8](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/466cef8ba218d55c1da1a1d0f9530408f619e23d))
+
 ## [1.14.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.14.0...v1.14.1) (2026-11-16)
 
 
