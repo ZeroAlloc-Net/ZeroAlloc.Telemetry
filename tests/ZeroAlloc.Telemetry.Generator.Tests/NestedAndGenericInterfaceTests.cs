@@ -258,7 +258,7 @@ public class NestedAndGenericInterfaceTests
 
         var ztel013 = run.GeneratorDiagnostics.Should().ContainSingle().Subject;
         ztel013.Id.Should().Be("ZTEL013");
-        ztel013.Severity.Should().Be(DiagnosticSeverity.Warning);
+        ztel013.Severity.Should().Be(DiagnosticSeverity.Error);
         ztel013.GetMessage(CultureInfo.InvariantCulture).Should().Be(
             "Instrumented interface 'App.Outer.IFoo' gets no proxy because its containing type 'App.Outer' is not partial");
         Text(source, ztel013).Should().Be("IFoo");

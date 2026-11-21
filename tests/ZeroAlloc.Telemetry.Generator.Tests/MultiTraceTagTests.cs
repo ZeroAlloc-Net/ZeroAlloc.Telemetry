@@ -110,7 +110,7 @@ public class MultiTraceTagTests
 
         run.GeneratorDiagnostics.Select(d => d.Id).Should().Equal("ZTEL026", "ZTEL026");
         var first = run.GeneratorDiagnostics[0];
-        first.Severity.Should().Be(DiagnosticSeverity.Warning);
+        first.Severity.Should().Be(DiagnosticSeverity.Error);
         first.GetMessage(CultureInfo.InvariantCulture).Should().Be(
             "[TraceTag] adds the tag 'server.address' to the span of 'IOps.Run', which another tag already sets. A span keeps one value per tag name, so remove or rename one of them; this one is not set.");
         first.Location.SourceTree!.GetText().ToString(first.Location.SourceSpan).Should().Be("\"server.address\"");
