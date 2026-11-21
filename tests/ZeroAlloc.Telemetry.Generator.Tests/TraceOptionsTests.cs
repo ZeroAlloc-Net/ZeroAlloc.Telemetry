@@ -280,9 +280,32 @@ public class TraceOptionsTests
         run.GeneratorDiagnostics.Should().BeEmpty();
         run.Errors.Should().BeEmpty();
         var proxy = Proxy(run, "IOps");
-        CountOf(proxy, "_activity?.SetTag(\"error.type\", _ex.GetType().FullName);").Should().Be(3);
-        CountOf(proxy, "_activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);").Should().Be(1);
-        CountOf(proxy, "_activity?.SetStatus(ActivityStatusCode.Error);").Should().Be(2);
+        var described = MethodText(proxy, "DescribedAsync()", "Explicit()");
+        var explicitOptIn = MethodText(proxy, "Explicit()", "QuietAsync()");
+        var quiet = MethodText(proxy, "QuietAsync()", null);
+        foreach (var method in new[] { described, explicitOptIn, quiet })
+            CountOf(method, "_activity?.SetTag(\"error.type\", _ex.GetType().FullName);").Should().Be(1);
+
+        CountOf(explicitOptIn, "_activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);").Should().Be(1);
+        CountOf(explicitOptIn, "_activity?.SetStatus(ActivityStatusCode.Error);").Should().Be(0);
+        foreach (var method in new[] { described, quiet })
+        {
+            CountOf(method, "_activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);").Should().Be(0);
+            CountOf(method, "_activity?.SetStatus(ActivityStatusCode.Error);").Should().Be(1);
+        }
+    }
+
+    /// <summary>
+    /// The proxy text from the declaration of <paramref name="signature"/> up to that of
+    /// <paramref name="next"/>, or to the end when it is null.
+    /// </summary>
+    private static string MethodText(string proxy, string signature, string? next)
+    {
+        var start = proxy.IndexOf(signature, StringComparison.Ordinal);
+        start.Should().BeGreaterThanOrEqualTo(0, "the proxy declares {0}", signature);
+        var end = next is null ? proxy.Length : proxy.IndexOf(next, start, StringComparison.Ordinal);
+        end.Should().BeGreaterThan(start, "the proxy declares {0} after {1}", next, signature);
+        return proxy[start..end];
     }
 
     /// <summary>
