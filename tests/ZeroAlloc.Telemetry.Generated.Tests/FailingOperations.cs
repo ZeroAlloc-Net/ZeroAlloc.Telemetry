@@ -9,6 +9,8 @@ public sealed class FailingOperations : IFailingOperations
 
     public Task DescribedAsync() => Later();
 
+    public Task DefaultAsync() => Later();
+
     public Task QuietAsync() => Later();
 
     public int Untraced() => throw new InvalidOperationException(Message);

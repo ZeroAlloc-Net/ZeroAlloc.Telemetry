@@ -44,8 +44,8 @@ public interface IOrderService
     int Pending { get; }
 
     // The exception path (#184): error.type on the span and the duration point, and the
-    // exception's message kept out of the span.
-    [Trace("order.cancel", ExceptionDescription = false)]
+    // exception's message kept out of the span, which is the default since #185.
+    [Trace("order.cancel")]
     [Histogram("order.cancel_ms")]
     ValueTask CancelAsync(string orderId);
 

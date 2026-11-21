@@ -4,7 +4,7 @@ namespace ZeroAlloc.Telemetry.Generated.Tests;
 
 /// <summary>
 /// A call that throws is classified by <c>error.type</c> on its span and its duration point, and
-/// its span takes the exception's message only when the method allows it (#184).
+/// its span takes the exception's message only when the method opts in (#184, #185).
 /// </summary>
 /// <remarks>The class is the only user of its source and meter.</remarks>
 public sealed class ExceptionPathTelemetryTests
@@ -27,6 +27,22 @@ public sealed class ExceptionPathTelemetryTests
         span.GetTagItem("error.type").Should().Be(ErrorType);
         metrics.TagsOf("failing.described.duration").Should().ContainSingle()
             .Which.Should().Equal(new Dictionary<string, object?>(StringComparer.Ordinal) { ["error.type"] = ErrorType });
+    }
+
+    [Fact]
+    public async Task ByDefault_TheMessageStaysOutOfTheSpan()
+    {
+        using var spans = new Spans();
+        var proxy = new FailingOperationsInstrumented(new FailingOperations());
+
+        var call = () => proxy.DefaultAsync();
+
+        await call.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(true);
+        var span = spans.Stopped.Should().ContainSingle().Subject;
+        span.Status.Should().Be(ActivityStatusCode.Error);
+        span.StatusDescription.Should().BeNull();
+        span.GetTagItem("error.type").Should().Be(ErrorType);
+        span.TagObjects.Select(t => t.Value).OfType<string>().Should().NotContain(v => v.Contains("secret", StringComparison.Ordinal));
     }
 
     [Fact]

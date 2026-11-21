@@ -260,10 +260,10 @@ public class TraceOptionsTests
 
     /// <summary>
     /// The exception path sets <c>error.type</c> on the span (#184), and takes the exception's
-    /// message as the status description unless <c>ExceptionDescription = false</c>.
+    /// message as the status description only with <c>ExceptionDescription = true</c> (#185).
     /// </summary>
     [Fact]
-    public void ExceptionPath_SetsErrorType_AndTheDescriptionOnlyWhenNotOptedOut()
+    public void ExceptionPath_SetsErrorType_AndTheDescriptionOnlyWhenOptedIn()
     {
         var run = GeneratorCompilation.RunAll("""
             using System.Threading.Tasks;
@@ -281,8 +281,8 @@ public class TraceOptionsTests
         run.Errors.Should().BeEmpty();
         var proxy = Proxy(run, "IOps");
         CountOf(proxy, "_activity?.SetTag(\"error.type\", _ex.GetType().FullName);").Should().Be(3);
-        CountOf(proxy, "_activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);").Should().Be(2);
-        CountOf(proxy, "_activity?.SetStatus(ActivityStatusCode.Error);").Should().Be(1);
+        CountOf(proxy, "_activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);").Should().Be(1);
+        CountOf(proxy, "_activity?.SetStatus(ActivityStatusCode.Error);").Should().Be(2);
     }
 
     /// <summary>

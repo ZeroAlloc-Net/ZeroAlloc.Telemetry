@@ -105,20 +105,21 @@ public sealed class TraceAttribute : Attribute
 
     /// <summary>
     /// Whether a span ended by an exception takes the exception's message as its status description.
-    /// Defaults to true. False sets the <see cref="System.Diagnostics.ActivityStatusCode.Error"/>
-    /// status with no description.
+    /// Defaults to false, which sets the <see cref="System.Diagnostics.ActivityStatusCode.Error"/>
+    /// status with no description. True adds the message.
     /// </summary>
     /// <remarks>
     /// <para>
     /// An exception message can carry request or response content, such as a prompt echoed back in
-    /// a provider's error. Set this to false on a method whose telemetry must not contain it.
+    /// a provider's error, so it stays out of telemetry unless a method opts in. Set this to true
+    /// only on a method whose exception messages are safe to record.
     /// </para>
     /// <para>
     /// The exception's full type name is set as <c>error.type</c> either way, on the span and on the
     /// histogram measurement recorded for the failed call, so the failure stays classifiable.
     /// </para>
     /// </remarks>
-    public bool ExceptionDescription { get; set; } = true;
+    public bool ExceptionDescription { get; set; }
 
     /// <summary>
     /// Whether a call the caller cancelled counts as an error. Defaults to false.

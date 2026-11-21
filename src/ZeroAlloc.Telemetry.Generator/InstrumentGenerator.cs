@@ -646,9 +646,8 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
 
         var kind = TraceKind(attr);
         var tagsAtStart = GetNamedBool(attr, "TagsAtStart");
-        // Defaults to true, so only an explicit false asks for anything.
-        var omitExceptionDescription = attr.NamedArguments.Any(static n =>
-            string.Equals(n.Key, "ExceptionDescription", StringComparison.Ordinal) && n.Value.Value is false);
+        // Defaults to false, so the exception's message reaches the span only on an explicit true.
+        var includeExceptionDescription = GetNamedBool(attr, "ExceptionDescription");
         var cancellationIsError = GetNamedBool(attr, "CancellationIsError");
         var errorWhen = GetNamedString(attr, "ErrorWhen");
         var errorDescription = GetNamedString(attr, "ErrorDescription");
@@ -670,12 +669,12 @@ public sealed class InstrumentGenerator : IIncrementalGenerator
             description = ErrorDescriptionAccess(compilation, attr, method, resultType, errorDescription, diagnostics);
         }
 
-        if (kind is null && guard is null && spanName.DisplayName is null && !tagsAtStart && !omitExceptionDescription
+        if (kind is null && guard is null && spanName.DisplayName is null && !tagsAtStart && !includeExceptionDescription
             && !cancellationIsError)
             return null;
 
         return new TraceOptions(
-            kind, guard, description, spanName.DisplayName, spanName.Copies, tagsAtStart, omitExceptionDescription,
+            kind, guard, description, spanName.DisplayName, spanName.Copies, tagsAtStart, includeExceptionDescription,
             cancellationIsError);
     }
 

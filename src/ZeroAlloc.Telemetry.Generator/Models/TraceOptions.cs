@@ -24,9 +24,9 @@ namespace ZeroAlloc.Telemetry.Generator.Models;
 /// the argument, so testing the copy leaves the forwarded argument's null-state alone.
 /// </param>
 /// <param name="TagsAtStart">Whether the constant and parameter tags go to <c>StartActivity</c>.</param>
-/// <param name="OmitExceptionDescription">
-/// Whether the exception path sets the error status without the exception's message, for
-/// <c>ExceptionDescription = false</c>.
+/// <param name="IncludeExceptionDescription">
+/// Whether the exception path sets the exception's message as the error status description, for
+/// <c>ExceptionDescription = true</c>. False sets the error status with no description.
 /// </param>
 /// <param name="CancellationIsError">
 /// Whether a call cancelled through the method's own <c>CancellationToken</c> still counts as an
@@ -39,5 +39,5 @@ internal sealed record TraceOptions(
     string? DisplayName,
     EquatableArray<string> DisplayNameCopies,
     bool TagsAtStart,
-    bool OmitExceptionDescription,
+    bool IncludeExceptionDescription,
     bool CancellationIsError = false);

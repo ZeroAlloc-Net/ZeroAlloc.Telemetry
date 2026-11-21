@@ -72,7 +72,7 @@ public sealed class TraceAttribute : Attribute
     public string? ErrorWhen { get; set; }
     public string? ErrorDescription { get; set; }
     public bool TagsAtStart { get; set; }
-    public bool ExceptionDescription { get; set; } = true;
+    public bool ExceptionDescription { get; set; }
     public bool CancellationIsError { get; set; }
     public TraceAttribute(string name);
 }
@@ -85,7 +85,9 @@ public sealed class TraceAttribute : Attribute
 - Span is started with `ActivitySource.StartActivity("name")` before the call.
 - Span is stopped automatically via `using` (disposed in `finally`).
 - On exception: `error.type` is set to the exception's full type name, the status to
-  `ActivityStatusCode.Error` with the exception's message, then the exception is rethrown.
+  `ActivityStatusCode.Error` with no description, then the exception is rethrown. The message
+  is opt-in; see
+  [The exception message as the status description](#the-exception-message-as-the-status-description).
 - A call the caller cancelled is not an error; see
   [A cancelled call is not an error](#a-cancelled-call-is-not-an-error).
 
@@ -106,7 +108,7 @@ catch (OperationCanceledException) when (ct.IsCancellationRequested)
 catch (Exception _ex)
 {
     _activity?.SetTag("error.type", _ex.GetType().FullName);
-    _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
+    _activity?.SetStatus(ActivityStatusCode.Error);
     throw;
 }
 ```
@@ -143,24 +145,30 @@ The setting is one per method: `true` on either attribute makes a caller's cance
 error for the span and the histogram alike. Set to different values on both, `true` wins and the
 generator reports `ZTEL027`.
 
-### Keeping the exception message out of the span
+### The exception message as the status description
 
 An exception message can carry request or response content, such as a prompt a
-provider echoes back in its error. `ExceptionDescription = false` sets the error
-status without a description:
+provider echoes back in its error. So by default the span gets the error status
+without a description, and the message stays out of telemetry. Set
+`ExceptionDescription = true` on a method whose exception messages are safe to
+record:
 
 ```csharp
-[Trace("chat", ExceptionDescription = false)]
-Task<ChatResult> ChatAsync(ChatRequest request, CancellationToken ct);
+[Trace("lookup", ExceptionDescription = true)]
+Task<Customer> LookupAsync(int id, CancellationToken ct);
 
 // Generated:
 catch (Exception _ex)
 {
     _activity?.SetTag("error.type", _ex.GetType().FullName);
-    _activity?.SetStatus(ActivityStatusCode.Error);
+    _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
     throw;
 }
 ```
+
+Before 2.0 the default was `true`. To keep the message on a span after upgrading,
+add `ExceptionDescription = true`; an `ExceptionDescription = false` left from
+before is now the default and can be removed.
 
 `error.type` is set either way, so a failed call stays classifiable. The type
 name is the OpenTelemetry semantic conventions' fallback for an operation that
@@ -450,7 +458,7 @@ private static readonly Histogram<double> _gen_ai_client_operation_duration =
         advice: new InstrumentAdvice<double> { HistogramBucketBoundaries = new double[] { 0.01, 0.02, /* ... */ 81.92 } });
 ```
 
-The boundaries must be finite and strictly increasing, or the generator reports **ZTEL019**: the runtime would otherwise throw when the proxy's static fields are initialised. Advice needs System.Diagnostics.DiagnosticSource 9.0, which .NET 9 and later include; on .NET 8 reference the 9.0 package, or the generator reports **ZTEL020**. When several methods record one metric, the first that declares buckets sets them. `[HistogramFromResult]` takes `Buckets` too.
+The boundaries must be finite and strictly increasing, or the generator reports **ZTEL019**: the runtime would otherwise throw when the proxy's static fields are initialised. Advice needs System.Diagnostics.DiagnosticSource 9.0, which every framework the package supports includes; a compilation without it gets **ZTEL020**. When several methods record one metric, the first that declares buckets sets them. `[HistogramFromResult]` takes `Buckets` too.
 
 ### Timing only successful calls
 
@@ -475,7 +483,7 @@ try
 catch (Exception _ex)
 {
     _activity?.SetTag("error.type", _ex.GetType().FullName);
-    _activity?.SetStatus(ActivityStatusCode.Error, _ex.Message);
+    _activity?.SetStatus(ActivityStatusCode.Error);
     throw;   // no Record: a guarded histogram has nothing to evaluate on a throw
 }
 ```
@@ -784,7 +792,7 @@ Every step is null-safe where the value can be null, so a null part-way along re
 
 The copy exists for a specific reason: the tagged argument is still forwarded to the wrapped call, and null-testing it directly would leave it maybe-null for the rest of the method — CS8604 in any consumer with nullable warnings enabled.
 
-Paths follow the rules in [Member paths and When](#member-paths-and-when), except that they start at the parameter rather than the return value. A segment that names no readable, accessible instance property or field is **ZTEL010**, a warning reported at the argument. No tag is emitted for that parameter, so a typo such as `[TraceTag("batch.size", "Cuont")]` records nothing rather than the whole list under `batch.size`.
+Paths follow the rules in [Member paths and When](#member-paths-and-when), except that they start at the parameter rather than the return value. A segment that names no readable, accessible instance property or field is **ZTEL010**, an error reported at the argument. No tag is emitted for that parameter, so a typo such as `[TraceTag("batch.size", "Cuont")]` records nothing rather than the whole list under `batch.size`.
 
 Without `[Trace]` there is no span to carry the tag, so the generator reports **ZTEL004** rather than silently dropping it.
 
@@ -804,8 +812,8 @@ ValueTask<ChatResponse> ChatAsync(
 
 Each tag is set in attribute order, or passed to `StartActivity` with `TagsAtStart`. A
 null-safe read shares one copy of the argument. Two tags with one name on a span, from any
-`[TraceTag]` or `[TraceTagConstant]` of the method, are reported as **ZTEL026**, and the later
-one is not set.
+`[TraceTag]` or `[TraceTagConstant]` of the method, are reported as **ZTEL026**, an error, and
+the later one is not set.
 
 ## [TraceTagFromResult]
 
