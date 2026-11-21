@@ -50,7 +50,7 @@ services.AddSingleton<IOrderService>(sp =>
     new OrderServiceInstrumented(sp.GetRequiredService<OrderServiceImpl>()));
 ```
 
-That's all. No OpenTelemetry SDK is required — `ActivitySource` and `Meter` are BCL types (`net8.0+`). Add exporters in your application startup independently.
+That's all. No OpenTelemetry SDK is required — `ActivitySource` and `Meter` are BCL types in every supported framework (`net10.0`, `net11.0`). Add exporters in your application startup independently.
 
 ---
 

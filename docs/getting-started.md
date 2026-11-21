@@ -18,12 +18,12 @@ The package bundles the attribute assembly and the Roslyn source generator. No s
 
 | Package | Description | TFM |
 |---|---|---|
-| `ZeroAlloc.Telemetry` | Attributes + bundled generator | `net8.0;net9.0;net10.0` |
+| `ZeroAlloc.Telemetry` | Attributes + bundled generator | `net10.0;net11.0` |
 | `ZeroAlloc.Telemetry.Generator` | Roslyn source generator (standalone) | `netstandard2.0` |
 
 The standalone `ZeroAlloc.Telemetry.Generator` package is still published for existing direct references; on its own it does nothing, because it only reacts to the `[Instrument]` attribute from `ZeroAlloc.Telemetry`.
 
-**Minimum requirements:** .NET 8, C# 12
+**Minimum requirements:** .NET 10, C# 12
 
 ## Step 1 — Annotate your interface
 
