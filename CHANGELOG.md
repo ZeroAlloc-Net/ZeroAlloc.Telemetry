@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.14.1...v1.14.2) (2026-11-22)
+
+
+### Bug Fixes
+
+* build the generator against Roslyn 5.0 so every .NET 10 SDK loads it ([#281](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/issues/281)) ([17caaaa](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/commit/17caaaaf5f26aa1b92689ca88f2319fe535b1f5c))
+
 ## [1.14.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/compare/v1.14.0...v1.14.1) (2026-11-16)
 
 
