@@ -72,7 +72,7 @@ CI job `sdk10-consumer` needs a 10.0.1xx SDK; `tests/ZeroAlloc.Telemetry.Sdk10Sm
 consumer of the packed packages with Roslyn 5.0:
 
 ```bash
-v=9.9.9-local.sha$(git rev-parse --short HEAD).$(date +%s).$$
+v=9.9.9-local.sha$(git rev-parse --short HEAD).$(date +%s).r$(od -An -N4 -tx4 /dev/urandom | tr -d " ")
 dotnet pack src/ZeroAlloc.Telemetry -c Release -o artifacts -p:Version="$v"
 dotnet pack src/ZeroAlloc.Telemetry.Generator -c Release -o artifacts -p:Version="$v"
 cd tests/ZeroAlloc.Telemetry.Sdk10Smoke/Consumer
