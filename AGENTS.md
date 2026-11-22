@@ -68,8 +68,28 @@ SHA=$(git rev-parse --short HEAD); dotnet pack ZeroAlloc.Telemetry.slnx -c Relea
 A short benchmark run for a local check: `dotnet run --project benchmarks/ZeroAlloc.Telemetry.Benchmarks -c Release -- --filter '*InstrumentedProxy*' --job Dry --inProcess`.
 It leaves a `BenchmarkDotNet.Artifacts` folder, which is git-ignored.
 
+CI job `sdk10-consumer` needs a 10.0.1xx SDK; `tests/ZeroAlloc.Telemetry.Sdk10Smoke/global.json` pins
+10.0.100 with `rollForward: latestPatch`, so a newer band cannot stand in for it. It builds and runs a
+consumer of the packed packages with Roslyn 5.0:
+
+```bash
+v=9.9.9-local.sha$(git rev-parse --short HEAD).$(date +%s)
+dotnet pack src/ZeroAlloc.Telemetry -c Release -o artifacts -p:Version="$v"
+dotnet pack src/ZeroAlloc.Telemetry.Generator -c Release -o artifacts -p:Version="$v"
+cd tests/ZeroAlloc.Telemetry.Sdk10Smoke/Consumer
+dotnet run -c Release -p:ZeroAllocTelemetryVersion="$v"
+```
+
+CI job `roslyn-floor` calls the shared `roslyn-floor.yml` from ZeroAlloc-Net/.github: it packs the
+solution and fails when a packed DLL references Roslyn above 5.0.0.
+
 ## Conventions and gotchas
 
+- The generator references `Microsoft.CodeAnalysis.CSharp` 5.0.0, the compiler of SDK band 10.0.1xx, the
+  oldest supported SDK. A compiler older than the Roslyn the DLL references skips the generator with
+  `CS9057`, and nothing is generated. The shared Renovate preset holds it below 5.1. If a newer Roslyn API
+  is needed, change the code; raise the floor only together with the minimum SDK. The generator test
+  project may use a newer Roslyn.
 - **Packing needs `-p:Version`.** The csproj versions are the placeholder `0.0.0-local`, and
   `Directory.Build.props` fails `dotnet pack` with ZAVERSION001 or ZAVERSION002 without a version
   passed on the command line. Builds and tests do not need it. After `dotnet build` without a version,

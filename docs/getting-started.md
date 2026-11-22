@@ -16,6 +16,8 @@ dotnet add package ZeroAlloc.Telemetry
 
 The package bundles the attribute assembly and the Roslyn source generator. No separate generator install is required.
 
+The generator needs the .NET 10 SDK 10.0.100 or later, or Visual Studio 2026 or later. It is built against Roslyn 5.0, and an older compiler skips it with warning CS9057, after which the generated `...Instrumented` proxy classes are missing. Version 1.14.1 was built against Roslyn 5.9 and loads only in SDK 10.0.4xx or later; on an older .NET 10 SDK, use 1.14.2 or later.
+
 | Package | Description | TFM |
 |---|---|---|
 | `ZeroAlloc.Telemetry` | Attributes + bundled generator | `net8.0;net9.0;net10.0` |
