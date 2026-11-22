@@ -84,3 +84,13 @@ Rule ID | Category            | Severity | Notes
 --------|---------------------|----------|-------------------------------------------------------------------------
 ZTEL028 | ZeroAlloc.Telemetry | Error    | A per-element metric or a FromElement tag cannot be emitted
 ZTEL027 | ZeroAlloc.Telemetry | Warning  | [Trace] and [Histogram] of one method set CancellationIsError differently
+
+## Release 2.0.0
+
+### Changed Rules
+
+Rule ID | New Category        | New Severity | Old Category        | Old Severity | Notes
+--------|---------------------|--------------|---------------------|--------------|----------------------------------------------------------------------
+ZTEL010 | ZeroAlloc.Telemetry | Error        | ZeroAlloc.Telemetry | Warning      | A [TraceTag] or [MetricTag] member path names no property or field; the tag is not emitted
+ZTEL013 | ZeroAlloc.Telemetry | Error        | ZeroAlloc.Telemetry | Warning      | Instrumented interface inside a containing type that is not partial
+ZTEL026 | ZeroAlloc.Telemetry | Error        | ZeroAlloc.Telemetry | Warning      | Two [TraceTag] or [TraceTagConstant] set one tag name on a span
